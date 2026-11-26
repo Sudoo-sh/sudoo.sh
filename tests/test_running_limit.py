@@ -9,7 +9,7 @@ from collections.abc import Iterator
 import pytest
 from flask.testing import FlaskClient
 
-from sudoo import accounts
+from sudoo import accounts, engines
 from sudoo.config import live
 from sudoo.core import jobs
 from sudoo.core.jobs import Job
@@ -186,12 +186,20 @@ def started(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 
     monkeypatch.setattr(jobs, "start", fake_start)
     monkeypatch.setattr(backups, "latest", lambda name: {"db": "x"})  # something to restore
+    monkeypatch.setattr(backups, "rollback_snapshot", lambda name: {"db": "x"})  # something to roll back to
+    monkeypatch.setattr(engines, "offered", lambda: [engines.DOCKER, engines.KUBERNETES])
     return names
 
 
 @pytest.mark.parametrize(
     ("action", "body"),
-    [("restart", {}), ("upgrade", {"modules": "base"}), ("restore", {})],
+    [
+        ("restart", {}),
+        ("upgrade", {"modules": "base"}),
+        ("restore", {}),
+        ("rollback", {}),
+        ("change-engine", {"engine": "kubernetes"}),
+    ],
     ids=lambda value: str(value),
 )
 def test_every_action_that_starts_a_stopped_instance_respects_the_running_limit(

@@ -25,7 +25,7 @@ from sudoo.config import live, settings
 from sudoo.core import audit, jobs
 from sudoo.core.jobs import Job
 from sudoo.core.state import STATE
-from sudoo.instances import backups, monitor, operations, store
+from sudoo.instances import backups, metrics, monitor, operations, store
 from sudoo.limits import quotas
 from sudoo.projects import access, branches, builds, compare, previews, promotion, refresh, staging
 from sudoo.repos import github, github_app, mirror
@@ -429,6 +429,34 @@ def test_the_scheduled_refresh_rebuilds_staging_and_skips_what_it_must(started: 
     result = refresh.run(projects.get(pid) or {})
     assert result["started"] == [] and result["skipped"] == [{"instance": "pm-qa", "reason": "the branch is locked"}]
     assert started == []
+
+
+def test_the_refresh_does_not_start_a_stopped_staging_instance_over_the_running_limit(started: list[Any]) -> None:
+    HEADS.update(main="a" * 40, qa="b" * 40)
+    pid = _project()
+    _instance("pm-main", "production", "main", pid)
+    _instance("pm-qa", "staging", "qa", pid)
+    _instance("pm-dev", "development", "feature", pid)
+    projects.record_branch(pid, "qa", stage="staging")
+    live.change({"max_running_instances": 1})
+    metrics.INSTANCES["pm-dev"] = {"running": True}  # the one running instance the server may have
+    try:
+        refresh.save(pid, refresh.clean({"frequency": "daily", "time": "03:00", "branches": ["qa"]}), "admin1")
+        result = refresh.run(projects.get(pid) or {})
+        assert result["started"] == [] and started == []
+        assert [s["instance"] for s in result["skipped"]] == ["pm-qa"] and "at most 1 instance" in result["skipped"][0][
+            "reason"
+        ]
+        metrics.INSTANCES["pm-dev"] = {"running": False}  # room again
+        result = refresh.run(projects.get(pid) or {})
+        assert result["started"] == ["pm-qa"] and [c[0] for c in started] == ["pm-qa"]
+        started.clear()
+        metrics.INSTANCES["pm-dev"] = {"running": True}
+        metrics.INSTANCES["pm-qa"] = {"running": True}  # a running staging instance is a restart: not refused
+        assert refresh.run(projects.get(pid) or {})["started"] == ["pm-qa"]
+    finally:
+        metrics.INSTANCES.pop("pm-dev", None)
+        metrics.INSTANCES.pop("pm-qa", None)
 
 
 def test_the_schedule_endpoints(admin: Client, viewer_client: Client, started: list[Any]) -> None:

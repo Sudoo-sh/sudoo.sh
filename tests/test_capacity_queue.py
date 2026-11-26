@@ -423,3 +423,101 @@ def test_a_start_is_refused_for_the_instances_own_owner_not_whoever_asks() -> No
     limit(own=1)
     assert capacity.start_refusal("dev-b") is not None  # sync1 owns it and runs one already
     assert capacity.start_refusal("prod") is None  # production is never refused
+
+
+def test_a_creation_goes_from_the_api_through_the_queue_to_its_start(admin: Client) -> None:
+    """Asked for, queued (the waiting time charged once), blocked by an instance the person made meanwhile, shown
+    with what it waits for, then started when that room is back."""
+    client, headers = admin
+    live.change({"create_cooldown_minutes": 60})
+    make("dev-a", "development", "sync1", True)
+    limit(panel=1)
+    payload = {"version": "18.0", "edition": "community", "name": "later", "stage": "development"}
+    assert client.post("/api/v1/instances", json=payload, headers=headers).status_code == 202
+    charged = dict(storage().get(quotas.CREATIONS, "admin1") or {})
+    assert charged["count"] == 1 and queue.names() == {"later"}
+    metrics.INSTANCES["dev-a"] = {"running": False}  # running room appears, but the person made an instance meanwhile
+    make("dev-b", "development", "admin1", False)
+    live.change({"max_instances_per_user": 1})
+    assert queue.dispatch() == [] and STARTED == []
+    shown = client.get("/api/v1/capacity-queue", headers=headers).get_json()["data"]
+    assert [i["instance"] for i in shown] == ["later"] and "most one user may have" in shown[0]["waiting_for"]
+    shutil.rmtree(store.folder("dev-b"))
+    assert queue.dispatch() == ["later"] and STARTED == [("later", "create")]
+    assert dict(storage().get(quotas.CREATIONS, "admin1") or {}) == charged  # the turn charged nothing
+
+
+def test_an_api_creation_and_a_queued_creation_of_one_person_never_both_take_the_last_place(
+    admin: Client, real_jobs: threading.Event, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Per-person limit of one instance: an API creation and the dispatch of a queued creation at the same moment
+    (the supported single-process model, both under quotas.LOCK): exactly one of them is created."""
+    client, headers = admin
+    release = real_jobs
+
+    def register(plan: dict[str, Any], user: str) -> Job:  # a creation job that stays registered, as a real one does
+        store.release_ports(plan.get("ports") or {})
+        return jobs.start(
+            str(plan["name"]), "Create instance", "create", lambda job, p: release.wait(20), plan, user=user
+        )
+
+    monkeypatch.setattr(planning, "start", register)
+    live.change({"max_instances_per_user": 1})
+    queue.enqueue_create(plan_for("later"), "admin1", "admin1", held("instances.create"))
+    codes: list[int] = []
+    results: list[list[str]] = []
+    gate = threading.Barrier(2)
+    payload = {"version": "18.0", "edition": "community", "name": "direct", "stage": "development"}
+
+    def api() -> None:
+        gate.wait()
+        codes.append(client.post("/api/v1/instances", json=payload, headers=headers).status_code)
+
+    def dispatch() -> None:
+        gate.wait()
+        results.append(queue.dispatch())
+
+    try:
+        threads = [threading.Thread(target=api), threading.Thread(target=dispatch)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(20)
+        created = len([1 for _, user in jobs.pending_creations() if user == "admin1"])
+        assert created == 1  # never two, whichever came first
+        assert (codes == [202]) != (results == [["later"]])  # exactly one of the two got the place
+        assert codes in ([202], [403]) and results in ([["later"]], [[]])
+    finally:
+        release.set()
+        for _ in range(100):
+            if not jobs.pending_creations():
+                break
+            time.sleep(0.05)
+
+
+def test_a_queued_creation_waits_while_the_persons_api_creation_is_still_running(
+    admin: Client, real_jobs: threading.Event, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The other order of the race, made certain: the API creation is registered first, so at its turn the queued
+    one sees it as an instance already (a creation that is not finished counts) and waits."""
+    client, headers = admin
+
+    def register(plan: dict[str, Any], user: str) -> Job:
+        store.release_ports(plan.get("ports") or {})
+        return jobs.start(
+            str(plan["name"]), "Create instance", "create", lambda job, p: real_jobs.wait(20), plan, user=user
+        )
+
+    monkeypatch.setattr(planning, "start", register)
+    live.change({"max_instances_per_user": 2})
+    queue.enqueue_create(plan_for("later"), "admin1", "admin1", held("instances.create"))
+    payload = {"version": "18.0", "edition": "community", "name": "direct", "stage": "development"}
+    assert client.post("/api/v1/instances", json=payload, headers=headers).status_code == 202
+    live.change({"max_instances_per_user": 1})
+    assert queue.dispatch() == [] and queue.names() == {"later"}
+    real_jobs.set()
+    for _ in range(100):
+        if not jobs.pending_creations():
+            break
+        time.sleep(0.05)
+    shutil.rmtree(store.folder("direct"), ignore_errors=True)

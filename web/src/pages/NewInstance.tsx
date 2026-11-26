@@ -36,6 +36,7 @@ import moduleWords from "@/i18n/modules";
 import engineWords from "@/i18n/kubernetes";
 import { PremiumSlot } from "@/premium/components";
 import { ago, number } from "@/lib/format";
+import { NEW_INSTANCE_TOUR } from "@/lib/tour";
 
 export function useDebounced<T>(value: T, delay = 450): T {
   const [shown, setShown] = useState(value);
@@ -320,7 +321,9 @@ export function NewInstancePage() {
 
   return (
     <Page>
-      <PageHead title={t.title}>{t.text}</PageHead>
+      <PageHead title={t.title} tour={NEW_INSTANCE_TOUR}>
+        {t.text}
+      </PageHead>
 
       {(waiting || full) && (
         <Callout tone="warning">
@@ -330,7 +333,7 @@ export function NewInstancePage() {
 
       <div className="new-instance-grid">
         <div className="stack">
-          <section className="card">
+          <section className="card" data-tour="new-code">
             <div className="card-head">
               <FolderGit2 />
               <h2>{t.code}</h2>
@@ -552,7 +555,7 @@ export function NewInstancePage() {
             </div>
           </section>
 
-          <section className="card">
+          <section className="card" data-tour="new-stage">
             <div className="card-head">
               <Layers />
               <h2>{t.stage}</h2>
@@ -720,6 +723,7 @@ export function NewInstancePage() {
                 loading={create.isPending}
                 disabled={!canCreate}
                 onClick={submit}
+                data-tour="new-create"
               >
                 {t.create}
               </Button>

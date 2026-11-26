@@ -93,6 +93,18 @@ const en = {
       title: "A planned change",
       body: "Each card says why a change is needed, what it works on, and its window.",
     },
+    "new-code": {
+      title: "Where the code comes from",
+      body: "Start from a branch of one of your repositories, or from plain Odoo.",
+    },
+    "new-stage": {
+      title: "The stage",
+      body: "The stage says what the instance is for: production, staging or development. Each card describes it.",
+    },
+    "new-create": {
+      title: "Create it",
+      body: "This button makes the instance once the form is ready. The tour never presses it.",
+    },
     "audit-filters": {
       title: "Find an entry",
       body: "Search the log, or narrow it by who, what, which instance and when.",
@@ -225,6 +237,18 @@ const ar: typeof en = {
     "maintenance-card": {
       title: "تغيير مخطّط",
       body: "كل بطاقة تذكر لماذا يلزم التغيير، وعلى ماذا يعمل، ونافذته.",
+    },
+    "new-code": {
+      title: "من أين تأتي الشيفرة",
+      body: "ابدأ من فرع في أحد مستودعاتك، أو من Odoo مجرّد.",
+    },
+    "new-stage": {
+      title: "المرحلة",
+      body: "تحدد المرحلة غرض البيئة: إنتاج أو تجهيز أو تطوير. وكل بطاقة تصفها.",
+    },
+    "new-create": {
+      title: "أنشئها",
+      body: "يُنشئ هذا الزر البيئة عندما يكتمل النموذج. الجولة لا تضغطه أبدًا.",
     },
     "audit-filters": {
       title: "ابحث عن سجل",

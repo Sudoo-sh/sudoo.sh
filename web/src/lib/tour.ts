@@ -119,6 +119,15 @@ export const MAINTENANCE_TOUR: TourDef = {
   steps: [{ id: "maintenance-card", target: "maintenance-card", doc: "manual/10-maintenance-windows.md" }],
 };
 
+export const NEW_INSTANCE_TOUR: TourDef = {
+  id: "new-instance-page",
+  steps: [
+    { id: "new-code", target: "new-code", doc: "USER_MANUAL.md#5-creating-an-instance" },
+    { id: "new-stage", target: "new-stage", doc: "USER_MANUAL.md#5-creating-an-instance" },
+    { id: "new-create", target: "new-create", doc: "USER_MANUAL.md#5-creating-an-instance" },
+  ],
+};
+
 export const PAGE_TOURS: readonly TourDef[] = [
   PROJECTS_TOUR,
   BACKUPS_TOUR,
@@ -131,6 +140,7 @@ export const PAGE_TOURS: readonly TourDef[] = [
   TEMPLATES_TOUR,
   GITHUB_TOUR,
   MAINTENANCE_TOUR,
+  NEW_INSTANCE_TOUR,
 ];
 
 /** Whether a tour may start by itself on its own: a page tour waits until the welcome tour has been seen. */

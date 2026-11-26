@@ -616,6 +616,8 @@ def refuse_without_premium(package_id: str, what: str) -> None:
     raise PremiumRequired(refused)
 
 
-def log(event: str, instance: str | None = None, detail: str | None = None, ok: bool = True) -> None:
-    """Audit-log an event of the signed-in user."""
-    audit.record(g.user["name"], client_ip(), event, instance=instance, ok=ok, detail=detail)
+def log(
+    event: str, instance: str | None = None, detail: str | None = None, ok: bool = True, *, whole: bool = False
+) -> None:
+    """Audit-log an event of the signed-in user. `whole`: keep `detail` beyond 300 characters (audit.record)."""
+    audit.record(g.user["name"], client_ip(), event, instance=instance, ok=ok, detail=detail, whole=whole)

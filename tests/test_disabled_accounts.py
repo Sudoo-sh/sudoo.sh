@@ -337,3 +337,24 @@ def test_two_changes_at_once_cannot_each_leave_the_other_super_admin_as_the_last
     finally:
         for name, value in original.items():
             accounts.update(name, **{methods.FIELD: value})
+
+
+def test_a_reason_of_the_full_length_is_kept_whole_in_the_account_and_the_audit_log(
+    admin: Client, people: None
+) -> None:
+    client, headers = admin
+    why_off = ("off-" + "x" * 292) + "END1"  # 300 characters, the most the route accepts
+    why_on = ("on-" + "y" * 293) + "END2"
+    assert len(why_off) == len(why_on) == accounts.REASON_MAX
+    assert client.post("/api/v1/users/dis-dev/disable", json={"reason": why_off}, headers=headers).status_code == 200
+    assert (accounts.get("dis-dev") or {})["disabled_reason"] == why_off
+    assert client.post("/api/v1/users/dis-dev/enable", json={"reason": why_on}, headers=headers).status_code == 200
+    details = [str(e.get("detail")) for e in audit.latest(limit=30)]
+    assert f"dis-dev: {why_off}" in details  # the disable line, to the last character
+    assert f"dis-dev: {why_on} (it was disabled because: {why_off})" in details  # both reasons in the enable line
+
+
+def test_the_service_refuses_a_reason_that_is_too_long_instead_of_cutting_it(people: None) -> None:
+    with pytest.raises(ValueError, match="at most 300"):
+        accounts.disable("dis-dev", "admin1", "z" * (accounts.REASON_MAX + 1))
+    assert not accounts.is_disabled(accounts.get("dis-dev"))

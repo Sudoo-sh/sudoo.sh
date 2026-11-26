@@ -59,12 +59,16 @@ def record(
     instance: str | None = None,
     ok: bool = True,
     detail: object = None,
+    *,
+    whole: bool = False,
 ) -> None:
+    """Record an event. `detail` is cut to 300 characters, unless `whole`: for a text made of parts whose length the
+    caller has checked already (such as an account's reason), which must be kept to the last character."""
     entry: dict[str, Any] = {"ts": round(time.time()), "user": user, "ip": ip, "event": event, "ok": ok}
     if instance:
         entry["instance"] = instance
     if detail:
-        entry["detail"] = str(detail)[:300]
+        entry["detail"] = str(detail) if whole else str(detail)[:300]
     project, branch = _scope(instance, entry.get("detail"))
     if project:
         entry["project"] = project

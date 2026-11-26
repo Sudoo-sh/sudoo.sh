@@ -108,6 +108,7 @@ _SCRYPT = {"n": 2**15, "r": 8, "p": 1}  # 32 MB of memory and about 0.1 s per ha
 _MAXMEM = 64 * 1024 * 1024
 _ALGORITHM = "scrypt-peppered"
 _LOCK = threading.Lock()
+REASON_MAX = 300  # characters of the reason an account is disabled or enabled for (kept whole)
 
 
 def session_secret() -> str:
@@ -544,6 +545,8 @@ def disable(username: str, by: str, reason: str) -> bool:
     reason = reason.strip()
     if not reason:
         raise ValueError("Say why: the reason is kept for the other administrators.")
+    if len(reason) > REASON_MAX:  # the route's own limit: refused, never cut
+        raise ValueError(f"The reason is at most {REASON_MAX} characters.")
     with _LOCK:
         users = all_users()
         account = users.get(username)
@@ -557,7 +560,7 @@ def disable(username: str, by: str, reason: str) -> bool:
         problem = _way_in_problem(users, username, {"disabled": True})
         if problem:
             raise ValueError(problem)
-        update(username, disabled=True, disabled_at=time.time(), disabled_by=by, disabled_reason=reason[:300])
+        update(username, disabled=True, disabled_at=time.time(), disabled_by=by, disabled_reason=reason)
         end_sessions(username)  # a new session version: every cookie of the account stops working
         return True
 

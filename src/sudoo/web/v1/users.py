@@ -311,7 +311,7 @@ def disable_user(name: str) -> Response:
     if name == g.user["name"]:
         abort(400, "You cannot disable the account you are signed in with.")
     _guard(roles.normalize(account["role"]))
-    reason = check.text(check.body(), "reason", max_length=300).strip()
+    reason = check.text(check.body(), "reason", max_length=accounts.REASON_MAX).strip()
     _refuse_without_break_glass(name, {"disabled": True})  # the last super admin that signs in with a password stays
     try:
         changed = accounts.disable(name, g.user["name"], reason)
@@ -319,7 +319,7 @@ def disable_user(name: str) -> Response:
         log("refused: disable an account", ok=False, detail=f"{name}: {error}")
         abort(400, str(error))
     if changed:
-        log("account disabled", detail=f"{name}: {reason}")
+        log("account disabled", detail=f"{name}: {reason}", whole=True)  # reason: at most 300, kept whole
     return ok(user_resource(name, accounts.get(name) or {}), meta={"changed": changed})
 
 
@@ -329,13 +329,17 @@ def enable_user(name: str) -> Response:
     """Enable a disabled account again."""
     account = _account(name)
     _guard(roles.normalize(account["role"]))
-    reason = check.text(check.body(), "reason", max_length=300).strip()
+    reason = check.text(check.body(), "reason", max_length=accounts.REASON_MAX).strip()
     try:
         was = accounts.enable(name, reason)  # the reason it was disabled for, read under the lock; None: it was not
     except ValueError as error:
         abort(400, str(error))
     if was is not None:
-        log("account enabled", detail=f"{name}: {reason} (it was disabled because: {was or 'no reason recorded'})")
+        log(
+            "account enabled",
+            detail=f"{name}: {reason} (it was disabled because: {was or 'no reason recorded'})",
+            whole=True,  # both reasons (each at most 300) are kept whole
+        )
     return ok(user_resource(name, accounts.get(name) or {}), meta={"changed": was is not None})
 
 

@@ -34,7 +34,7 @@ _NAME = (
     r"[\w.-]*(?:pass(?:word|wd|phrase)?|pwd|secret|token|api[_-]?key|apikey|access[_-]?key|private[_-]?key|"
     r"credential|auth|signature|cookie|session[_-]?id|dsn|connection[_-]?string|(?<![a-z])key(?![a-z]))[\w.-]*"
 )
-_PAIR = re.compile(rf"(?i)(?<![\w-])((?:--)?{_NAME})([\"']?\s*[:=]\s*)(\"[^\"]*\"|'[^']*'|[^\s,;&)}}\]]+)")
+_PAIR = re.compile(rf"(?i)(?<![\w-])((?:--)?{_NAME})([\"']?\s*[:=]\s*)(\"[^\"]*\"|'[^']*'|[^\n]+)")
 _FLAG = re.compile(
     r"(?i)(--[\w-]*(?:pass(?:word|wd)?|token|secret|api[_-]?key|access[_-]?key|auth)[\w-]*\s+)(\"[^\"]*\"|'[^']*'|\S+)"
 )

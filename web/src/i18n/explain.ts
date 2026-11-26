@@ -36,7 +36,7 @@ const en = {
     enabled: "Allow AI explanations",
     endpoint: "Endpoint (chat completions URL)",
     endpointHint:
-      "Must be listed, as host:port, in EXPLAIN_ALLOWED_DESTINATIONS in the server's settings, and must be a public address. Servers on a private network are not supported in this version.",
+      "Must be listed, as host:port, in EXPLAIN_ALLOWED_DESTINATIONS in the server's settings, and must be a public address. Servers on a private network are not supported in this version. The address is shown to administrators as plain text: put the key in the key field only, and nothing secret in the address.",
     model: "Model name",
     key: "API key",
     keySet: "A key is saved. Leave empty to keep it.",
@@ -85,7 +85,7 @@ const ar: typeof en = {
     enabled: "السماح بالشرح بالذكاء الاصطناعي",
     endpoint: "الوجهة (رابط chat completions)",
     endpointHint:
-      "يجب أن تكون مدرجة بصيغة host:port في EXPLAIN_ALLOWED_DESTINATIONS ضمن إعدادات الخادم، وأن تكون عنوانًا عامًا. الخوادم في شبكة خاصة غير مدعومة في هذا الإصدار.",
+      "يجب أن تكون مدرجة بصيغة host:port في EXPLAIN_ALLOWED_DESTINATIONS ضمن إعدادات الخادم، وأن تكون عنوانًا عامًا. الخوادم في شبكة خاصة غير مدعومة في هذا الإصدار. يظهر العنوان للمسؤولين كنص عادي: ضع المفتاح في حقل المفتاح فقط، ولا تضع أي سر في العنوان.",
     model: "اسم النموذج",
     key: "مفتاح API",
     keySet: "المفتاح محفوظ. اتركه فارغًا للإبقاء عليه.",

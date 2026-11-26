@@ -128,3 +128,31 @@ def test_review_findings_short_secrets_are_hidden(secret: str, line: str) -> Non
 )
 def test_review_fixes_leave_ordinary_words_alone(line: str) -> None:
     assert scrub(line)[0] == line
+
+
+@pytest.mark.parametrize(
+    ("tail", "line"),
+    [
+        ("bar", "adminpwd=foo bar"),
+        ("two words", "SECRET_KEY=one two words"),
+        ("tail", "password: a b c tail"),
+        ("tail", "db_password=first second tail"),
+    ],
+)
+def test_an_unquoted_secret_with_spaces_is_hidden_to_the_end_of_the_line(tail: str, line: str) -> None:
+    text, _ = scrub(line)
+    assert tail not in text and "foo" not in text and "first" not in text and "one" not in text, text
+
+
+def test_ordinary_lines_with_key_or_password_words_stay() -> None:
+    for line in (
+        "KeyError: 'name'",
+        "duplicate key value violates unique constraint",
+        "password authentication failed for user odoo",
+    ):
+        assert scrub(line)[0] == line
+
+
+def test_over_hiding_is_known() -> None:
+    # "token was <word>" is read as a secret named by the word before "was": ordinary text can lose a word
+    assert "<hidden>" in scrub("the token was not valid")[0]

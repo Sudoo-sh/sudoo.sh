@@ -63,7 +63,7 @@ def test_a_listed_public_host_is_allowed_and_resolved_once(monkeypatch: pytest.M
     "bad",
     ["169.254.169.254", "169.254.0.5", "fe80::1", "::ffff:169.254.169.254", "100.100.100.200", "192.0.0.192",
      "fd00:ec2::254", "0.0.0.0", "224.0.0.1", "::", "64:ff9b::a9fe:a9fe", "64:ff9b::7f00:1",
-     "::169.254.169.254", "::a9fe:a9fe", "::10.0.0.1", "2002:a9fe:a9fe::1"],
+     "::169.254.169.254", "::a9fe:a9fe", "::7f00:1", "64:ff9b::0a00:1", "::c0a8:101", "64:ff9b::ac10:1", "::10.0.0.1", "2002:a9fe:a9fe::1"],
 )  # fmt: skip
 @pytest.mark.parametrize("entry", ["api.models.example:443", "local:api.models.example:443"])
 def test_metadata_link_local_and_the_like_are_refused_even_when_listed_or_local(

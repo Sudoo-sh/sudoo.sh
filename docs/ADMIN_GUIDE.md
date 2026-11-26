@@ -3366,7 +3366,7 @@ panel runs nothing and changes nothing because of it.
    network or the same machine are **not supported in this version** (a later mode would need its own review). The
    panel's own address and cloud metadata or link-local addresses are always refused.
 2. In Settings enter the chat-completions URL (no query string, parameters or `#`: the address is shown as plain text
-   to administrators, so put the key in the key field only), a model name and an API key (saved in the panel's vault, never shown
+   to administrators, so put the key in the key field only, and nothing secret in the path either: the panel does not treat the address as a secret), a model name and an API key (saved in the panel's vault, never shown
    again), and switch it on.
 3. Turn it on for each project that should use it (a person with `projects.manage`, from a failed build's card).
 

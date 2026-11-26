@@ -301,14 +301,23 @@ def test_a_new_branch_gets_the_branchs_demo_data(started: list[Any], monkeypatch
 @pytest.mark.parametrize(
     ("sample", "status", "words"),
     [
-        ("odoo17_failed.log", "failed", "At least one test failed when loading the modules (sale_custom). 1 failed, "
-                                        "0 with errors, of 14 tests."),  # fmt: skip
+        (
+            "odoo17_failed.log",
+            "failed",
+            "At least one test failed when loading the modules (sale_custom). 1 failed, 0 with errors, of 14 tests.",
+        ),  # fmt: skip
         ("odoo18_passed_with_warning.log", "warning", "Tests passed with 1 warning in Odoo's log."),
-        ("odoo19_error.log", "failed", "At least one test failed when loading the modules (stock_custom). 0 failed, "
-                                       "1 with errors, of 8 tests."),  # fmt: skip
+        (
+            "odoo19_error.log",
+            "failed",
+            "At least one test failed when loading the modules (stock_custom). 0 failed, 1 with errors, of 8 tests.",
+        ),  # fmt: skip
         ("odoo19_passed.log", "success", "8 tests passed."),
-        ("odoo15_failed.log", "failed", "At least one test failed when loading the modules (sale_custom). 1 failed, "
-                                        "0 with errors, of 6 tests."),  # fmt: skip
+        (
+            "odoo15_failed.log",
+            "failed",
+            "At least one test failed when loading the modules (sale_custom). 1 failed, 0 with errors, of 6 tests.",
+        ),  # fmt: skip
     ],
 )
 def test_reading_odoos_test_log(sample: str, status: str, words: str) -> None:
@@ -562,3 +571,53 @@ def test_a_build_keeps_its_tests_counts(fake_github: list[Any], admin: Client) -
     assert shown[0]["status"] == "failed"
     assert shown[0]["tests"] == {"status": "failed", "tests": 132, "failed": 1, "errors": 0, "warnings": 2,
                                  "modules": ["sale_custom"]}  # fmt: skip
+
+
+def _failed_build(project: dict[str, Any], failure: dict[str, Any] | None) -> None:
+    job = Job("bo-dev", "Create instance", "create", "t")
+    job.details = {"build": "create", "project": project["id"], "branch": "dev"}
+    builds.job_started(job)
+    job.status, job.finished = "failed", time.time()
+    job.failure = failure
+    builds.job_ended(job)
+
+
+def test_the_failed_status_names_the_step_and_the_recognised_cause(fake_github: list[Any]) -> None:
+    project = _project()
+    rule = {"id": "port_in_use", "title": "A port is already in use", "explanation": "x", "fix": "y", "captured": {}}
+    _failed_build(project, {"step": "Starting Odoo", "reason": "r", "kind": "other", "details": [], "rule": rule})
+    posted = [body for method, path, body in fake_github if "/statuses/" in path]
+    assert posted[-1]["state"] == "error"
+    assert posted[-1]["description"] == "Start: A port is already in use"
+    assert posted[-1]["target_url"].endswith("/branches/dev")  # the link to the panel stays
+
+
+def test_the_failed_status_without_a_rule_keeps_the_older_text(fake_github: list[Any]) -> None:
+    project = _project()
+    _failed_build(project, {"step": "Start Odoo", "reason": "r", "kind": "other", "details": []})
+    posted = [body for method, path, body in fake_github if "/statuses/" in path]
+    assert posted[-1]["description"]  # the build's own result text, as before
+    assert "Starting" not in posted[-1]["description"]
+
+
+def test_the_status_never_carries_names_from_the_step_title() -> None:
+    rule = {"title": "A port is already in use"}
+    for step in (
+        "Downloading the latest code of feature/ghs_SECRETTOKEN123456789 /srv/sudoo/data/x",
+        "Loading the backup of acme-secret-instance of 2026-11-01 into database db_SECRET",
+        "Installing modules secret_mod",
+        "Something unexpected with /home/root/key and password=hunter2",
+    ):
+        text = commit_status.failure_description({"step": step, "rule": rule}, "old")
+        assert text in {"Code download: A port is already in use", "Database: A port is already in use",
+                        "Modules: A port is already in use", "A port is already in use"}  # fmt: skip
+        assert not any(bad in text for bad in ("ghs_", "SECRET", "secret", "/srv", "/home", "hunter2", "acme"))
+    assert commit_status.step_category("Something unexpected") is None
+
+
+def test_a_long_step_and_title_fit_the_140_characters_github_keeps() -> None:
+    text = commit_status.failure_description({"step": "Installing", "rule": {"title": "T" * 200}}, "old")
+    assert len(text) == commit_status.DESCRIPTION_MAX and text.endswith("…")
+    assert commit_status.failure_description({"step": "Installing", "rule": {"title": "T"}}, "old") == "Modules: T"
+    assert commit_status.failure_description({"step": "Installing", "rule": None}, "old") == "old"
+    assert commit_status.failure_description(None, "old") == "old"

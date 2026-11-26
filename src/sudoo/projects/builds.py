@@ -477,6 +477,7 @@ def _finish(job: Job, project_id: str, branch: str, build_id: str, code_before: 
     commit_status.finished(
         project_id, branch, _stage(project_id, branch, job.instance), status, result, shas,
         tests_failed=(job.details.get("tests") or {}).get("status") == "failed",
+        failure=found_failure,
     )  # fmt: skip
 
 

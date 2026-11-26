@@ -40,6 +40,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - Step by step workflow guides in English and Arabic (`docs/manual/`), with screenshots from the demo.
 - User manual: the first-run setup page has eight steps, not two; the certificate "Expires soon" window follows `ALERT_CERTIFICATE_DAYS`; production updates are always backed up first; maintenance backs up first only for Odoo image updates; the client portal is a Business plan feature.
+- **The failed-build commit status names the cause (Task 18b):** when a failed build's cause was recognised, the
+  commit status on GitHub reads "<step category>: <cause title>" (a fixed word such as Modules or Database, never the step's own title, which can hold names; cut at 140 characters) and still links to the
+  branch in the panel; otherwise it keeps the build's result text. It uses the Commit statuses permission the panel
+  already asks for; nothing new is requested from GitHub. Check-run annotations are not part of this change.
 - **Failed builds name a recognised cause (Task 18a):** `core/failure_rules.py` adds nine rules (module with unmet
   dependencies, XML parse error, missing external id, Python syntax error, pip package not found, pip conflict,
   missing Python library, port in use, access rights file) on top of the existing hints. "Why it failed" gets a

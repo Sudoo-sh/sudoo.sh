@@ -44,11 +44,19 @@ export function ConfirmDialog({ question, onAnswer }: { question: Question; onAn
 export function useConfirm() {
   const [question, setQuestion] = useState<Question | null>(null);
   const waiting = useRef<((yes: boolean) => void) | null>(null);
+  // what had the focus when the question was asked (for a menu item: the button that opened the menu)
+  const opener = useRef<HTMLElement | null>(null);
   const answer = useCallback((yes: boolean) => {
     const resolve = waiting.current;
     waiting.current = null;
     setQuestion(null);
     resolve?.(yes);
+    // the dialog gives the focus back once it has closed, to where the question came from
+    const back = opener.current;
+    opener.current = null;
+    window.setTimeout(() => {
+      if (back?.isConnected && !document.querySelector('[role="dialog"]')) back.focus({ preventScroll: true });
+    }, 300);
   }, []);
   const confirm = useCallback(
     (text: ReactNode | Question, options?: Omit<Question, "text">): Promise<boolean> =>
@@ -56,6 +64,10 @@ export function useConfirm() {
         // a question still open is answered "no" before the next one is asked
         waiting.current?.(false);
         waiting.current = resolve;
+        const active = document.activeElement as HTMLElement | null;
+        const menu = active?.closest('[role="menu"]') ?? document.querySelector('[role="menu"]');
+        const trigger = menu ? document.getElementById(menu.getAttribute("aria-labelledby") ?? "") : null;
+        opener.current = trigger?.querySelector<HTMLElement>("button, a") ?? trigger ?? active;
         const given = typeof text === "object" && text !== null && "text" in text;
         setQuestion(given ? (text as Question) : { text: text as ReactNode, ...options });
       }),

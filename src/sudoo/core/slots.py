@@ -146,6 +146,21 @@ def arm(admit: Admit, instance: str | None) -> None:
         _ARMED.value = (admit, instance)
 
 
+def held_by_a_job(instance: str) -> bool:
+    """A job of any panel process holds `instance` in the shared record and has not been released (it runs, or ended and
+    waits for the monitor). Unavailable when the record cannot be read: the caller must not go on unguarded."""
+    snap = snapshot()
+    if snap is None:
+        raise Unavailable("The panel could not read which jobs hold instances.")
+    quiet = {name: {**seen, "running": False} for name, seen in snap.observed.items()}  # holds only, not running
+    return instance in counted_in(snap.held, quiet, {instance})
+
+
+def disarm() -> None:
+    """Forget the thread's armed check: every new check starts clean, so only the latest one can be used."""
+    _ARMED.value = None
+
+
 def _consume(instance: str) -> Admit | None:
     """The check this thread armed, when it was made for exactly this start: armed for this instance, or armed for a
     creation (no instance) and this name does not exist yet. Anything else is not used, and is dropped."""

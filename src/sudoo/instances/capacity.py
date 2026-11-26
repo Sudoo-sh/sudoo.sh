@@ -395,7 +395,7 @@ def start_refusal(name: str) -> str | None:
     here until its job is registered. Never asked for a visitor's identity: the owner is the instance's, not the
     caller's."""
     env = store.read_env(name)
-    return refusal(stage=stages.of(env), user=env.get("CREATED_BY") or None)
+    return refusal(stage=stages.of(env), user=env.get("CREATED_BY") or None, instance=name)
 
 
 def _unsettled_note() -> str:
@@ -436,6 +436,9 @@ def refusal(
 
     The running limits are a check: the shared record of what runs must be readable (slots.Unavailable otherwise).
     `counted`: the names the caller read already (counted_names), so one check reads the record once."""
+    from sudoo.core import slots as _slots
+
+    _slots.disarm()  # an earlier check that no start followed must not judge the start this check is for
     if reservation is not None:
         before, after = reservation
         found = current()

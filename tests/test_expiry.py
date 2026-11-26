@@ -281,7 +281,7 @@ def test_an_extended_instance_is_checked_against_its_own_stage_and_person(
     client, headers = admin
     assert "stays stopped" in _patch(client, headers, 60).get_json()["meta"]["restart"] and started == []
     env = store.read_env(NAME)
-    assert asked == [{"stage": stages.of(env), "user": env.get("CREATED_BY") or None}]
+    assert asked == [{"stage": stages.of(env), "user": env.get("CREATED_BY") or None, "instance": NAME}]
 
 
 def test_the_instance_says_when_it_was_stopped_and_when_it_will_be_deleted(app: Flask, admin: Client) -> None:

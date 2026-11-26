@@ -20,6 +20,7 @@ import pytest
 from flask import Flask
 from flask.testing import FlaskClient
 
+import docrun  # noqa: E402
 from sudoo import projects
 from sudoo.config import live, settings
 from sudoo.core import audit, jobs
@@ -439,7 +440,7 @@ def test_the_refresh_does_not_start_a_stopped_staging_instance_over_the_running_
     _instance("pm-dev", "development", "feature", pid)
     projects.record_branch(pid, "qa", stage="staging")
     live.change({"max_running_instances": 1})
-    metrics.INSTANCES["pm-dev"] = {"running": True}  # the one running instance the server may have
+    docrun.run("pm-dev", True)  # the one running instance the server may have
     try:
         refresh.save(pid, refresh.clean({"frequency": "daily", "time": "03:00", "branches": ["qa"]}), "admin1")
         result = refresh.run(projects.get(pid) or {})
@@ -447,16 +448,17 @@ def test_the_refresh_does_not_start_a_stopped_staging_instance_over_the_running_
         assert [s["instance"] for s in result["skipped"]] == ["pm-qa"] and "at most 1 instance" in result["skipped"][0][
             "reason"
         ]
-        metrics.INSTANCES["pm-dev"] = {"running": False}  # room again
+        docrun.run("pm-dev", False)  # room again
         result = refresh.run(projects.get(pid) or {})
         assert result["started"] == ["pm-qa"] and [c[0] for c in started] == ["pm-qa"]
         started.clear()
-        metrics.INSTANCES["pm-dev"] = {"running": True}
-        metrics.INSTANCES["pm-qa"] = {"running": True}  # a running staging instance is a restart: not refused
+        docrun.run("pm-dev", True)
+        docrun.run("pm-qa", True)  # a running staging instance is a restart: not refused
         assert refresh.run(projects.get(pid) or {})["started"] == ["pm-qa"]
     finally:
         metrics.INSTANCES.pop("pm-dev", None)
         metrics.INSTANCES.pop("pm-qa", None)
+        docrun.reset()
 
 
 def test_the_schedule_endpoints(admin: Client, viewer_client: Client, started: list[Any]) -> None:

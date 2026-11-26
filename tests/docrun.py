@@ -37,12 +37,18 @@ def passes_then_full(limit: int = 1):  # type: ignore[no-untyped-def]
                         exempt=False, max_running=limit, user_limit=0, own_voice=True),
             name,
         )  # fmt: skip
-        def fill(doc: dict) -> None:  # holds of jobs of other processes (they count whether or not the name exists)
-            for i in range(limit):
-                doc["held"][f"docrun-job-{i}"] = {"instance": f"docrun-other-{i}", "owner": "other", "user": "x",
-                                                  "end_seq": None}  # fmt: skip
-
-        slots._change(fill)
+        fill_record(limit)
         return None
 
     return check
+
+
+def fill_record(limit: int = 1) -> None:
+    """Other processes' holds fill the record to `limit` running instances (they count whether or not the name exists)."""
+
+    def fill(doc: dict) -> None:  # holds of jobs of other processes (they count whether or not the name exists)
+        for i in range(limit):
+            doc["held"][f"docrun-job-{i}"] = {"instance": f"docrun-other-{i}", "owner": "other", "user": "x",
+                                              "end_seq": None}  # fmt: skip
+
+    slots._change(fill)

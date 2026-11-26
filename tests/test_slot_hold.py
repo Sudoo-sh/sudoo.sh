@@ -432,3 +432,98 @@ def test_a_save_that_raises_after_writing_is_put_back_and_the_hold_dropped(
     assert answer.status_code == 500
     assert resources.stored("hold-w5") == before and jobs._HELD == {}
     assert not any(h["instance"] == "hold-w5" for h in slots.snapshot().held.values())
+
+
+def test_changing_resources_while_a_job_of_the_instance_is_unfinished_is_refused_and_changes_nothing(
+    admin: Client,
+) -> None:
+    from sudoo.instances import resources
+
+    client, headers = admin
+    make("hold-w6")
+    release = threading.Event()
+    queued = Job("hold-w6", "t", "restart", "u")
+    job = held_job("hold-w6", lambda j: release.wait(20))  # registered, holds the instance's lock while it runs
+    try:
+        before = resources.stored("hold-w6")
+        held_before = dict(slots.snapshot().held)
+        answer = client.put(
+            "/api/v1/instances/hold-w6/resources", json={"limits": {"odoo_workers": 2}}, headers=headers
+        )
+        assert answer.status_code == 409 and "busy" in answer.get_json()["detail"]
+        assert resources.stored("hold-w6") == before and slots.snapshot().held == held_before
+        # registered but not yet running: also counts
+        release.set()
+        wait_ended(job)
+        jobs.JOBS[queued.id] = queued
+        answer = client.put(
+            "/api/v1/instances/hold-w6/resources", json={"limits": {"odoo_workers": 2}}, headers=headers
+        )
+        assert answer.status_code == 409 and resources.stored("hold-w6") == before
+        queued.status = "success"
+    finally:
+        release.set()
+        jobs.JOBS.pop(queued.id, None)
+
+
+def test_a_hold_of_another_process_on_the_instance_also_refuses_a_resources_change(
+    admin: Client, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sudoo.instances import resources
+
+    client, headers = admin
+    make("hold-w7")
+    before = resources.stored("hold-w7")
+
+    def other_process(doc: dict[str, Any]) -> None:
+        doc["held"]["other-job"] = {"instance": "hold-w7", "owner": "elsewhere", "user": "x", "end_seq": None}
+
+    slots._change(other_process)
+    answer = client.put("/api/v1/instances/hold-w7/resources", json={"limits": {"odoo_workers": 2}}, headers=headers)
+    assert answer.status_code == 409 and resources.stored("hold-w7") == before
+    slots.drop(["other-job"])
+    docrun.run("hold-w7", True)  # merely running (no job): the change is allowed
+    started: list[str] = []
+    monkeypatch.setattr(
+        jobs,
+        "start",
+        lambda *a, prepare=None, **k: (prepare and prepare(), started.append("x"), Job("hold-w7", "t", "restart", "u"))[
+            2
+        ],
+    )
+    answer = client.put("/api/v1/instances/hold-w7/resources", json={"limits": {"odoo_workers": 2}}, headers=headers)
+    assert answer.status_code == 202 and started == ["x"]
+
+
+def test_two_writers_of_one_instances_resources_leave_one_winner(
+    admin: Client, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sudoo.instances import operations, resources
+
+    client, headers = admin
+    make("hold-w8")
+    release = threading.Event()
+    monkeypatch.setattr(operations, "apply_resources", lambda job, name, *a, **k: release.wait(20))
+    answers: list[int] = []
+    gate = threading.Barrier(2)
+
+    def write(workers: int) -> None:
+        gate.wait()
+        got = client.put(
+            "/api/v1/instances/hold-w8/resources", json={"limits": {"odoo_workers": workers}}, headers=headers
+        )
+        answers.append(got.status_code)
+
+    threads = [threading.Thread(target=write, args=(n,)) for n in (2, 3)]
+    try:
+        [t.start() for t in threads]
+        [t.join(30) for t in threads]
+        assert sorted(answers) == [202, 409]
+        assert resources.overrides("hold-w8") in ({"odoo_workers": 2}, {"odoo_workers": 3})  # exactly the winner's
+        assert len([h for h in slots.snapshot().held.values() if h["instance"] == "hold-w8"]) == 1
+    finally:
+        release.set()
+        for _ in range(200):
+            if not jobs.starting():
+                break
+            time.sleep(0.02)

@@ -333,6 +333,21 @@ def record_branch(project_id: str, branch: str, **values: Any) -> None:
     change(project_id, update)
 
 
+def put_back_branch(project_id: str, branch: str, before: Document | None) -> None:
+    """Return a branch's recorded facts to what they were (None: it had none), for a record whose start did not happen."""
+
+    def update(project: Document) -> Document:
+        branches = dict(project.get("branches") or {})
+        if before is None:
+            branches.pop(branch, None)
+        else:
+            branches[branch] = before
+        project["branches"] = branches
+        return project
+
+    change(project_id, update)
+
+
 def remove(project_id: str) -> None:
     storage().delete(COLLECTION, project_id)
     from sudoo import notifications  # late: notifications/ reads projects

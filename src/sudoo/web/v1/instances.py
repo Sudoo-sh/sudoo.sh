@@ -69,7 +69,7 @@ from flask import Blueprint, Response, abort, g, request
 
 from sudoo import addons, engines, entitlements, link_deadline, projects, roles
 from sudoo.config import settings
-from sudoo.core import events, jobs, vault
+from sudoo.core import events, jobs, slots, vault
 from sudoo.core.state import STATE
 from sudoo.instances import (
     backups,
@@ -1077,6 +1077,10 @@ def change_resources(name: str) -> Response:
         log("instance resources refused", instance=name, ok=False, detail=refused)
         abort(409, refused)
     with quotas.LOCK:  # a stopped instance is started by the restart: the running limits, then the hold, as one step
+        if jobs.unfinished(name) or slots.held_by_a_job(name):  # a job (of any process) may read the limits halfway
+            busy = f"{name} is busy with another job. Try again when it has finished."
+            log("instance resources refused", instance=name, ok=False, detail=busy)
+            abort(409, busy)
         refused = capacity.admission_refusal(name)
         if refused:
             log("instance resources refused", instance=name, ok=False, detail=refused)

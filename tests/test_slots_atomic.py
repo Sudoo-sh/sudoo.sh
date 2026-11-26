@@ -292,7 +292,7 @@ def test_a_job_whose_hold_cannot_be_dropped_publishes_its_end(monkeypatch: pytes
 
 
 def test_a_queued_creation_is_judged_in_the_hold_of_the_real_planning_start_and_keeps_its_place(
-    monkeypatch: pytest.MonkeyPatch,
+    admin, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from sudoo.config import live
     from sudoo.instances import operations, planning
@@ -300,23 +300,21 @@ def test_a_queued_creation_is_judged_in_the_hold_of_the_real_planning_start_and_
     plan = dict.fromkeys(planning.SHOWN)
     plan.update({"name": "qnew", "project": None, "branch": None, "stage": "development", "auto_update": False,
                  "auto_upgrade": False, "auto_pause": False, "delete_after_days": 0})  # fmt: skip
-    storage().put(queue.COLLECTION, "c1", {"id": "c1", "seq": 1, "kind": "create", "instance": "qnew", "user": "u",
+    storage().put(queue.COLLECTION, "c1", {"id": "c1", "seq": 1, "kind": "create", "instance": "qnew", "user": "admin1",
                                            "stage": "development", "plan": plan})  # fmt: skip
     ran: list[str] = []
     monkeypatch.setattr(operations, "create", lambda job, plan: ran.append(plan["name"]))
-    monkeypatch.setattr(queue, "_refused", lambda it: None)
     monkeypatch.setattr(queue, "_ports", lambda: {})
     live.change({"max_running_instances": 1})
     state = {"fill": True}
+    real_take = queue._take
 
-    def blocked(item, charged):  # type: ignore[no-untyped-def]
-        assert capacity.refusal(stage="development", user=None) is None  # the real check passes and arms
+    def take(item_id):  # type: ignore[no-untyped-def]
         if state["fill"]:
-            docrun.passes_then_full()("x")  # another process fills the record before this start's write
-            slots._ARMED.value = (slots._ARMED.value[0], None)  # keep the armed check, for a creation
-        return None
+            docrun.fill_record(1)  # another process fills the record between the real check and the start
+        return real_take(item_id)
 
-    monkeypatch.setattr(queue, "_blocked", blocked)
+    monkeypatch.setattr(queue, "_take", take)
     try:
         assert queue.dispatch() == []
         assert [i["id"] for i in queue.items()] == ["c1"] and ran == []
@@ -330,3 +328,93 @@ def test_a_queued_creation_is_judged_in_the_hold_of_the_real_planning_start_and_
         jobs._HELD.clear()
         for key in list(storage().all(queue.COLLECTION)):
             storage().delete(queue.COLLECTION, key)
+
+
+def test_a_production_creation_after_a_non_production_check_is_not_judged_with_its_admit(admin) -> None:
+    from sudoo.config import live
+
+    live.change({"max_running_instances": 1})
+    try:
+        docrun.fill_record(1)
+        assert capacity.refusal(stage="production", user=None) is None  # exempt, and it clears the earlier arm
+        with slots.ADMISSION:
+            docrun.run("a")
+            slots.arm(admit(max_running=1), None)  # a non-production creation check of someone else
+            assert capacity.refusal(stage="production", user=None) is None  # the production check disarms it
+            slots.record_hold("jprod", "prod-new", "u")  # not refused by the other creation's admit
+        assert "jprod" in slots.snapshot().held
+        with slots.ADMISSION:
+            slots.arm(admit(max_running=1), "named-a")
+            slots.record_hold("jother", "other-new", "u")  # armed for another instance: not used
+        assert "jother" in slots.snapshot().held
+    finally:
+        live.change({"max_running_instances": None})
+
+
+def test_a_cancelled_queue_item_leaves_no_armed_check_for_the_next_item(admin, monkeypatch) -> None:
+    from sudoo.config import live
+
+    for n in ("qa", "qb"):
+        make(n)
+    storage().put(queue.COLLECTION, "q1", {**item("q1", 1, "qa"), "user": "admin1"})
+    storage().put(queue.COLLECTION, "q2", {**item("q2", 2, "qb"), "user": "admin1", "stage": "production"})
+    live.change({"max_running_instances": 5})
+    real_take = queue._take
+    monkeypatch.setattr(queue, "_take", lambda i: None if i == "q1" else real_take(i))  # cancelled meanwhile
+    seen: list[object] = []
+    monkeypatch.setattr(queue, "_start", lambda name, user: seen.append(slots._ARMED.value))
+    try:
+        queue.dispatch()
+        assert len(seen) == 1 and seen[0] is not None and seen[0][1] == "qb"  # armed for qb itself, never qa's
+    finally:
+        live.change({"max_running_instances": None})
+        import shutil
+
+        for n in ("qa", "qb"):
+            shutil.rmtree(store.folder(n), ignore_errors=True)
+        for key in list(storage().all(queue.COLLECTION)):
+            storage().delete(queue.COLLECTION, key)
+
+
+def test_a_creation_that_cannot_begin_after_its_stage_was_recorded_gets_the_stage_back(monkeypatch) -> None:
+    from sudoo import projects
+    from sudoo.instances import planning
+
+    found = projects.create(repository="Acme/Back", odoo_version="18.0", edition="community", origin="linked", user="t")
+    plan = dict.fromkeys(planning.SHOWN)
+    plan.update({"name": "rollbk", "project": found["id"], "branch": "feat", "stage": "development",
+                 "auto_update": False, "auto_upgrade": False, "auto_pause": False, "delete_after_days": 0})  # fmt: skip
+
+    class NoThread:
+        def __init__(self, *a, **k) -> None: ...  # type: ignore[no-untyped-def]
+
+        def start(self) -> None:
+            raise RuntimeError("can't start new thread")
+
+    monkeypatch.setattr(jobs.threading, "Thread", NoThread)
+    try:
+        with pytest.raises(RuntimeError):
+            planning.start(plan, "u")
+        assert "feat" not in (projects.get(found["id"]).get("branches") or {})
+        assert not any(h["instance"] == "rollbk" for h in slots.snapshot().held.values())
+    finally:
+        projects.remove(found["id"])
+
+
+def test_a_failed_publication_refuses_a_preview_and_an_automatic_creation_with_the_temporary_text(admin) -> None:
+    from sudoo import projects
+    from sudoo.projects import automation, previews
+
+    found = projects.create(
+        repository="Acme/Stale", odoo_version="18.0", edition="community", origin="linked", user="t"
+    )
+    slots.PUBLISH.failed = True
+    try:
+        text = previews.refusal(found, "system")
+        assert text and "no fresh view" in text
+        auto = automation.creation_refusal(found, "feat", "system")
+        assert auto is None or "no fresh view" in auto  # earlier project rules may refuse first
+        assert text and not any(h["instance"] for h in slots.snapshot().held.values())  # nothing created or held
+    finally:
+        slots.PUBLISH.failed = False
+        projects.remove(found["id"])

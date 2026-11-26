@@ -14,6 +14,7 @@ from typing import Any
 
 import pytest
 
+import docrun  # noqa: E402
 from sudoo import accounts, projects
 from sudoo.auth import github as github_auth
 from sudoo.config import live
@@ -47,6 +48,7 @@ def clean() -> Iterator[None]:
     for name in list(metrics.INSTANCES):
         shutil.rmtree(store.folder(name), ignore_errors=True)
     metrics.INSTANCES.clear()
+    docrun.reset()
     for key in list(storage().all(projects.COLLECTION)):
         projects.remove(key)
     live.change(dict.fromkeys(live.overrides()))
@@ -76,7 +78,7 @@ def _running(owner: str, *names: str) -> None:
         (store.folder(name) / "docker-compose.yml").write_text("services: {}\n")
         store.write_env(name, {"ODOO_VERSION": "18.0", "DB_NAME": name, "ODOO_PORT": "18999", "STAGE": "development",
                                "CREATED_BY": owner})  # fmt: skip
-        metrics.INSTANCES[name] = {"running": True}
+        docrun.run(name, True)
 
 
 def test_the_sender_is_read_from_githubs_own_field_only() -> None:
@@ -325,7 +327,7 @@ def test_a_visit_starts_a_paused_instance_only_when_the_limits_allow(
     _running(owner, "v-dev-1")
     write = _running
     write(owner, "v-dev-2")
-    metrics.INSTANCES.pop("v-dev-2")  # paused: not running
+    docrun.run("v-dev-2", False)  # paused: not running
     gateway.STATUS.pop("v-dev-2", None)
 
     def forget() -> None:  # `clean` only knows the instances still in metrics.INSTANCES, and this one left them

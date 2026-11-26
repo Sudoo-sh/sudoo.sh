@@ -597,6 +597,16 @@ def busy(instance: str) -> bool:
     return INSTANCE_LOCKS[instance].locked()
 
 
+def unfinished(instance: str) -> bool:
+    """A job of this panel process for `instance` that is queued or running, or that holds the instance's lock: it
+    may read the instance's settings while it runs. Jobs of another process are not seen."""
+    with _JOBS_LOCK:
+        live = [*JOBS.values(), *_HELD.values()]
+    return INSTANCE_LOCKS[instance].locked() or any(
+        j.instance == instance and j.status in ("queued", "running") for j in live
+    )
+
+
 def generation(instance: str) -> int:
     """Changes whenever a job starts or ends on the instance: what is cached about an instance's code (its commits,
     its submodules) is valid only for one generation (web/v1/resources.py)."""

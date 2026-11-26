@@ -206,6 +206,7 @@ def dispatch() -> list[str]:
                 if blocked is not None:
                     continue  # no room for this one (its person or the panel): the next may still fit
                 if _take(str(item["id"])) is None:
+                    slots.disarm()  # the check made for this item is not for the next one
                     continue  # cancelled or started by another dispatcher meanwhile
                 ports: dict[str, int] = {}
                 try:
@@ -247,7 +248,7 @@ def _blocked(item: Mapping[str, Any], charged: str | None) -> str | None:
         quotas.check(str(item["user"]))
     except quotas.QuotaError as error:
         return error.message
-    return capacity.refusal(stage=str(item.get("stage") or ""), user=charged)
+    return capacity.refusal(stage=str(item.get("stage") or ""), user=charged, instance=str(item["instance"]))
 
 
 def _note(item_id: str, why: str | None) -> None:

@@ -9,6 +9,7 @@ from collections.abc import Iterator
 import pytest
 from flask.testing import FlaskClient
 
+import docrun  # noqa: E402
 from sudoo import accounts, engines
 from sudoo.config import live
 from sudoo.core import jobs
@@ -29,6 +30,7 @@ def clean_up() -> Iterator[None]:
         shutil.rmtree(store.folder(name), ignore_errors=True)
     MADE.clear()
     metrics.INSTANCES.clear()
+    docrun.reset()
     live.change({"max_running_non_production_per_user": None, "max_running_instances": None})
     for user in ("admin1", "sync1"):
         if (accounts.get(user) or {}).get("running_limit") is not None:
@@ -53,9 +55,10 @@ def running() -> Iterator[None]:
         ("prod-d", "production", "admin1"),
     ):
         write_env(name, {"STAGE": stage, "CREATED_BY": owner})
-        metrics.INSTANCES[name] = {"running": True}
+        docrun.run(name, True)
     yield
     metrics.INSTANCES.clear()
+    docrun.reset()
     live.change({"max_running_non_production_per_user": None, "max_running_instances": None})
 
 

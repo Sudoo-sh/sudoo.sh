@@ -185,9 +185,14 @@ def refusal(project: Mapping[str, Any], charged: str = charge.SYSTEM) -> str | N
         return f"the project has {limit} {'preview' if limit == 1 else 'previews'} already (its limit)"
     if settings.max_instances and len(store.names()) + len(jobs.being_created()) >= settings.max_instances:
         return f"the server has its maximum of {settings.max_instances} instances"
-    return capacity.refusal(
-        stage=stages.DEVELOPMENT, user=None if charged == charge.SYSTEM else charged, own_voice=False
-    )
+    from sudoo.core import slots
+
+    try:
+        return capacity.refusal(
+            stage=stages.DEVELOPMENT, user=None if charged == charge.SYSTEM else charged, own_voice=False
+        )
+    except slots.Unavailable as exc:  # the running record could not be read: refused, said so
+        return str(exc)
 
 
 def _pull_facts(pull: Mapping[str, Any], project: Mapping[str, Any]) -> dict[str, Any] | None:

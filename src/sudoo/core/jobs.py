@@ -359,17 +359,36 @@ def start(
     holds = job.holds_slot and not is_panel_job(instance)
     if holds:
         slots.record_hold(job.id, instance, user)  # before the job exists: Unavailable means nothing was started
-    with _JOBS_LOCK:
-        JOBS[job.id] = job
+    try:
+        with _JOBS_LOCK:
+            JOBS[job.id] = job
+            if holds:
+                _HELD[job.id] = job  # outside JOBS: the list's size limit never forgets a slot still held
+            while len(JOBS) > _KEEP:
+                JOBS.popitem(last=False)
+        job.changed()
+        if kind == "create" and not is_panel_job(instance):
+            events.publish("instance", instance)  # the new instance appears at once, as being created
+        threading.Thread(target=_run, args=(job, fn, args), daemon=True).start()
+    except BaseException:
         if holds:
-            _HELD[job.id] = job  # outside JOBS: the list's size limit never forgets a slot still held
-        while len(JOBS) > _KEEP:
-            JOBS.popitem(last=False)
-    job.changed()
-    if kind == "create" and not is_panel_job(instance):
-        events.publish("instance", instance)  # the new instance appears at once, as being created
-    threading.Thread(target=_run, args=(job, fn, args), daemon=True).start()
+            _abandon(job)
+        raise
     return job
+
+
+def _abandon(job: Job) -> None:
+    """The job's hold was recorded but its thread never began: nothing ran, so the hold goes. When the record cannot
+    be removed the job counts as ended instead, and the usual rule (an observation after its end) releases it."""
+    if slots.drop([job.id]):
+        with _JOBS_LOCK:
+            _HELD.pop(job.id, None)
+            JOBS.pop(job.id, None)
+        return
+    job.status = "failed"
+    job.finished = time.time()
+    job.finished_mono = time.monotonic()
+    _publish_end(job)
 
 
 def _run(job: Job, fn: Callable[..., object], args: tuple[Any, ...]) -> None:
@@ -495,12 +514,19 @@ def _holding(job: Job, present: set[str], observed: dict[str, int]) -> bool:
     return observed.get(job.instance, 0) <= job.end_seq
 
 
-def _counted(held: list[Job]) -> tuple[set[str], set[str], list[str]]:
+def _counted(
+    held: list[Job], strict: bool = False, snap: slots.Snapshot | None = None
+) -> tuple[set[str], set[str], list[str]]:
     """(instances held, those held only for want of a read after the end, ids of released holds), from this process's
-    jobs and those the other processes recorded. The instances are read once per call."""
+    jobs and those the other processes recorded. The instances are read once per call (`snap`: the caller's read).
+    `strict`: a limit check is being made, so the shared record must be readable (slots.Unavailable otherwise): a
+    count made from this process alone is only for display."""
     from sudoo.instances import metrics, store
 
-    snap = slots.snapshot()
+    if snap is None:
+        snap = slots.snapshot()
+    if snap is None and strict:
+        raise slots.Unavailable("The panel could not read which instances are running or starting.")
     if not held and (snap is None or not snap.others):
         return set(), set(), []
     present = set(store.names())
@@ -540,13 +566,13 @@ def _forget(released: list[str]) -> None:
         slots.drop(released)
 
 
-def starting() -> set[str]:
+def starting(strict: bool = False, snap: slots.Snapshot | None = None) -> set[str]:
     """Instances a job holds as running or starting, in this process or another one: a job that holds a slot
     (creations, wakes and every job that stops or starts an instance) while it runs and until the instance is
-    observed after it ended, success or failure."""
+    observed after it ended, success or failure. `strict`, `snap`: see _counted."""
     with _JOBS_LOCK:
         held = list(_HELD.values())
-    names, _, released = _counted(held)
+    names, _, released = _counted(held, strict, snap)
     _forget(released)
     return names
 
@@ -575,3 +601,14 @@ def recent(instance: str | None = None, limit: int = 30) -> list[dict[str, Any]]
     with _JOBS_LOCK:
         jobs = [j for j in reversed(JOBS.values()) if instance is None or j.instance == instance]
     return [j.summary() for j in jobs[:limit]]
+
+
+def _forget_in_child() -> None:
+    """A forked child has none of the parent's threads: the parent's held jobs are not its own, and a lock copied
+    while another thread held it would never be released."""
+    global _JOBS_LOCK
+    _HELD.clear()
+    _JOBS_LOCK = threading.Lock()
+
+
+os.register_at_fork(after_in_child=_forget_in_child)

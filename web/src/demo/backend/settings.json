@@ -2100,6 +2100,20 @@
     "description": "Non-production instances one person may have running or starting at once (the ones they created); one more is refused. 0: no limit. An administrator can set another number for a person on their page. Production instances are never counted or refused."
   },
   {
+    "key": "slot_store_wait_seconds",
+    "env": "SLOT_STORE_WAIT_SECONDS",
+    "value": 5,
+    "env_value": 5,
+    "changed_in_panel": false,
+    "editable": true,
+    "applies": "now",
+    "pending_restart": false,
+    "secret": false,
+    "type": "integer",
+    "minimum": 1,
+    "description": "Seconds a start waits to check the running limit and record that it holds a slot, or a job waits to record that it ended, before the start is refused (try again) or the record is retried. Raise it only if the database is slow."
+  },
+  {
     "key": "capacity_queue",
     "env": "CAPACITY_QUEUE",
     "value": false,

@@ -181,43 +181,47 @@ def dispatch() -> list[str]:
     """Start what can start now, first in line first; the names started. Safe to call at any time, also from two
     threads: an item is taken out of the line before it starts, so it never starts twice (a cancel, a replay or a
     second dispatcher finds it gone), and the capacity check and the job's registration share quotas.LOCK."""
+    from sudoo.core import slots
     from sudoo.instances import metrics, planning, store
     from sudoo.limits import quotas
 
     started: list[str] = []
-    with quotas.LOCK:
-        for item in items():
-            name, user = str(item["instance"]), str(item["user"])
-            charged = str(item.get("charged") or "") or None
-            if item["kind"] == "start" and (
-                not store.folder(name).exists() or metrics.INSTANCES.get(name, {}).get("running")
-            ):
-                _take(str(item["id"]))  # deleted or running already: nothing to wait for
-                continue
-            why = _refused(item)
-            if why is not None:
-                if _take(str(item["id"])) is not None:
-                    audit.record(user, None, "capacity queue: dropped", name, ok=False, detail=why)
-                continue
-            blocked = _blocked(item, charged)
-            _note(str(item["id"]), blocked)
-            if blocked is not None:
-                continue  # no room for this one (its person or the panel): the next may still fit
-            if _take(str(item["id"])) is None:
-                continue  # cancelled or started by another dispatcher meanwhile
-            try:
-                if item["kind"] == "create":
-                    plan = dict(item["plan"])
-                    plan["ports"] = _ports()
-                    planning.start(plan, user)
+    try:
+        with quotas.LOCK:
+            for item in items():
+                name, user = str(item["instance"]), str(item["user"])
+                charged = str(item.get("charged") or "") or None
+                if item["kind"] == "start" and (
+                    not store.folder(name).exists() or metrics.INSTANCES.get(name, {}).get("running")
+                ):
+                    _take(str(item["id"]))  # deleted or running already: nothing to wait for
+                    continue
+                why = _refused(item)
+                if why is not None:
+                    if _take(str(item["id"])) is not None:
+                        audit.record(user, None, "capacity queue: dropped", name, ok=False, detail=why)
+                    continue
+                blocked = _blocked(item, charged)
+                _note(str(item["id"]), blocked)
+                if blocked is not None:
+                    continue  # no room for this one (its person or the panel): the next may still fit
+                if _take(str(item["id"])) is None:
+                    continue  # cancelled or started by another dispatcher meanwhile
+                try:
+                    if item["kind"] == "create":
+                        plan = dict(item["plan"])
+                        plan["ports"] = _ports()
+                        planning.start(plan, user)
+                    else:
+                        _start(name, user)
+                except Exception as error:  # noqa: BLE001 - one broken item must not stop the line
+                    LOG.warning("capacity queue: %s could not start: %s", name, error)
+                    audit.record(user, None, "capacity queue: start failed", name, ok=False, detail=str(error)[:300])
                 else:
-                    _start(name, user)
-            except Exception as error:  # noqa: BLE001 - one broken item must not stop the line
-                LOG.warning("capacity queue: %s could not start: %s", name, error)
-                audit.record(user, None, "capacity queue: start failed", name, ok=False, detail=str(error)[:300])
-            else:
-                audit.record(user, None, "started from the capacity queue", name, detail=str(item["kind"]))
-                started.append(name)
+                    audit.record(user, None, "started from the capacity queue", name, detail=str(item["kind"]))
+                    started.append(name)
+    except slots.Unavailable as exc:  # the running record could not be read or the lock waited out: next round
+        LOG.warning("capacity queue: nothing started this round (%s)", exc)
     return started
 
 

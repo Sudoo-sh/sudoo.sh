@@ -328,3 +328,21 @@ def test_collect_that_fails_before_reading_leaves_the_observations_alone(monkeyp
     with pytest.raises(RuntimeError):
         monitor.collect()
     assert metrics.OBSERVED == {"col-f": 1.0}  # no read finished: nothing was stamped
+
+
+def test_changing_resources_of_a_stopped_instance_respects_the_limit_and_saves_nothing_when_refused(
+    admin: Client, started: list[dict[str, Any]]
+) -> None:
+    from sudoo.instances import resources
+
+    client, headers = admin
+    make("hold-r1")
+    make("hold-r2")
+    observe("hold-r2", True, slots.next_seq())
+    live.change({"max_running_non_production_per_user": 1})
+    before = resources.overrides("hold-r1")
+    answer = client.put("/api/v1/instances/hold-r1/resources", json={"limits": {"odoo_workers": 2}}, headers=headers)
+    assert answer.status_code == 403 and "running or starting" in answer.get_json()["detail"]
+    assert started == [] and resources.overrides("hold-r1") == before  # refused before anything was saved
+    answer = client.put("/api/v1/instances/hold-r2/resources", json={"limits": {"odoo_workers": 2}}, headers=headers)
+    assert answer.status_code == 202 and started == [{"instance": "hold-r2", "holds_slot": True}]

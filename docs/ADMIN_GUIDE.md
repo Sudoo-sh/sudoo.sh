@@ -122,7 +122,11 @@ hold happen under one lock shared by those processes. A start that cannot be rec
 another process finds its lock free, and is released by the next reading of the instance. Starts nobody waits on
 (maintenance, automatic updates, repairs, the automatic upgrade rollback) are skipped at the limit, written to the audit
 log, and tried again at their next pass. Not covered: panel processes on different hosts sharing one database, and
-instances no job started that a cluster does not report.
+instances no job started that a cluster does not report. A check that cannot read the record of what runs refuses
+the start (the same 503), never counts from the panel's own memory. With a storage plugin that has no bounded write
+(`bounded_change`) every such start is refused until the storage is changed. A hold whose owner's lock file is missing
+or cannot be tried stays counted (it is only said so in the unsettled note): restart the panel to end it. A "running"
+reading published by a panel process that has stopped keeps counting until a live one publishes a newer reading.
 Production instances count in that total but are never refused. To limit one person, set
 `MAX_RUNNING_NON_PRODUCTION_PER_USER` (the non-production instances they created that run or start at once; 0: no
 limit), or give one person another number on their page in **Accounts** (0 there: no limit for them). Both limits are

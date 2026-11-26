@@ -100,9 +100,14 @@ def creation_refusal(project: Mapping[str, Any], branch: str, charged: str = cha
         return f"the project has {limit} instances created for new branches already (its limit)"
     if settings.max_instances and len(store.names()) + len(jobs.being_created()) >= settings.max_instances:
         return f"the server has its maximum of {settings.max_instances} instances"
-    return capacity.refusal(
-        stage=stages.DEVELOPMENT, user=None if charged == charge.SYSTEM else charged, own_voice=False
-    )
+    from sudoo.core import slots
+
+    try:
+        return capacity.refusal(
+            stage=stages.DEVELOPMENT, user=None if charged == charge.SYSTEM else charged, own_voice=False
+        )
+    except slots.Unavailable as exc:  # the running record could not be read: refused, said so
+        return str(exc)
 
 
 def branch_created(repository: str, branch: str, user: str = "system", github_id: int | None = None) -> str | None:

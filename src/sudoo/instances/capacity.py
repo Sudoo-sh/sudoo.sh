@@ -201,33 +201,39 @@ def _version_of(name: str) -> str:
         return "unknown"
 
 
-def counted_names() -> set[str]:
+def counted_names(strict: bool = True) -> set[str]:
     """The instances that count as running or starting: those this process's monitor sees running, those another
-    process's monitor published as running (core/slots.py), and those a job holds. Read once per use."""
+    process's monitor published as running (core/slots.py), and those a job holds. One read of the shared record.
+    `strict` (a limit check): the shared record must be readable, slots.Unavailable otherwise, so a check never
+    passes on this process's view alone. `strict=False` is for display: what this process knows."""
     from sudoo.core import slots
 
-    names = {name for name, figures in metrics.INSTANCES.items() if figures.get("running")} | jobs.starting()
     snap = slots.snapshot()
+    if snap is None and strict:
+        raise slots.Unavailable("The panel could not read which instances are running or starting.")
+    names = {name for name, figures in metrics.INSTANCES.items() if figures.get("running")}
+    names |= jobs.starting(strict, snap)
     if snap is not None:
         names |= snap.running() & set(store.names())
     return names
 
 
-def _running() -> int:
-    return len(counted_names())
+def _running(strict: bool = True, counted: set[str] | None = None) -> int:
+    return len(counted_names(strict) if counted is None else counted)
 
 
 def admission_refusal(name: str) -> str | None:
     """Why the stopped instance `name` may not be started now (the running limits; its own owner and stage, read from
     its .env), or None. An instance that counts as running holds its slot already and is not asked. The caller holds
     quotas.LOCK from here until the job is registered with holds_slot."""
-    if name in counted_names():
+    counted = counted_names()  # strict: one read, shared with the limits below
+    if name in counted:
         return None
     try:
         env = store.read_env(name)
     except OSError:
         return f"{name} could not be read."
-    return refusal(stage=stages.of(env), user=env.get("CREATED_BY") or None, own_voice=False)
+    return refusal(stage=stages.of(env), user=env.get("CREATED_BY") or None, own_voice=False, counted=counted)
 
 
 def start_admitted(name: str, start: Callable[[], Any]) -> tuple[Any, str | None]:
@@ -261,10 +267,10 @@ def _owner_of(name: str) -> str:
         return ""
 
 
-def running_figures(user: str | None = None) -> dict[str, int]:
+def running_figures(user: str | None = None, strict: bool = True, counted: set[str] | None = None) -> dict[str, int]:
     """What runs or starts now: `total`, `production`, and `own` (the non-production instances `user` created).
     The figures the limits compare and the panel shows ("2 of 3 used")."""
-    names = counted_names()
+    names = counted_names(strict) if counted is None else counted
     production = sum(1 for name in names if _stage_of(name) == stages.PRODUCTION)
     own = 0
     if user:
@@ -290,7 +296,7 @@ def current() -> dict[str, Any] | None:
     if not server.get("memory_total_bytes"):
         return None
     rules = Rules.current()
-    running = _running()
+    running = _running(strict=False)
     key = (metrics.version(), rules, running)
     if _CACHE["key"] == key:
         return dict(_CACHE["value"]) | _reservations()
@@ -324,7 +330,7 @@ def _reservations() -> dict[str, Any]:
     (the dashboard says "including N production")."""
     from sudoo.instances import resources
 
-    return {"reservations": resources.reservations(), "running_production": running_figures()["production"]}
+    return {"reservations": resources.reservations(), "running_production": running_figures(strict=False)["production"]}
 
 
 def snapshot() -> dict[str, Any]:
@@ -361,6 +367,7 @@ def refusal(
     user: str | None = None,
     *,
     own_voice: bool = True,
+    counted: set[str] | None = None,
 ) -> str | None:
     """Why one more instance may not start (MAX_RUNNING_INSTANCES reached, or the person's own limit), or None.
 
@@ -373,7 +380,10 @@ def refusal(
     With `reservation` ((before, after): the memory all instances reserve before and after a change of resources,
     resources.reservations): why the change may not be made, or None. Only a change that raises the reservation
     above the memory the server can spare for instances is refused; lowering it is always allowed, and so is
-    anything before the first measurement."""
+    anything before the first measurement.
+
+    The running limits are a check: the shared record of what runs must be readable (slots.Unavailable otherwise).
+    `counted`: the names the caller read already (counted_names), so one check reads the record once."""
     if reservation is not None:
         before, after = reservation
         found = current()
@@ -387,9 +397,11 @@ def refusal(
         )
     if stage == stages.PRODUCTION:
         return None
+    if counted is None:
+        counted = counted_names()
     limit = settings.max_running_instances
     if limit:
-        running = _running()
+        running = _running(counted=counted)
         if running >= limit:
             return (
                 f"This server runs at most {_plural(limit, 'instance', 'instances')} at once and "
@@ -398,16 +410,16 @@ def refusal(
     if user:
         own_limit = user_limit(user)
         if own_limit:
-            own = running_figures(user)["own"]
+            own = running_figures(user, counted=counted)["own"]
             if own >= own_limit:
-                counted = _plural(own_limit, "running instance", "running instances")
+                how_many = _plural(own_limit, "running instance", "running instances")
                 if not own_voice:
                     return (
-                        f"{user} has {own} of their {counted} (not counting production) running or starting, "
+                        f"{user} has {own} of their {how_many} (not counting production) running or starting, "
                         "and this instance counts against them."
                     )
                 return (
-                    f"You have {own} of your {counted} "
+                    f"You have {own} of your {how_many} "
                     "(not counting production) running or starting. Pause one of yours first." + _unsettled_note()
                 )
     return None

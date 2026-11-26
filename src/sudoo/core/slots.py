@@ -167,11 +167,10 @@ def _change(fn: Callable[[dict[str, Any]], None]) -> dict[str, Any]:
 
     store = storage()
     bounded = getattr(store, "bounded_change", None)
+    if bounded is None:  # no bounded, atomic write to rely on: refuse, never fall back to something process-local
+        raise Unavailable("The configured storage cannot record which instances are starting (no bounded change).")
     try:
-        if bounded is not None:
-            result = bounded(COLLECTION, KEY, apply, _wait())
-        else:  # a storage without a bounded wait: the wait is its own (a stated gap)
-            result = store.change(COLLECTION, KEY, apply)
+        result = bounded(COLLECTION, KEY, apply, _wait())
     except Exception as exc:  # noqa: BLE001 - locked, full, unreadable
         raise Unavailable("The panel could not record this start in time.") from exc
     assert result is not None
@@ -216,11 +215,11 @@ def record_end(job_id: str) -> int:
     return taken[0]
 
 
-def drop(job_ids: list[str]) -> None:
-    """Forget holds that an observation released; failing to forget one is harmless (the same rule releases it
-    again), so it is only logged."""
+def drop(job_ids: list[str]) -> bool:
+    """Forget holds; True when they are gone. Failing to forget a hold that an observation released is harmless
+    (the same rule releases it again), so it is only logged and returns False."""
     if not job_ids:
-        return
+        return True
     try:
 
         def forget(doc: dict[str, Any]) -> None:
@@ -229,7 +228,9 @@ def drop(job_ids: list[str]) -> None:
 
         _change(forget)
     except Unavailable as exc:
-        log.warning("slots: could not forget %d released holds (%s)", len(job_ids), exc)
+        log.warning("slots: could not forget %d holds (%s)", len(job_ids), exc)
+        return False
+    return True
 
 
 def publish_observed(seq: int, running: dict[str, bool], present: set[str]) -> None:
@@ -292,30 +293,35 @@ def snapshot() -> Snapshot | None:
                 elif gone:
                     try:
                         taken = record_reclaimed(job_id)
-                    except Unavailable as exc:
+                    except Unavailable as exc:  # still held, counted: a dead owner's hold is ended on a later read
                         log.warning("slots: could not end the hold of a dead owner (%s)", exc)
-                        taken = None
-                    if taken is not None:
+                    else:
+                        if taken is None:  # the hold was removed meanwhile: nothing to count
+                            continue
                         hold = {**hold, "end_seq": taken, "owner": RECLAIMED}
         result.others[job_id] = hold
     return result
 
 
-def record_reclaimed(job_id: str) -> int:
-    """End the hold of a dead owner (its job died with its process): the same end_seq rule as a finished job."""
+def record_reclaimed(job_id: str) -> int | None:
+    """End the hold of a dead owner (its job died with its process): the same end_seq rule as a finished job. None
+    when the hold is gone already (nothing to end)."""
     taken: list[int] = []
 
     def end(doc: dict[str, Any]) -> None:
         held = doc["held"].get(job_id)
-        if held is None or held.get("end_seq") is not None:
-            taken[:] = [int(held["end_seq"])] if held else [0]
+        taken.clear()
+        if held is None:
+            return
+        if held.get("end_seq") is not None:
+            taken[:] = [int(held["end_seq"])]
             return
         doc["seq"] = int(doc.get("seq", 0)) + 1
         held["end_seq"], held["owner"] = doc["seq"], RECLAIMED
         taken[:] = [doc["seq"]]
 
     _change(end)
-    return taken[0]
+    return taken[0] if taken else None
 
 
 # ------------------------------------------------------------------ admission
@@ -371,3 +377,17 @@ class AdmissionLock:
 
 
 ADMISSION = AdmissionLock()
+
+
+def _forget_admission_in_child() -> None:
+    """A forked child holds copies of the parent's thread lock (maybe owned by a thread that does not exist in the
+    child) and of its flock file (the same open file: the child would look like the holder). It starts without either.
+    """
+    if ADMISSION._fd is not None:
+        with contextlib.suppress(OSError):
+            os.close(ADMISSION._fd)
+    ADMISSION._thread = threading.RLock()
+    ADMISSION._depth, ADMISSION._fd, ADMISSION._pid = 0, None, 0
+
+
+os.register_at_fork(after_in_child=_forget_admission_in_child)

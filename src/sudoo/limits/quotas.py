@@ -52,7 +52,7 @@ def usage(user: str) -> dict[str, object]:
     names, pending = _counted()
     from sudoo.instances import capacity  # the running instances: the limits of instances/capacity.py
 
-    running = capacity.running_figures(user)
+    running = capacity.running_figures(user, strict=False)  # shown, not checked
     return {
         "running": running["total"],
         "running_production": running["production"],

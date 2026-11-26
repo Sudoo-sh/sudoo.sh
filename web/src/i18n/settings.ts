@@ -401,6 +401,7 @@ const en = {
     alert_storage: "Storage near or over its quota",
     max_running_instances: "Running instances at most",
     max_running_non_production_per_user: "Running instances per person at most (not production)",
+    slot_store_wait_seconds: "Seconds to wait when recording a starting instance",
     capacity_queue: "Wait for capacity instead of being refused",
     gateway_max_upload_mb: "Largest upload, MB",
     gateway_idle_timeout_seconds: "Give up on a silent upload after, seconds",
@@ -934,6 +935,8 @@ const en = {
       "Instances running at once at most: creating or starting one more is refused; 0: never refused, only warned. Production instances are never refused by it.",
     max_running_non_production_per_user:
       "Non-production instances one person may have running or starting at once (the ones they created); one more is refused. 0: no limit. An administrator can set another number for a person on their page. Production instances are never counted or refused.",
+    slot_store_wait_seconds:
+      "Seconds a start waits to check the running limit and record that it holds a slot, or a job waits to record that it ended, before the start is refused (try again) or the record is retried. Raise it only if the database is slow.",
     capacity_queue:
       "When a running-instances limit is reached, a new non-production instance or a start waits in line and starts by itself when there is room, instead of being refused. Production is never queued.",
     gateway_mode:
@@ -1694,6 +1697,7 @@ const ar: typeof en = {
     alert_storage: "تخزين قريب من حصته أو متجاوز لها",
     max_running_instances: "أقصى عدد للبيئات العاملة",
     max_running_non_production_per_user: "أقصى عدد للبيئات العاملة لكل شخص (دون الإنتاج)",
+    slot_store_wait_seconds: "ثواني الانتظار عند تسجيل بيئة قيد التشغيل",
     capacity_queue: "الانتظار عند امتلاء السعة بدل الرفض",
     gateway_max_upload_mb: "أكبر رفع، MB",
     gateway_idle_timeout_seconds: "التخلي عن رفع صامت بعد، بالثواني",
@@ -2213,6 +2217,8 @@ const ar: typeof en = {
       "أقصى عدد للبيئات العاملة في وقت واحد: يُرفض إنشاء بيئة أخرى أو تشغيلها؛ 0: لا رفض أبدًا، تنبيه فقط. لا ترفض بيئات الإنتاج بهذا الحد أبدًا.",
     max_running_non_production_per_user:
       "عدد البيئات غير الإنتاجية التي يجوز لشخص واحد تشغيلها أو بدؤها في وقت واحد (التي أنشأها)؛ تُرفض الزيادة. 0: بلا حد. يستطيع المسؤول تحديد رقم آخر لشخص في صفحته. لا تُحسب بيئات الإنتاج ولا تُرفض أبدًا.",
+    slot_store_wait_seconds:
+      "الثواني التي ينتظرها تشغيل بيئة ليتحقق من حد البيئات العاملة ويسجّل أنه يحجز موضعًا، أو تنتظرها مهمة لتسجّل أنها انتهت، قبل أن يُرفض التشغيل (حاول مجددًا) أو يُعاد التسجيل. ارفعها فقط إذا كانت قاعدة البيانات بطيئة.",
     capacity_queue:
       "عند بلوغ حد البيئات العاملة تنتظر البيئة غير الإنتاجية الجديدة أو تشغيلها في طابور وتبدأ تلقائيًا عند توفر مكان بدل أن تُرفض. لا يدخل الإنتاج الطابور أبدًا.",
     gateway_mode:

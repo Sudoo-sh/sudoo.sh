@@ -951,7 +951,7 @@ def _refuse_joining_production(name: str, repo: str, branch: str) -> None:
 
 
 def _running(name: str) -> bool:
-    return name in capacity.counted_names()
+    return name in capacity.counted_names(strict=False)  # shown, not checked
 
 
 def _refuse_over_capacity(what: str, stage: str | None = None, user: str | None = None, *, queued: bool = True) -> bool:
@@ -1073,12 +1073,17 @@ def change_resources(name: str) -> Response:
     if refused:
         log("instance resources refused", instance=name, ok=False, detail=refused)
         abort(409, refused)
-    previous = resources.overrides(name)
-    resources.save_overrides(name, limits, g.user["name"])
-    job = jobs.start(
-        name, "Apply resources", "restart", operations.apply_resources, name, previous, user=g.user["name"],
-        holds_slot=True,
-    )  # fmt: skip
+    with quotas.LOCK:  # a stopped instance is started by the restart: the running limits, then the hold, as one step
+        refused = capacity.admission_refusal(name)
+        if refused:
+            log("instance resources refused", instance=name, ok=False, detail=refused)
+            abort(403, refused)
+        previous = resources.overrides(name)
+        resources.save_overrides(name, limits, g.user["name"])
+        job = jobs.start(
+            name, "Apply resources", "restart", operations.apply_resources, name, previous, user=g.user["name"],
+            holds_slot=True,
+        )  # fmt: skip
     log(
         "instance resources changed",
         instance=name,

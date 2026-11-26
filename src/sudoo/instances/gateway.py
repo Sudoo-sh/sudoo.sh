@@ -988,16 +988,20 @@ def wake_decision(name: str) -> tuple[str, float]:
     if job is None and not STATUS.get(name, {}).get("running") and _locked(name):
         return "locked", time.time()
     if job is None and not STATUS.get(name, {}).get("running") and time.time() - _WAKE_REQUESTED.get(name, 0) > 60:
+        from sudoo.core import slots
         from sudoo.instances import capacity  # late: they import this module
         from sudoo.limits import quotas  # late: limits/ imports the instances package
 
         _WAKE_REQUESTED[name] = time.time()
         assert _wake is not None  # set by start() before any listener exists
-        with quotas.LOCK:  # from the check until the wake's job is registered (it counts as starting from then on)
-            refused = capacity.start_refusal(name)
-            if refused:
-                return "full", time.time()
-            job = _wake(name)
+        try:
+            with quotas.LOCK:  # from the check until the wake's job is registered (it counts as starting from then on)
+                refused = capacity.start_refusal(name)
+                if refused:
+                    return "full", time.time()
+                job = _wake(name)
+        except slots.Unavailable:  # the running record could not be checked or kept: no wake (the page says full)
+            return "full", time.time()
     if job is not None and job.kind == "db-upgrade":
         return "upgrading", job.started
     if job is not None and job.kind not in ("wake", "restart", "create"):

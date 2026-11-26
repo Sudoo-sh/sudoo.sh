@@ -300,16 +300,16 @@ def start_refusal(name: str) -> str | None:
 
 
 def _unsettled_note() -> str:
-    """Said with a running-limit refusal when an instance still counts only because the monitor has not measured it
-    since a job ended (the monitor is behind or stopped, or its engine did not answer): where to look."""
-    waiting = jobs.unsettled()
+    """Said with a running-limit refusal when instances still count only because the monitor has not measured them
+    since a job ended (the monitor is behind or stopped, or its engine did not answer). A count only: the names may
+    be other people's instances."""
+    waiting = len(jobs.unsettled())
     if not waiting:
         return ""
     return (
-        f" {_plural(len(waiting), 'instance still counts', 'instances still count')} as running because it has not "
-        "been measured since its job ended"
-        + (f" ({', '.join(waiting[:3])}{', ...' if len(waiting) > 3 else ''})" if waiting else "")
-        + ": the monitor is behind or cannot reach it."
+        f" {_plural(waiting, 'instance still counts', 'instances still count')} as running because "
+        f"{'it has' if waiting == 1 else 'they have'} not been measured since a job ended: the monitor is behind or "
+        "cannot reach it."
     )
 
 

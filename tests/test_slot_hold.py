@@ -30,6 +30,7 @@ def clean_up() -> Iterator[None]:
         shutil.rmtree(store.folder(name), ignore_errors=True)
     MADE.clear()
     metrics.INSTANCES.clear()
+    metrics.OBSERVED.clear()
     live.change({"max_running_non_production_per_user": None, "max_running_instances": None})
 
 
@@ -55,7 +56,11 @@ def wait_ended(job: Job) -> None:
 
 
 def observe(name: str, running: bool, at: float | None) -> None:
-    metrics.INSTANCES[name] = {"running": running, "observed_at": at}
+    metrics.INSTANCES[name] = {"running": running}
+    if at is None:
+        metrics.OBSERVED.pop(name, None)
+    else:
+        metrics.OBSERVED[name] = at
 
 
 def test_a_running_instance_keeps_its_slot_while_a_job_takes_it_down_and_up() -> None:
@@ -143,19 +148,75 @@ def test_a_refusal_says_which_instances_wait_for_a_measurement() -> None:
     job = held_job("hold-h", lambda j: None)
     wait_ended(job)
     text = capacity.refusal(stage="development", user="admin1") or ""
-    assert "runs at most 1 instance" in text and "has not been measured since its job ended" in text
-    assert "hold-h" in text
+    assert "runs at most 1 instance" in text and "1 instance still counts as running" in text
+    assert "hold-h" not in text and "hold-i" not in text  # a count only: the names may be other people's
     observe("hold-h", False, job.finished_mono + 1)
-    assert "has not been measured" not in (capacity.refusal(stage="development", user="admin1") or "")
+    assert "still count" not in (capacity.refusal(stage="development", user="admin1") or "")
 
 
-def test_sample_stores_the_observation_time_or_none() -> None:
+def test_sample_keeps_the_observation_time_private_and_forgets_deleted_names() -> None:
     usage = {
         "obs-a": metrics.Usage(True, 0.0, 0, 0, None, None, 12.5),
         "obs-b": metrics.Usage(False, 0.0, 0, 0, None, None),
     }
-    metrics.sample({"memory_total_bytes": 1}, usage)
-    assert metrics.INSTANCES["obs-a"]["observed_at"] == 12.5 and metrics.INSTANCES["obs-b"]["observed_at"] is None
+    snapshot = metrics.sample({"memory_total_bytes": 1}, usage)
+    assert metrics.OBSERVED == {"obs-a": 12.5}  # None: not observed this time
+    assert "observed_at" not in metrics.INSTANCES["obs-a"] and "observed_at" not in str(snapshot)
+    assert "observed_at" not in str(capacity.snapshot()) and "OBSERVED" not in str(capacity.snapshot())
+    from sudoo.web.v1 import resources
+
+    assert "observed_at" not in resources._usage("obs-a")
+    metrics.sample({"memory_total_bytes": 1}, {"obs-b": usage["obs-b"]})  # obs-a deleted
+    assert metrics.OBSERVED == {}
+
+
+def test_deleting_and_recreating_a_name_overcounts_until_the_next_read_never_undercounts() -> None:
+    make("hold-m")
+    job = held_job("hold-m", lambda j: None)
+    wait_ended(job)
+    observe("hold-m", True, job.finished_mono + 1)  # observed after the end: released
+    assert "hold-m" not in jobs.starting()
+    job2 = held_job("hold-m", lambda j: None)
+    wait_ended(job2)
+    shutil.rmtree(store.folder("hold-m"))
+    make("hold-m")  # deleted and made again before anything asked: still the old job's hold
+    observe("hold-m", False, job2.finished_mono - 1)  # an old figure of the previous instance
+    assert "hold-m" in jobs.starting()  # one slot too many, until a read that began after the end
+    observe("hold-m", True, job2.finished_mono + 1)
+    assert "hold-m" not in jobs.starting()
+
+
+def test_a_delete_that_failed_after_the_folder_went_is_not_held() -> None:
+    make("hold-n")
+    job = held_job("hold-n", lambda j: None)
+    wait_ended(job)
+    shutil.rmtree(store.folder("hold-n"))  # what a half-finished delete leaves: no folder, maybe a container
+    assert "hold-n" not in jobs.starting()  # released, the monitor's own running figure still counts a container
+
+
+def test_two_overlapping_jobs_on_one_name_release_on_the_later_end() -> None:
+    make("hold-o")
+    gate = threading.Event()
+    first = held_job("hold-o", lambda j: None)
+    wait_ended(first)
+    second = held_job("hold-o", lambda j: gate.wait(10))
+    observe("hold-o", True, time.monotonic())  # after the first ended, while the second still runs
+    assert "hold-o" in jobs.starting()
+    gate.set()
+    wait_ended(second)
+    assert "hold-o" in jobs.starting()  # the earlier observation is older than the second end
+    observe("hold-o", True, second.finished_mono + 1)
+    assert "hold-o" not in jobs.starting()
+
+
+def test_the_unsettled_figure_reads_the_instances_once_per_call(monkeypatch: pytest.MonkeyPatch) -> None:
+    for name in ("hold-p", "hold-q", "hold-r"):
+        make(name)
+        wait_ended(held_job(name, lambda j: None))
+    calls = []
+    real = store.names
+    monkeypatch.setattr(store, "names", lambda: calls.append(1) or real())
+    assert len(jobs.starting()) == 3 and len(calls) == 1
 
 
 @pytest.fixture
@@ -195,3 +256,75 @@ def test_import_into_a_stopped_instance_respects_the_limit_and_holds_the_slot(
     assert started == []
     answer = client.post("/api/v1/instances/hold-l/imports/u1/restore", json={}, headers=headers)  # running: its slot
     assert answer.status_code == 202 and started == [{"instance": "hold-l", "holds_slot": True}]
+
+
+def _collect_with_stubs(monkeypatch: pytest.MonkeyPatch, kinds: dict[str, str], answers: dict, state: str = "running"):
+    """Run the real monitor.collect with every outside read replaced; return (times, what metrics.sample got)."""
+    import json as _json
+
+    from sudoo import engines
+    from sudoo.instances import monitor
+
+    times: dict[str, float] = {}
+    got: dict[str, metrics.Usage] = {}
+
+    def fake_capture(cmd, *a, **k):
+        times["ps"] = time.monotonic()
+        rows = [{"Names": store.container(n, "odoo"), "ID": f"id-{n}", "State": state, "Status": "Up"} for n in kinds]
+        return "\n".join(_json.dumps(r) for r in rows)
+
+    def fake_elsewhere(names):
+        times["elsewhere"] = time.monotonic()
+        return answers
+
+    monkeypatch.setattr(monitor, "capture", fake_capture)
+    monkeypatch.setattr(monitor, "_container_figures", lambda: {})
+    monkeypatch.setattr(monitor, "_host_memory", lambda: (1000, 100))
+    monkeypatch.setattr(monitor, "_host_cpu_percent", lambda: 0.0)
+    monkeypatch.setattr(monitor, "_host_uptime", lambda: 1)
+    monkeypatch.setattr(monitor, "_started_at", lambda unknown: {})
+    monkeypatch.setattr(monitor, "_git_details", lambda *a, **k: ("", ""))
+    monkeypatch.setattr(monitor, "disk_usage", lambda name: {})
+    monkeypatch.setattr(monitor, "panel_footprint", lambda usage, cores: {})
+    monkeypatch.setattr(monitor.odoo, "answers", lambda env: False)
+    monkeypatch.setattr(monitor, "_observed_elsewhere", fake_elsewhere)
+    monkeypatch.setattr(monitor.store, "names", lambda: list(kinds))
+    monkeypatch.setattr(
+        monitor.store, "read_env", lambda n: {} if kinds[n] == engines.DOCKER else {engines.ENV_KEY: kinds[n]}
+    )
+    monkeypatch.setattr(monitor.metrics, "sample", lambda host, usage, panel=None: got.update(usage))
+    before = time.monotonic()
+    monitor.collect()
+    times["before"], times["after"] = before, time.monotonic()
+    return times, got
+
+
+def test_collect_stamps_the_read_time_of_the_state_it_reports(monkeypatch: pytest.MonkeyPatch) -> None:
+    from sudoo import engines
+    from sudoo.instances import monitor
+
+    answer = engines.Observation(running=True, db_running=True, cpu=0.0, memory=0, limit=0, uptime="", started=None)
+    times, got = _collect_with_stubs(
+        monkeypatch,
+        {"col-d": engines.DOCKER, "col-k": engines.KUBERNETES, "col-x": engines.KUBERNETES},
+        {"col-k": answer},
+    )
+    # Docker: taken before `docker ps` ran, so a state shown is from then or later
+    assert times["before"] <= got["col-d"].observed_at <= times["ps"] <= times["after"]
+    # another engine with an answer: taken before that read
+    assert times["ps"] <= got["col-k"].observed_at <= times["elsewhere"] <= times["after"]
+    assert got["col-k"].running is True
+    # another engine without an answer: no time (stays held), reported as stopped for lack of an answer
+    assert got["col-x"].observed_at is None and got["col-x"].running is False
+    # the cached figures only give start times; `running` comes from the `docker ps` read of this pass
+    assert monitor._STARTED is not None
+
+
+def test_collect_that_fails_before_reading_leaves_the_observations_alone(monkeypatch: pytest.MonkeyPatch) -> None:
+    from sudoo.instances import monitor
+
+    observe("col-f", True, 1.0)
+    monkeypatch.setattr(monitor, "capture", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("docker down")))
+    with pytest.raises(RuntimeError):
+        monitor.collect()
+    assert metrics.OBSERVED == {"col-f": 1.0}  # no read finished: nothing was stamped

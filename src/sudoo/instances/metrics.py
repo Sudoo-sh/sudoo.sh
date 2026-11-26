@@ -106,6 +106,9 @@ _HISTORY_SAMPLES = 1800  # one hour at the shortest interval (2 seconds); older 
 SERVER: dict[str, Any] = {}
 PANEL: dict[str, Any] = {}  # the panel's footprint by part (monitor.py): {"backend": {...}, "web": {...}, ...}
 INSTANCES: dict[str, dict[str, Any]] = {}
+# name -> time.monotonic() before the monitor started to read that instance's state (core/jobs.py releases a slot
+# only after a read that began after its job ended). Private to this process: never in INSTANCES, which clients see.
+OBSERVED: dict[str, float] = {}
 _SERVER_HISTORY: deque[dict[str, Any]] = deque(maxlen=_HISTORY_SAMPLES)
 _INSTANCE_HISTORY: defaultdict[str, deque[dict[str, Any]]] = defaultdict(lambda: deque(maxlen=_HISTORY_SAMPLES))
 _LAST_SAMPLE = 0.0
@@ -149,6 +152,7 @@ def sample(server: dict[str, Any], usage: dict[str, Usage], panel: dict[str, Any
 
     for name in set(INSTANCES) - set(usage):  # deleted
         INSTANCES.pop(name, None)
+        OBSERVED.pop(name, None)
         _INSTANCE_HISTORY.pop(name, None)
     for name, measured in usage.items():
         counted = requests.get(name, _Requests())
@@ -166,11 +170,12 @@ def sample(server: dict[str, Any], usage: dict[str, Usage], panel: dict[str, Any
             "response_ms_p95": _round(percentile(counted.durations_ms, 0.95)),
             "uptime_seconds": int(now - measured.started_at) if measured.running and measured.started_at else None,
             "disk_bytes": measured.disk_bytes,
-            # when the "running" above started to be read (monotonic, this process): the state is from then or later,
-            # never earlier. None: the engine could not be asked, "running" is False for lack of an answer, not known.
-            "observed_at": measured.observed_at,
         }
         INSTANCES[name] = figures
+        if measured.observed_at is None:  # the engine could not be asked: "running" is False for lack of an answer
+            OBSERVED.pop(name, None)
+        else:
+            OBSERVED[name] = measured.observed_at  # the state is from this time or later, never earlier
         _INSTANCE_HISTORY[name].append({"t": int(now), **{key: figures[key] for key in INSTANCE_SERIES}})
     return snapshot()
 

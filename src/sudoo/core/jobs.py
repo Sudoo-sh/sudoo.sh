@@ -467,18 +467,18 @@ def pending_creations() -> list[tuple[str, str]]:
         ]
 
 
-def _holding(job: Job) -> bool:
+def _holding(job: Job, present: set[str]) -> bool:
     """Whether the instance of this job still counts as running because of it: the job has not ended, or it ended and
     the monitor has not observed the instance since (an observation that started before the job ended may show the
     state from before it, so it releases nothing). An instance that does not exist any more is not held. An
     instance the monitor cannot see now (a cluster that did not answer) stays held: unknown is not stopped."""
-    from sudoo.instances import metrics, store
+    from sudoo.instances import metrics
 
     if job.finished_mono is None:
         return True
-    if job.instance not in store.names():
+    if job.instance not in present:  # `present`: the instances that exist, read once by the caller
         return False
-    observed = (metrics.INSTANCES.get(job.instance) or {}).get("observed_at")
+    observed = metrics.OBSERVED.get(job.instance)
     return observed is None or observed <= job.finished_mono
 
 
@@ -487,10 +487,15 @@ def starting() -> set[str]:
     stops or starts an instance) while it runs and until the instance is observed after it ended, success or failure."""
     with _JOBS_LOCK:
         held = list(_HELD.values())
+    if not held:
+        return set()
+    from sudoo.instances import store
+
+    present = set(store.names())
     names: set[str] = set()
     released: list[str] = []
     for job in held:
-        if _holding(job):
+        if _holding(job, present):
             names.add(job.instance)
         else:
             released.append(job.id)
@@ -506,7 +511,12 @@ def unsettled() -> list[str]:
     behind, stopped or cannot see the instance)."""
     with _JOBS_LOCK:
         held = list(_HELD.values())
-    return sorted({job.instance for job in held if job.finished_mono is not None and _holding(job)})
+    if not held:
+        return []
+    from sudoo.instances import store
+
+    present = set(store.names())
+    return sorted({job.instance for job in held if job.finished_mono is not None and _holding(job, present)})
 
 
 def busy(instance: str) -> bool:

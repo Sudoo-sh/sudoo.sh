@@ -10,6 +10,7 @@ import { ExpiringSoon } from "@/components/ExpiringSoon";
 import { RecentActivity } from "@/components/RecentActivity";
 import { InstanceCard } from "@/components/InstanceCard";
 import { STAGE_ORDER, STAGES, StageTag } from "@/components/StageTag";
+import { useRemembered } from "@/lib/remembered";
 import { Page, PageHead, useCan } from "@/components/Shell";
 import { INSTANCES_TOUR } from "@/lib/tour";
 import { StatCard } from "@/components/StatCard";
@@ -222,6 +223,7 @@ function Charts({ instances }: { instances: Instance[] | undefined }) {
 }
 
 type Filter = "all" | "online" | "paused" | "busy" | "expiring";
+const FILTERS: readonly Filter[] = ["all", "online", "paused", "busy", "expiring"];
 /** The list's tabs: what is running now, what failed, what was stopped at the end of its life, what was deleted */
 type View = "current" | "failed" | "stopped" | "deleted" | "all";
 const ASLEEP: InstanceStatus[] = ["paused", "switched_off", "stopped"];
@@ -236,8 +238,17 @@ export function DashboardPage() {
   const history = useDeferredValue(useHistory().data);
   const [query, setQuery] = useState("");
   const [params] = useSearchParams();
-  const [filter, setFilter] = useState<Filter>(params.get("filter") === "expiring" ? "expiring" : "all");
-  const [stage, setStage] = useState<Stage | "all">("all");
+  const [filter, setFilter] = useRemembered<Filter>(
+    "instances.filter",
+    FILTERS,
+    "all",
+    params.get("filter") === "expiring" ? "expiring" : undefined,
+  );
+  const [stage, setStage] = useRemembered<Stage | "all">(
+    "instances.stage",
+    ["all", ...(Object.keys(STAGE_ORDER) as Stage[])],
+    "all",
+  );
   const [view, setView] = useState<View>("all");
   const server = metrics?.server;
   const words = useT(dashboard);

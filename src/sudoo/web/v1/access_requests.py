@@ -12,7 +12,8 @@ Every decision is in the audit log. A request is decided once.
 
 from __future__ import annotations
 
-import contextlib
+import threading
+from collections.abc import Callable
 from typing import Any
 
 from flask import Blueprint, Response, abort, g
@@ -63,16 +64,27 @@ def ask() -> Response:
         from datetime import UTC, datetime
 
         expires = datetime.fromtimestamp(time.time() + access_requests.CONFIRM_HOURS * 3600, UTC)
-        with contextlib.suppress(MailError):  # the same answer: a failing mail server tells the form nothing
-            send(
-                email.strip(),
-                "access_request_confirm",
-                name=first.strip() or email.strip(),
-                expires=expires.strftime("%A %d %B %Y, %H:%M UTC"),
-                link=f"{_base()}{access_requests.PATH}#{request_id}.{secret}",
-            )
-        audit.record("access request", client_ip(), "access request received", detail=email.strip().lower()[:254])
+        link = f"{_base()}{access_requests.PATH}#{request_id}.{secret}"  # needs the request: made here
+        ip, address, name = client_ip(), email.strip(), first.strip() or email.strip()
+        stamp = expires.strftime("%A %d %B %Y, %H:%M UTC")
+        _spawn(lambda: _send_confirmation(ip, address, name, stamp, link))
     return ok(ANSWER, status=202)
+
+
+def _spawn(fn: Callable[[], None]) -> None:
+    """Run `fn` in the background, so the answer does not wait for the mail server (the tests run it at once)."""
+    threading.Thread(target=fn, daemon=True, name="access-request-mail").start()
+
+
+def _send_confirmation(ip: str, email: str, name: str, expires: str, link: str) -> None:
+    """The confirmation mail. The form has answered already, the same for everyone: a failure is audited (the person
+    can ask again; nothing is retried by itself) and never reaches the form."""
+    try:
+        send(email, "access_request_confirm", name=name, expires=expires, link=link)
+    except MailError as error:
+        audit.record("access request", ip, "access request mail not sent", ok=False, detail=str(error)[:200])
+        return
+    audit.record("access request", ip, "access request received", detail=email.lower()[:254])
 
 
 @blueprint.post("/access-requests/confirm")

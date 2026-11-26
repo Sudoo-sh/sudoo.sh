@@ -56,6 +56,7 @@ def mailbox(monkeypatch: pytest.MonkeyPatch) -> FakeMailer:
     import sudoo.web.v1.invitations as invites
 
     monkeypatch.setattr(api, "mailer", lambda: fake)
+    monkeypatch.setattr(api, "_spawn", lambda fn: fn())  # the mail goes out at once (a test below uses the real one)
     monkeypatch.setattr(invites, "mailer", lambda: fake)
     return fake
 
@@ -216,3 +217,97 @@ def test_confirming_a_link_does_not_touch_a_signed_in_session(app: Flask, admin:
     assert answer.status_code == 200
     assert client.get("/api/v1/account").status_code == 200  # still the same person, still signed in
     assert client.get("/api/v1/account").get_json()["data"]["name"] == before
+
+
+def test_the_answer_does_not_wait_for_the_mail_server(
+    app: Flask, mailbox: FakeMailer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import threading
+
+    import sudoo.web.v1.access_requests as api
+
+    live.change({"access_request_domains": "corp.example"})
+    release, started = threading.Event(), threading.Event()
+    workers: list[threading.Thread] = []
+
+    def slow_send(to: str, subject: str, text: str, html: str | None = None) -> None:
+        started.set()
+        release.wait(20)
+        mailbox.sent.append({"to": to, "subject": subject, "text": text})
+
+    def spawn(fn: object) -> None:
+        thread = threading.Thread(target=fn)  # type: ignore[arg-type]
+        workers.append(thread)
+        thread.start()
+
+    monkeypatch.setattr(mailbox, "send", slow_send)
+    monkeypatch.setattr(api, "_spawn", spawn)
+    email = _address()
+    assert _ask(app, email)[0] == 202  # answered while the mail is still being sent
+    assert started.wait(5) and mailbox.sent == []
+    release.set()
+    for worker in workers:
+        worker.join(10)
+    assert [m["to"] for m in mailbox.sent] == [email]
+
+
+def test_a_failing_mail_server_changes_nothing_for_the_form_and_is_audited(
+    app: Flask, mailbox: FakeMailer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sudoo.core import audit
+    from sudoo.mail import MailError
+
+    live.change({"access_request_domains": "corp.example"})
+
+    def broken(to: str, subject: str, text: str, html: str | None = None) -> None:
+        raise MailError("server down")
+
+    email = _address()
+    ok = _ask(app, _address())
+    monkeypatch.setattr(mailbox, "send", broken)
+    failed = _ask(app, email)
+    assert failed == ok  # the same answer
+    events = [(e["event"], e["ok"]) for e in audit.latest(limit=10)]
+    assert ("access request mail not sent", False) in events
+
+
+def test_every_request_does_the_same_checks_whatever_the_answer(
+    app: Flask, mailbox: FakeMailer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    live.change({"access_request_domains": "corp.example"})
+    calls = {"taken": 0, "invited": 0, "open": 0, "address": 0}
+
+    def counting(name: str, real: object) -> object:
+        def wrapper(*a: object, **k: object) -> object:
+            calls[name] += 1
+            return real(*a, **k)  # type: ignore[operator]
+
+        return wrapper
+
+    monkeypatch.setattr(accounts, "email_taken", counting("taken", accounts.email_taken))
+    monkeypatch.setattr(invitations, "pending_for", counting("invited", invitations.pending_for))
+    monkeypatch.setattr(access_requests, "_open_for", counting("open", access_requests._open_for))
+    monkeypatch.setattr(access_requests.BY_ADDRESS, "take", counting("address", access_requests.BY_ADDRESS.take))
+    for email in (_address(), "someone@elsewhere.example", "not an address"):
+        before = dict(calls)
+        assert _ask(app, email)[0] == 202
+        assert {k: calls[k] - before[k] for k in calls} == dict.fromkeys(calls, 1), email
+
+
+def test_the_limits_are_counted_by_the_shared_rate_limiter_under_a_digest(monkeypatch: pytest.MonkeyPatch) -> None:
+    from sudoo import limits
+    from sudoo.limits.base import Decision
+
+    counts: dict[str, int] = {}
+
+    class Shared:
+        def hit(self, key: str, limit: int, window_seconds: int = 60) -> Decision:
+            counts[key] = counts.get(key, 0) + 1
+            return Decision(counts[key] <= limit, limit, 0, 1)
+
+    monkeypatch.setattr(limits, "limiter", lambda: Shared())
+    first, second = access_requests._Limit("address", 2), access_requests._Limit("address", 2)  # two panels
+    assert first.take("a@corp.example") and second.take("a@corp.example")
+    assert not first.take("a@corp.example")  # the count is shared, not each one's own
+    assert second.take("b@corp.example")  # another address has its own
+    assert all("corp.example" not in key and key.startswith("access-request:") for key in counts)

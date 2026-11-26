@@ -16,7 +16,6 @@ import hmac
 import secrets
 import threading
 import time
-from collections import deque
 from typing import Any
 
 from sudoo import accounts, invitations
@@ -53,30 +52,28 @@ def _digest(secret: str) -> str:
 
 
 class _Limit:
-    def __init__(self, per_hour: int) -> None:
+    """One hour's allowance per key, counted by the panel's rate limiter (limits/: the plugin named by RATE_LIMITER,
+    so panels that share one plugin share these counts; the built-in "memory" one counts in this process). The key
+    holds a digest, not the address."""
+
+    def __init__(self, name: str, per_hour: int) -> None:
+        self.name = name
         self.per_hour = per_hour
-        self._lock = threading.Lock()
-        self._seen: dict[str, deque[float]] = {}
+        self._epoch = 0  # clear() starts new counts here, without reaching into a shared plugin
 
     def take(self, who: str) -> bool:
         """Count one request; False when `who` has used up the hour."""
-        now = time.time()
-        with self._lock:
-            seen = self._seen.setdefault(who, deque())
-            while seen and now - seen[0] > 3600:
-                seen.popleft()
-            if len(seen) >= self.per_hour:
-                return False
-            seen.append(now)
-            return True
+        from sudoo import limits
+
+        digest = hashlib.sha256(f"{self.name}:{self._epoch}:{who}".encode()).hexdigest()[:32]
+        return limits.limiter().hit(f"access-request:{digest}", self.per_hour, 3600).allowed
 
     def clear(self) -> None:
-        with self._lock:
-            self._seen.clear()
+        self._epoch += 1
 
 
-BY_ADDRESS = _Limit(PER_ADDRESS_PER_HOUR)
-BY_CLIENT = _Limit(PER_CLIENT_PER_HOUR)
+BY_ADDRESS = _Limit("address", PER_ADDRESS_PER_HOUR)
+BY_CLIENT = _Limit("client", PER_CLIENT_PER_HOUR)
 
 
 def all_requests() -> dict[str, Document]:
@@ -109,13 +106,14 @@ def submit(email: str, first_name: str, last_name: str, client: str) -> tuple[st
     answers the same in both cases. Nothing is sent for a domain that is not allowed, an address that has an account,
     an invitation or a request already, or a person who asked too often."""
     email = email.strip().lower()
-    if not BY_CLIENT.take(client):
+    if not BY_CLIENT.take(client):  # the caller's own allowance: it tells them nothing about anyone else
         return None
-    if not enabled() or not allowed(email) or accounts.profile_problem({"email": email}):
-        return None
-    if not BY_ADDRESS.take(email):
-        return None
-    if accounts.email_taken(email) or invitations.pending_for(email) or _open_for(email):
+    # From here every request does the same work, whichever of the answers it ends in: nobody learns from the time
+    # it takes whether the domain is allowed, the address is known, or its own allowance for it is used up.
+    valid = enabled() and allowed(email) and not accounts.profile_problem({"email": email})
+    within = BY_ADDRESS.take(email)
+    known = bool(accounts.email_taken(email) or invitations.pending_for(email) or _open_for(email))
+    if not (valid and within) or known:
         return None
     request_id = secrets.token_urlsafe(9)
     secret = secrets.token_urlsafe(32)

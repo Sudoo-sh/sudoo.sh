@@ -344,12 +344,16 @@ def start(
     user: str = "system",
     details: dict[str, Any] | None = None,
     holds_slot: bool | None = None,
+    prepare: Callable[[], None] | None = None,
 ) -> Job:
     """Run fn(job, *args) in the background for `instance` and return the Job.
 
     `holds_slot`: the job stops or starts the instance, so the instance counts as running (capacity.py) while the job
     runs and until the monitor has observed the instance after the job ended, whatever state it was in when the job
     was asked for. The caller has passed the running-limit check under quotas.LOCK. Default: creations and wakes.
+
+    `prepare` runs once the slot is held and before the job's thread begins (what the job reads and must not see
+    before it is certain to run: nothing is saved when the hold is refused). When it raises, nothing starts.
 
     `details` are facts known before the job runs, shown while it does: a creation's plan is what the instance
     looks like until its files exist (web/v1/resources.py)."""
@@ -360,6 +364,8 @@ def start(
     if holds:
         slots.record_hold(job.id, instance, user)  # before the job exists: Unavailable means nothing was started
     try:
+        if prepare is not None:
+            prepare()
         with _JOBS_LOCK:
             JOBS[job.id] = job
             if holds:

@@ -12,9 +12,10 @@ from typing import Any
 import pytest
 from flask.testing import FlaskClient
 
+import docrun  # noqa: E402
 from sudoo import accounts
 from sudoo.config import live
-from sudoo.core import jobs
+from sudoo.core import jobs, slots
 from sudoo.core.jobs import Job
 from sudoo.instances import metrics, planning, store
 from sudoo.limits import queue, quotas
@@ -33,12 +34,14 @@ def clean_up(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) ->
 
     def fake_job(instance: str, action: str, kind: str, fn: Any, *args: Any, user: str = "system", **_: Any) -> Job:
         STARTED.append((instance, action))
-        metrics.INSTANCES[instance] = {"running": True}  # a started job counts as running, as the real one does
+        docrun.run(instance, True)  # a started job counts as running, as the real one does
         return Job(instance, action, kind, user)
 
     def fake_plan_start(plan: dict[str, Any], user: str) -> Job:
         STARTED.append((str(plan["name"]), "create"))
-        metrics.INSTANCES[str(plan["name"])] = {"running": True}
+        slots.record_hold(
+            f"fake-{plan['name']}", str(plan["name"]), user
+        )  # a creation holds its slot as the real one does
         store.release_ports(plan.get("ports") or {})
         return Job(str(plan["name"]), "Create", "create", user)
 
@@ -50,6 +53,7 @@ def clean_up(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) ->
         shutil.rmtree(store.folder(name), ignore_errors=True)
     MADE.clear()
     metrics.INSTANCES.clear()
+    docrun.reset()
     for key in list(storage().all(queue.COLLECTION)):
         storage().delete(queue.COLLECTION, key)
     live.change({"max_running_non_production_per_user": None, "max_running_instances": None, "capacity_queue": False,
@@ -83,7 +87,7 @@ def make(name: str, stage: str, owner: str, running: bool) -> None:
     store.write_env(name, {"ODOO_VERSION": "18.0", "DB_NAME": name.replace("-", "_"), "ODOO_PORT": "18999",
                            "STAGE": stage, "CREATED_BY": owner})  # fmt: skip
     if running:
-        metrics.INSTANCES[name] = {"running": True}
+        docrun.run(name, True)
 
 
 def limit(panel: int | None = None, own: int | None = None, on: bool = True) -> None:
@@ -114,7 +118,7 @@ def test_a_start_over_the_limit_waits_and_starts_when_room_appears(admin: Client
     assert body["position"] == 1 and body["status"] == "Waiting for capacity (position 1)"
     assert answer.headers["Location"].endswith(f"/capacity-queue/{body['id']}")
     assert queue.dispatch() == [] and STARTED == []  # still no room
-    metrics.INSTANCES["dev-a"] = {"running": False}
+    docrun.run("dev-a", False)
     assert queue.dispatch() == ["dev-b"] and STARTED == [("dev-b", "Start")]
     assert queue.items() == []
 
@@ -131,7 +135,7 @@ def test_the_line_is_first_in_first_out_and_two_free_slots_start_two(admin: Clie
     assert post_start(client, headers, "dev-b").get_json()["data"]["position"] == 1  # one item per instance
     assert len(queue.items()) == 3
     limit(panel=3)
-    metrics.INSTANCES["dev-b"] = {"running": False}
+    docrun.run("dev-b", False)
     started = queue.dispatch()  # room for two more than the one running: b and c, not d
     assert started == ["dev-b", "dev-c"]
     assert [i["instance"] for i in queue.items()] == ["dev-d"]
@@ -176,7 +180,7 @@ def test_creation_waits_keeps_its_name_and_creates_later(admin: Client) -> None:
     again = client.post("/api/v1/instances", json=payload, headers=headers)
     assert again.status_code == 202 and "later" in queue.names()
     assert len(queue.names()) == 2  # the waiting name is taken: the second one got another name
-    metrics.INSTANCES["dev-a"] = {"running": False}
+    docrun.run("dev-a", False)
     assert queue.dispatch() == ["later"] and STARTED == [("later", "create")]
 
 
@@ -357,7 +361,7 @@ def test_disabling_through_the_api_drops_a_waiting_request_and_enabling_does_not
         admin_client.post("/api/v1/users/sync1/disable", json={"reason": "test"}, headers=admin_headers).status_code
         == 200
     )
-    metrics.INSTANCES["dev-a"] = {"running": False}  # room appears: it would start if the person were enabled
+    docrun.run("dev-a", False)  # room appears: it would start if the person were enabled
     assert queue.dispatch() == [] and STARTED == [] and queue.items() == []
     assert any(
         e["event"] == "capacity queue: dropped" and "disabled" in str(e.get("detail")) for e in audit.latest(limit=20)
@@ -450,7 +454,7 @@ def test_a_creation_goes_from_the_api_through_the_queue_to_its_start(admin: Clie
     assert client.post("/api/v1/instances", json=payload, headers=headers).status_code == 202
     charged = dict(storage().get(quotas.CREATIONS, "admin1") or {})
     assert charged["count"] == 1 and queue.names() == {"later"}
-    metrics.INSTANCES["dev-a"] = {"running": False}  # running room appears, but the person made an instance meanwhile
+    docrun.run("dev-a", False)  # running room appears, but the person made an instance meanwhile
     make("dev-b", "development", "admin1", False)
     live.change({"max_instances_per_user": 1})
     assert queue.dispatch() == [] and STARTED == []

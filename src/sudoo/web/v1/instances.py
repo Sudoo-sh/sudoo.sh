@@ -1079,11 +1079,29 @@ def change_resources(name: str) -> Response:
             log("instance resources refused", instance=name, ok=False, detail=refused)
             abort(403, refused)
         previous = resources.overrides(name)
-        resources.save_overrides(name, limits, g.user["name"])
-        job = jobs.start(
-            name, "Apply resources", "restart", operations.apply_resources, name, previous, user=g.user["name"],
-            holds_slot=True,
-        )  # fmt: skip
+        before = resources.stored(name)
+        saved: list[bool] = []
+
+        def save() -> None:  # after the slot is held, before the job exists: a refusal saves nothing
+            resources.save_overrides(name, limits, g.user["name"])
+            saved.append(True)
+
+        try:
+            job = jobs.start(
+                name, "Apply resources", "restart", operations.apply_resources, name, previous,
+                user=g.user["name"], holds_slot=True, prepare=save,
+            )  # fmt: skip
+        except BaseException:
+            if saved:  # saved, and then the job could not begin: put the old limits back, or say they stayed
+                try:
+                    resources.put_back(name, before)
+                except Exception as error:  # noqa: BLE001
+                    log("instance resources not restored", instance=name, ok=False, detail=str(error)[:300])
+                    raise RuntimeError(
+                        f"The new limits of {name} were saved but the change did not start, and the old limits "
+                        "could not be put back. Check the instance's resources."
+                    ) from error
+            raise
     log(
         "instance resources changed",
         instance=name,

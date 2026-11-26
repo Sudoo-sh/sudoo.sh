@@ -59,6 +59,101 @@ class Busy(Unavailable):
     """Another start is being admitted and did not finish within the wait."""
 
 
+@dataclass(frozen=True)
+class Admit:
+    """What the running limits need to judge one start, read BEFORE the write so the judging callback does no I/O.
+    `existing`: the instances that exist; `production`: those of them in production; `owned`: the non-production ones
+    `user` created (the person whose own limit applies, or empty). `exempt`: the start is of a production instance
+    (the limits never refuse those). `fresh`: this process's last observation was published (see `PUBLISH`)."""
+
+    existing: frozenset[str]
+    production: frozenset[str]
+    owned: frozenset[str]
+    user: str | None
+    exempt: bool
+    max_running: int
+    user_limit: int
+    own_voice: bool
+    fresh: bool = True
+
+
+@dataclass(frozen=True)
+class Decision:
+    kind: str  # "total", "own" or "stale"
+    limit: int
+    count: int
+
+
+class Refused(Unavailable):
+    """The running limits refuse this start, judged on the document inside the write that would have recorded it."""
+
+    def __init__(self, decision: Decision, admit: Admit) -> None:
+        self.decision, self.admit = decision, admit
+        super().__init__(describe(decision, admit) if describe else f"Refused ({decision.kind}).")
+
+
+describe: Callable[[Decision, Admit], str] | None = None  # set by instances/capacity.py: the words of a refusal
+
+
+class _Publish:
+    """Whether this process's last monitor publication worked: a refusal switch only, never a count."""
+
+    failed = False
+
+
+PUBLISH = _Publish()
+
+
+def counted_in(held: dict[str, dict[str, Any]], observed: dict[str, dict[str, Any]], existing: Any) -> set[str]:
+    """The instances that count as running or starting according to the document alone: those observed running that
+    exist, and those a hold names until it is released (an observation that began after the job ended, or the instance
+    gone). A hold that has not ended counts always (a creation does not exist yet)."""
+    names = {name for name, seen in observed.items() if seen.get("running")} & set(existing)
+    for hold in held.values():
+        end = hold.get("end_seq")
+        instance = hold["instance"]
+        if end is not None and (instance not in existing or int(observed.get(instance, {}).get("seq", 0)) > int(end)):
+            continue
+        names.add(instance)
+    return names
+
+
+def decide(names: set[str], admit: Admit, instance: str | None) -> Decision | None:
+    """Pure: why the running limits refuse one more start of `instance`, or None. Production is exempt from the
+    limits only (a storage or record failure refuses it like any other start). An instance already counted holds its
+    slot and is not asked again."""
+    if admit.exempt or (instance is not None and instance in names):
+        return None
+    if not admit.fresh:
+        return Decision("stale", 0, 0)
+    if admit.max_running and len(names) >= admit.max_running:
+        return Decision("total", admit.max_running, len(names))
+    if admit.user and admit.user_limit:
+        own = len(names & admit.owned)
+        if own >= admit.user_limit:
+            return Decision("own", admit.user_limit, own)
+    return None
+
+
+_ARMED = threading.local()
+
+
+def arm(admit: Admit, instance: str | None) -> None:
+    """The check that just passed (instances/capacity.py refusal), for the next start of this thread to be judged
+    again inside its write. Only while this thread holds the admission lock (a check made outside it is not followed
+    by a start the lock covers); cleared when the lock is released and by the start that consumes it."""
+    if ADMISSION.held_by_me():
+        _ARMED.value = (admit, instance)
+
+
+def _consume(instance: str) -> Admit | None:
+    found = getattr(_ARMED, "value", None)
+    _ARMED.value = None
+    if found is None or found[1] not in (None, instance):
+        return None
+    return found[0]
+
+
 def _blank() -> dict[str, Any]:
     return {"rev": 0, "seq": 0, "held": {}, "observed": {}}
 
@@ -187,18 +282,31 @@ def try_seq() -> int | None:
     try:
         return next_seq()
     except Unavailable as exc:
+        PUBLISH.failed = True
         log.warning("monitor: no observation number (%s)", exc)
         return None
 
 
 def record_hold(job_id: str, instance: str, user: str) -> None:
-    """Record, before the job's thread exists, that `job_id` holds the slot of `instance`. Unavailable: not started."""
+    """Record, before the job's thread exists, that `job_id` holds the slot of `instance`. Unavailable: not started.
+    When a limit check was armed by this thread (arm), the same write judges it again against the document: Refused
+    and nothing recorded when the running limits would be passed."""
     owner_id = owner()
+    admit = _consume(instance)
+    refusal: list[Decision] = []
 
     def add(doc: dict[str, Any]) -> None:
+        refusal.clear()
+        if admit is not None:
+            found = decide(counted_in(doc["held"], doc["observed"], admit.existing), admit, instance)
+            if found is not None:
+                refusal.append(found)
+                return
         doc["held"][job_id] = {"instance": instance, "owner": owner_id, "user": user, "end_seq": None}
 
     _change(add)
+    if refusal and admit is not None:
+        raise Refused(refusal[0], admit)
 
 
 def record_end(job_id: str) -> int:
@@ -248,13 +356,17 @@ def publish_observed(seq: int, running: dict[str, bool], present: set[str]) -> N
     try:
         _change(put)
     except Unavailable as exc:
+        PUBLISH.failed = True  # new non-production starts are refused until a publication works (decide: "stale")
         log.warning("monitor: could not publish the observation (%s)", exc)
+    else:
+        PUBLISH.failed = False
 
 
 @dataclass
 class Snapshot:
     """The document as read once, with the holds of dead owners already ended."""
 
+    held: dict[str, dict[str, Any]] = field(default_factory=dict)  # every hold (this process's too), as read
     others: dict[str, dict[str, Any]] = field(default_factory=dict)  # holds of other owners: job id -> hold
     observed: dict[str, dict[str, Any]] = field(default_factory=dict)
     unknown_owners: set[str] = field(default_factory=set)
@@ -285,6 +397,7 @@ def snapshot() -> Snapshot | None:
     for job_id, hold in doc["held"].items():
         owner_id = hold.get("owner")
         if owner_id == mine:
+            result.held[job_id] = hold
             continue
         if hold.get("end_seq") is None and owner_id != RECLAIMED:
             with _dead(str(owner_id)) as gone:
@@ -300,6 +413,7 @@ def snapshot() -> Snapshot | None:
                             continue
                         hold = {**hold, "end_seq": taken, "owner": RECLAIMED}
         result.others[job_id] = hold
+        result.held[job_id] = hold
     return result
 
 
@@ -344,6 +458,9 @@ class AdmissionLock:
             self._pid = os.getpid()
         return self._fd
 
+    def held_by_me(self) -> bool:
+        return self._depth > 0 and self._thread._is_owned()  # type: ignore[attr-defined]
+
     def __enter__(self) -> AdmissionLock:
         wait = _wait()
         if not self._thread.acquire(timeout=wait):
@@ -370,6 +487,8 @@ class AdmissionLock:
 
     def __exit__(self, *exc: object) -> None:
         self._depth -= 1
+        if self._depth == 0:
+            _ARMED.value = None
         if self._depth == 0 and self._fd is not None:
             with contextlib.suppress(OSError):
                 fcntl.flock(self._fd, fcntl.LOCK_UN)

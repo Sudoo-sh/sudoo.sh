@@ -128,7 +128,13 @@ the start (the same 503), never counts from the panel's own memory. With a stora
 or cannot be tried stays counted and is only said so in the unsettled note. A restart does not end it (a new process
 gets a new owner id and never recreates the old file); there is no operator step for it yet. A "running"
 reading published by a panel process that has stopped keeps counting until a live one publishes a newer reading.
-Production instances count in that total but are never refused. To limit one person, set
+The limits are judged twice: before the start, and again inside the write that records its hold, on the shared record
+alone (the holds in it and the readings published into it, not this process's own memory), so two starts that both saw
+room cannot both pass. The count is limited to those published readings and holds: an instance started by
+something other than the panel is seen only after a monitor read of it is published, and a monitor that is dead or
+stuck in another process leaves its last reading in place. While this process cannot publish a reading, new
+non-production starts are refused (production is not) until a publication works. A queued start that is refused
+this way keeps its place in the line. Production instances count in that total but are never refused. To limit one person, set
 `MAX_RUNNING_NON_PRODUCTION_PER_USER` (the non-production instances they created that run or start at once; 0: no
 limit), or give one person another number on their page in **Accounts** (0 there: no limit for them). Both limits are
 off by default, are checked in the API, and are changed in the audit log like every setting.

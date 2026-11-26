@@ -202,20 +202,69 @@ def _version_of(name: str) -> str:
 
 
 def counted_names(strict: bool = True) -> set[str]:
-    """The instances that count as running or starting: those this process's monitor sees running, those another
-    process's monitor published as running (core/slots.py), and those a job holds. One read of the shared record.
-    `strict` (a limit check): the shared record must be readable, slots.Unavailable otherwise, so a check never
-    passes on this process's view alone. `strict=False` is for display: what this process knows."""
+    """The instances that count as running or starting. `strict` (a limit check): the shared record alone, as the
+    start's own write will judge it (core/slots.py counted_in): the holds in it and the observations published into
+    it, whichever process made them; slots.Unavailable when it cannot be read. `strict=False` is for display: also
+    what this process's monitor sees and its own jobs, whatever the record says."""
     from sudoo.core import slots
 
     snap = slots.snapshot()
     if snap is None and strict:
         raise slots.Unavailable("The panel could not read which instances are running or starting.")
+    existing = set(store.names())
+    jobs.starting(
+        strict, snap
+    )  # also ends and forgets the holds an observation released (the record is not counted from it)
+    if strict:
+        assert snap is not None
+        return slots.counted_in(snap.held, snap.observed, existing)
     names = {name for name, figures in metrics.INSTANCES.items() if figures.get("running")}
-    names |= jobs.starting(strict, snap)
+    names |= jobs.starting(False, snap)
     if snap is not None:
-        names |= snap.running() & set(store.names())
+        names |= snap.running() & existing
     return names
+
+
+def preload(stage: str | None, user: str | None, own_voice: bool) -> Any:
+    """Everything the running limits need to judge a start, read now (core/slots.py Admit)."""
+    from sudoo.core import slots
+
+    existing = frozenset(store.names())
+    production = frozenset(name for name in existing if _stage_of(name) == stages.PRODUCTION)
+    owned = frozenset(n for n in existing - production if user and _owner_of(n) == user)
+    return slots.Admit(
+        existing=existing,
+        production=production,
+        owned=owned,
+        user=user,
+        exempt=stage == stages.PRODUCTION,
+        max_running=settings.max_running_instances,
+        user_limit=user_limit(user) if user else 0,
+        own_voice=own_voice,
+        fresh=not slots.PUBLISH.failed,
+    )
+
+
+def describe_refusal(decision: Any, admit: Any) -> str:
+    """The words of a running-limit refusal (core/slots.py decide)."""
+    if decision.kind == "stale":
+        return "The panel has no fresh view of what is running right now, so it does not start more. Try again soon."
+    if decision.kind == "total":
+        return (
+            f"This server runs at most {_plural(decision.limit, 'instance', 'instances')} at once and "
+            f"{decision.count} {'is' if decision.count == 1 else 'are'} running or starting. Pause one first."
+            + _unsettled_note()
+        )
+    how_many = _plural(decision.limit, "running instance", "running instances")
+    if not admit.own_voice:
+        return (
+            f"{admit.user} has {decision.count} of their {how_many} (not counting production) running or "
+            "starting, and this instance counts against them."
+        )
+    return (
+        f"You have {decision.count} of your {how_many} "
+        "(not counting production) running or starting. Pause one of yours first." + _unsettled_note()
+    )
 
 
 def _running(strict: bool = True, counted: set[str] | None = None) -> int:
@@ -233,7 +282,9 @@ def admission_refusal(name: str) -> str | None:
         env = store.read_env(name)
     except OSError:
         return f"{name} could not be read."
-    return refusal(stage=stages.of(env), user=env.get("CREATED_BY") or None, own_voice=False, counted=counted)
+    return refusal(
+        stage=stages.of(env), user=env.get("CREATED_BY") or None, own_voice=False, counted=counted, instance=name
+    )
 
 
 def start_admitted(name: str, start: Callable[[], Any]) -> tuple[Any, str | None]:
@@ -368,6 +419,7 @@ def refusal(
     *,
     own_voice: bool = True,
     counted: set[str] | None = None,
+    instance: str | None = None,
 ) -> str | None:
     """Why one more instance may not start (MAX_RUNNING_INSTANCES reached, or the person's own limit), or None.
 
@@ -395,31 +447,23 @@ def refusal(
             f"{usable / 1024**3:.1f} GB this server can spare for them. Lower the workers or memory limits, pause or "
             "delete instances, or give the server more memory."
         )
-    if stage == stages.PRODUCTION:
+    from sudoo.core import slots
+
+    admit = preload(stage, user, own_voice)
+    if admit.exempt:
         return None
-    if counted is None:
-        counted = counted_names()
-    limit = settings.max_running_instances
-    if limit:
-        running = _running(counted=counted)
-        if running >= limit:
-            return (
-                f"This server runs at most {_plural(limit, 'instance', 'instances')} at once and "
-                f"{running} {'is' if running == 1 else 'are'} running or starting. Pause one first." + _unsettled_note()
-            )
-    if user:
-        own_limit = user_limit(user)
-        if own_limit:
-            own = running_figures(user, counted=counted)["own"]
-            if own >= own_limit:
-                how_many = _plural(own_limit, "running instance", "running instances")
-                if not own_voice:
-                    return (
-                        f"{user} has {own} of their {how_many} (not counting production) running or starting, "
-                        "and this instance counts against them."
-                    )
-                return (
-                    f"You have {own} of your {how_many} "
-                    "(not counting production) running or starting. Pause one of yours first." + _unsettled_note()
-                )
+    names = counted_names() if counted is None else counted
+    verdict = slots.decide(names, admit, instance)
+    if verdict is not None:
+        return describe_refusal(verdict, admit)
+    slots.arm(admit, instance)  # the start that follows is judged again inside its own write (slots.record_hold)
     return None
+
+
+def _register_words() -> None:
+    from sudoo.core import slots
+
+    slots.describe = describe_refusal
+
+
+_register_words()

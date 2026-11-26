@@ -207,13 +207,21 @@ def dispatch() -> list[str]:
                     continue  # no room for this one (its person or the panel): the next may still fit
                 if _take(str(item["id"])) is None:
                     continue  # cancelled or started by another dispatcher meanwhile
+                ports: dict[str, int] = {}
                 try:
                     if item["kind"] == "create":
                         plan = dict(item["plan"])
-                        plan["ports"] = _ports()
+                        plan["ports"] = ports = _ports()
                         planning.start(plan, user)
                     else:
                         _start(name, user)
+                except slots.Refused as error:  # judged again inside the start's own write: not started, its turn stays
+                    _restore(item, ports)
+                    LOG.info("capacity queue: %s waits (%s)", name, error)
+                    continue
+                except slots.Unavailable:  # the hold could not be recorded: not started, so it keeps its place
+                    _restore(item, ports)
+                    raise
                 except Exception as error:  # noqa: BLE001 - one broken item must not stop the line
                     LOG.warning("capacity queue: %s could not start: %s", name, error)
                     audit.record(user, None, "capacity queue: start failed", name, ok=False, detail=str(error)[:300])
@@ -262,6 +270,20 @@ def _take(item_id: str) -> Document | None:
         if item is not None:
             storage().delete(COLLECTION, item_id)
         return item
+
+
+def _restore(item: Mapping[str, Any], ports: Mapping[str, int] | None = None) -> None:
+    """Put an item taken for a start that did not happen back with its own id and sequence number (so, its place in
+    the line). Idempotent, and it never overwrites: nothing is written when the item is there already (restored by
+    an earlier call) or the instance waits again under another item (asked again meanwhile). Only for a start that
+    definitely did not begin; one that may have begun is not put back."""
+    from sudoo.instances import store
+
+    store.release_ports(dict(ports or {}))  # a creation reserved its ports for a start that did not happen
+    with _LOCK:
+        item_id = str(item["id"])
+        if storage().get(COLLECTION, item_id) is None and waiting(str(item["instance"])) is None:
+            storage().put(COLLECTION, item_id, dict(item))
 
 
 def _ports() -> dict[str, int]:

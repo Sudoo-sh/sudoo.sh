@@ -135,6 +135,20 @@ def save_overrides(name: str, limits: Mapping[str, Any], user: str) -> None:
     )
 
 
+def stored(name: str) -> dict[str, Any] | None:
+    """The instance's saved overrides document exactly as stored (None: none saved), for put_back."""
+    found = storage().get(COLLECTION, name)
+    return dict(found) if found is not None else None
+
+
+def put_back(name: str, document: dict[str, Any] | None) -> None:
+    """Return the saved overrides to what stored() read: a start that did not happen must not leave its change."""
+    if document is None:
+        storage().delete(COLLECTION, name)
+    else:
+        storage().put(COLLECTION, name, document)
+
+
 def forget(name: str) -> None:
     """Remove the instance's own limits (when it is deleted)."""
     storage().delete(COLLECTION, name)

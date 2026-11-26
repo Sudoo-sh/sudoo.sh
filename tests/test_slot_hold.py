@@ -13,6 +13,7 @@ from typing import Any
 import pytest
 from flask.testing import FlaskClient
 
+import docrun  # noqa: E402
 from sudoo.config import live
 from sudoo.core import jobs, slots
 from sudoo.core.jobs import Job
@@ -30,6 +31,7 @@ def clean_up() -> Iterator[None]:
         shutil.rmtree(store.folder(name), ignore_errors=True)
     MADE.clear()
     metrics.INSTANCES.clear()
+    docrun.reset()
     metrics.OBSERVED.clear()
     live.change({"max_running_non_production_per_user": None, "max_running_instances": None})
 
@@ -56,10 +58,11 @@ def wait_ended(job: Job) -> None:
 
 
 def observe(name: str, running: bool, at: int | None) -> None:
-    metrics.INSTANCES[name] = {"running": running}
     if at is None:
+        metrics.INSTANCES[name] = {"running": running}  # seen by this process only: nothing published
         metrics.OBSERVED.pop(name, None)
     else:
+        docrun.run(name, running, at)
         metrics.OBSERVED[name] = at
 
 
@@ -346,3 +349,64 @@ def test_changing_resources_of_a_stopped_instance_respects_the_limit_and_saves_n
     assert started == [] and resources.overrides("hold-r1") == before  # refused before anything was saved
     answer = client.put("/api/v1/instances/hold-r2/resources", json={"limits": {"odoo_workers": 2}}, headers=headers)
     assert answer.status_code == 202 and started == [{"instance": "hold-r2", "holds_slot": True}]
+
+
+def test_resources_refused_in_the_hold_write_save_nothing_and_start_nothing(
+    admin: Client, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sudoo.instances import resources
+
+    client, headers = admin
+    make("hold-w1")
+    make("hold-w2")
+    docrun.run("hold-w2", True)
+    monkeypatch.setattr(capacity, "admission_refusal", docrun.passes_then_full())
+    before = resources.stored("hold-w1")
+    answer = client.put("/api/v1/instances/hold-w1/resources", json={"limits": {"odoo_workers": 2}}, headers=headers)
+    assert answer.status_code == 403
+    assert resources.stored("hold-w1") == before and jobs._HELD == {}
+    assert not any(h["instance"] == "hold-w1" for h in slots.snapshot().held.values())
+
+
+def test_a_job_that_cannot_begin_after_the_save_gets_the_old_limits_back_and_its_hold_dropped(
+    admin: Client, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sudoo.instances import resources
+
+    client, headers = admin
+    make("hold-w3")
+    resources.save_overrides("hold-w3", {"odoo_workers": 1}, "admin1")
+    before = resources.stored("hold-w3")
+
+    class NoThread:
+        def __init__(self, *a: Any, **k: Any) -> None: ...
+
+        def start(self) -> None:
+            raise RuntimeError("can't start new thread")
+
+    monkeypatch.setattr(jobs.threading, "Thread", NoThread)
+    answer = client.put("/api/v1/instances/hold-w3/resources", json={"limits": {"odoo_workers": 2}}, headers=headers)
+    assert answer.status_code == 500
+    assert resources.stored("hold-w3") == before and slots.snapshot().held == {} and jobs._HELD == {}
+
+
+def test_a_failed_put_back_is_not_swallowed(admin: Client, monkeypatch: pytest.MonkeyPatch) -> None:
+    from sudoo.instances import resources
+
+    client, headers = admin
+    make("hold-w4")
+
+    class NoThread:
+        def __init__(self, *a: Any, **k: Any) -> None: ...
+
+        def start(self) -> None:
+            raise RuntimeError("can't start new thread")
+
+    def broken(name: str, document: Any) -> None:
+        raise OSError("disk")
+
+    monkeypatch.setattr(jobs.threading, "Thread", NoThread)
+    monkeypatch.setattr(resources, "put_back", broken)
+    answer = client.put("/api/v1/instances/hold-w4/resources", json={"limits": {"odoo_workers": 2}}, headers=headers)
+    assert answer.status_code == 500
+    assert resources.overrides("hold-w4") == {"odoo_workers": 2}  # the change stayed, and the failure was logged

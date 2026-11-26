@@ -74,6 +74,13 @@ def create_app() -> Flask:
             return v1.problem(code, error.description or HTTPStatus(code).phrase)
         return jsonify(error=error.description), code  # the documentation's images, /healthz
 
+    @app.errorhandler(slots.Refused)
+    def slots_refused(error: slots.Refused) -> ResponseReturnValue:
+        """The running limits refused a start inside the write that would have recorded it."""
+        if request.path.startswith(security.API_PREFIX):
+            return v1.problem(403, str(error))
+        return jsonify(error=str(error)), 403
+
     @app.errorhandler(slots.Unavailable)
     def slots_unavailable(error: slots.Unavailable) -> ResponseReturnValue:
         """A start that could not be checked or recorded in time is refused, never started unrecorded."""

@@ -92,7 +92,7 @@ def test_a_hold_that_cannot_be_removed_counts_as_ended_and_is_released_by_a_late
     (held,) = jobs._HELD.values()
     assert held.finished_mono is not None and held.end_seq is not None
     assert "rv-c" in capacity.counted_names()  # kept, not leaked: nothing observed it since
-    metrics.OBSERVED["rv-c"] = slots.next_seq()
+    slots.publish_observed(slots.next_seq(), {"rv-c": False}, {"rv-c"})
     assert "rv-c" not in capacity.counted_names() and jobs._HELD == {}
 
 

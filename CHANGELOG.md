@@ -6,6 +6,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Documentation
+
+- Step by step workflow guides in English and Arabic (`docs/manual/`), with screenshots from the demo.
+- User manual: the first-run setup page has eight steps, not two; the certificate "Expires soon" window follows `ALERT_CERTIFICATE_DAYS`; production updates are always backed up first; maintenance backs up first only for Odoo image updates; the client portal is a Business plan feature.
+
 ## [3.5.0] - 2026-11-25
 
 ### Upgrade notes

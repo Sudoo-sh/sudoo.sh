@@ -447,6 +447,7 @@ export const users: User[] = [
     disabled: true,
     disabled_at: iso(OPENED - 2 * DAY),
     disabled_by: "omar",
+    disabled_reason: "Left the company; kept for the audit trail.",
   },
 ];
 

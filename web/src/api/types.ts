@@ -1398,6 +1398,8 @@ export interface User extends Profile {
   has_password: boolean;
   /** Disabled: it cannot sign in, its sessions ended and the API tokens it owns stopped working; its data stays */
   disabled?: boolean;
+  /** why an administrator disabled it (shown to the other administrators) */
+  disabled_reason?: string | null;
   disabled_at?: string | null;
   disabled_by?: string | null;
 }
@@ -1420,6 +1422,8 @@ export interface AccountRequestPolicy {
   /** the allowed e-mail domains (ACCESS_REQUEST_DOMAINS); empty: requests are off */
   domains: string[];
   enabled: boolean;
+  /** how many requests wait for the e-mail confirmation: a count only */
+  awaiting_confirmation?: number;
 }
 
 export interface DocsContents {

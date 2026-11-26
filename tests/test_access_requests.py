@@ -190,3 +190,29 @@ def test_old_unconfirmed_links_do_not_work(app: Flask, mailbox: FakeMailer) -> N
     item["created"] = time.time() - (access_requests.CONFIRM_HOURS + 1) * 3600
     storage().put(access_requests.COLLECTION, key, item)
     assert _confirm(app, token) == 400
+
+
+def test_unconfirmed_requests_are_only_counted_for_administrators(
+    app: Flask, admin: Client, mailbox: FakeMailer
+) -> None:
+    live.change({"access_request_domains": "corp.example"})
+    assert admin[0].get("/api/v1/access-requests").get_json()["meta"]["awaiting_confirmation"] == 0
+    _ask(app, _address())
+    _ask(app, _address())
+    listed = admin[0].get("/api/v1/access-requests").get_json()
+    assert listed["data"] == [] and listed["meta"]["awaiting_confirmation"] == 2  # a count: no names, no action
+    _confirm(app, _token(mailbox))
+    after = admin[0].get("/api/v1/access-requests").get_json()
+    assert len(after["data"]) == 1 and after["meta"]["awaiting_confirmation"] == 1
+
+
+def test_confirming_a_link_does_not_touch_a_signed_in_session(app: Flask, admin: Client, mailbox: FakeMailer) -> None:
+    live.change({"access_request_domains": "corp.example"})
+    client, headers = admin
+    assert client.get("/api/v1/account").status_code == 200
+    before = client.get("/api/v1/account").get_json()["data"]["name"]
+    _ask(app, _address())
+    answer = client.post("/api/v1/access-requests/confirm", json={"token": _token(mailbox)}, headers=headers)
+    assert answer.status_code == 200
+    assert client.get("/api/v1/account").status_code == 200  # still the same person, still signed in
+    assert client.get("/api/v1/account").get_json()["data"]["name"] == before

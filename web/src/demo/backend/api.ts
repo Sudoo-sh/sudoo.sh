@@ -2628,8 +2628,15 @@ route("DELETE", "/invitations/:id", ({ params }) => {
 });
 // ---------------------------------------------------------------- disabled accounts, access requests
 
-route("POST", "/users/:name/disable", ({ params }) => {
+function reasonOf(body: Record<string, unknown>): string {
+  const reason = String(body.reason ?? "").trim();
+  if (!reason) throw new Problem(400, "Say why: a reason is needed.");
+  if (reason.length > 300) throw new Problem(400, "The reason is at most 300 characters.");
+  return reason;
+}
+route("POST", "/users/:name/disable", ({ params, body }) => {
   need("accounts.manage");
+  const reason = reasonOf(body);
   const user = userOf(params.name!);
   if (user.name === ME) throw new Problem(400, "You cannot disable your own account.");
   if (user.role === "super_admin" && superAdmins().filter((u) => !u.disabled).length === 1)
@@ -2637,16 +2644,19 @@ route("POST", "/users/:name/disable", ({ params }) => {
   user.disabled = true;
   user.disabled_at = iso(Date.now());
   user.disabled_by = ME;
-  record(ME, "account disabled", { detail: user.name });
+  user.disabled_reason = reason;
+  record(ME, "account disabled", { detail: `${user.name}: ${reason}` });
   return ok(user);
 });
-route("POST", "/users/:name/enable", ({ params }) => {
+route("POST", "/users/:name/enable", ({ params, body }) => {
   need("accounts.manage");
+  const reason = reasonOf(body);
   const user = userOf(params.name!);
   user.disabled = false;
   user.disabled_at = null;
   user.disabled_by = null;
-  record(ME, "account enabled", { detail: user.name });
+  user.disabled_reason = null;
+  record(ME, "account enabled", { detail: `${user.name}: ${reason}` });
   return ok(user);
 });
 
@@ -2688,7 +2698,7 @@ route("POST", "/access-requests", () => ok({ received: true }, undefined, 202));
 route("POST", "/access-requests/confirm", () => ok({ received: true }));
 route("GET", "/access-requests", () => {
   need("accounts.manage", "/api/v1/access-requests");
-  return ok(requests, { domains: ["example.com"], enabled: true });
+  return ok(requests, { domains: ["example.com"], enabled: true, awaiting_confirmation: 2 });
 });
 function requestOf(id: string): AccountRequest {
   const found = requests.find((r) => r.id === id);

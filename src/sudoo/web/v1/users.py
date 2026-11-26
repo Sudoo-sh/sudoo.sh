@@ -71,6 +71,7 @@ def user_resource(name: str, user: dict[str, Any]) -> dict[str, Any]:
         "disabled": accounts.is_disabled(user),
         "disabled_at": iso(user.get("disabled_at")),
         "disabled_by": user.get("disabled_by"),
+        "disabled_reason": user.get("disabled_reason"),
         "running_limit": user.get("running_limit"),
         "running_limit_default": settings.max_running_non_production_per_user or None,
         "second_factors": [f["name"] for f in factors_of(user) if f["enrolled"]],
@@ -306,13 +307,14 @@ def disable_user(name: str) -> Response:
     if name == g.user["name"]:
         abort(400, "You cannot disable the account you are signed in with.")
     _guard(roles.normalize(account["role"]))
+    reason = check.text(check.body(), "reason", max_length=300).strip()
     try:
-        changed = accounts.disable(name, g.user["name"])
+        changed = accounts.disable(name, g.user["name"], reason)
     except ValueError as error:
         log("refused: disable an account", ok=False, detail=f"{name}: {error}")
         abort(400, str(error))
     if changed:
-        log("account disabled", detail=name)
+        log("account disabled", detail=f"{name}: {reason}")
     return ok(user_resource(name, accounts.get(name) or {}))
 
 
@@ -322,8 +324,14 @@ def enable_user(name: str) -> Response:
     """Enable a disabled account again."""
     account = _account(name)
     _guard(roles.normalize(account["role"]))
-    if accounts.enable(name):
-        log("account enabled", detail=name)
+    reason = check.text(check.body(), "reason", max_length=300).strip()
+    before = str(account.get("disabled_reason") or "")
+    try:
+        changed = accounts.enable(name, reason)
+    except ValueError as error:
+        abort(400, str(error))
+    if changed:
+        log("account enabled", detail=f"{name}: {reason} (it was disabled because: {before or 'no reason recorded'})")
     return ok(user_resource(name, accounts.get(name) or {}))
 
 
@@ -393,7 +401,7 @@ def _sort() -> tuple[str, bool]:
     descending = raw.startswith("-")
     column = raw.lstrip("-")
     if column not in audit.SORTS:
-        abort(400, f"sort is one of {', '.join(audit.SORTS)}, with \"-\" first for descending.")
+        abort(400, f'sort is one of {", ".join(audit.SORTS)}, with "-" first for descending.')
     return column, descending
 
 

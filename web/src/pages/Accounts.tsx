@@ -602,6 +602,48 @@ function InvitationRow({
   );
 }
 
+/** Disable or enable an account. Both ask for a reason, which the audit log keeps. */
+function SwitchAccount({
+  user,
+  busy,
+  onClose,
+  onSave,
+}: {
+  user: User;
+  busy: boolean;
+  onClose: () => void;
+  onSave: (reason: string) => void;
+}) {
+  const all = useT(common);
+  const a = useT(words).access;
+  const [reason, setReason] = useState("");
+  const enabling = !!user.disabled;
+  return (
+    <Modal
+      title={enabling ? a.enableTitle(user.display_name) : a.disableTitle(user.display_name)}
+      description={enabling ? a.enableText : a.disableText}
+      onClose={onClose}
+      footer={
+        <>
+          <Button onClick={onClose}>{all.common.cancel}</Button>
+          <Button
+            variant={enabling ? "primary" : "danger"}
+            loading={busy}
+            disabled={!reason.trim()}
+            onClick={() => onSave(reason.trim())}
+          >
+            {enabling ? a.enable : a.disable}
+          </Button>
+        </>
+      }
+    >
+      <Field label={a.reasonLabel} hint={a.reasonHint}>
+        <Input value={reason} maxLength={300} onChange={(e) => setReason(e.target.value)} autoFocus />
+      </Field>
+    </Modal>
+  );
+}
+
 function DecideRequest({
   request: r,
   how,
@@ -701,7 +743,10 @@ function RequestsTable({
                   </div>
                 )}
               </TableCell>
-              <TableCell className="small muted">{ago(r.confirmed_at ?? r.requested_at)}</TableCell>
+              <TableCell className="small muted">
+                <div>{a.submittedAgo(ago(r.requested_at))}</div>
+                <div className="xsmall faint">{a.confirmedAgo(ago(r.confirmed_at))}</div>
+              </TableCell>
               <TableCell className="small">
                 <Tag tone={r.status === "pending" ? "caution" : r.status === "rejected" ? "negative" : undefined}>
                   {state(r)}
@@ -748,10 +793,12 @@ export function AccountsPage() {
   const [editing, setEditing] = useState<User | "new" | null>(null);
   const [secret, setSecret] = useState<Made | null>(null);
   const [resetting, setResetting] = useState<User | null>(null);
+  const [switching, setSwitching] = useState<User | null>(null);
   const refresh = [["users"]] as const;
   const resetFactors = useCall((user: string) => api.del(`/users/${user}/second-factors`), refresh);
   const setDisabled = useCall(
-    (p: { user: string; disabled: boolean }) => api.post(`/users/${p.user}/${p.disabled ? "disable" : "enable"}`),
+    (p: { user: string; disabled: boolean; reason: string }) =>
+      api.post(`/users/${p.user}/${p.disabled ? "disable" : "enable"}`, { reason: p.reason }),
     refresh,
   );
   const remove = useCall((user: string) => api.del(`/users/${user}`), refresh);
@@ -797,6 +844,9 @@ export function AccountsPage() {
         />
       </div>
       <div className="card">
+        {current === "pending" && !!asked?.policy.awaiting_confirmation && (
+          <div className="card-body small muted">{a.awaiting(asked.policy.awaiting_confirmation)}</div>
+        )}
         {current === "pending" ? (
           asked?.requests.length ? (
             <RequestsTable requests={asked.requests} onDecide={(request, how) => setDeciding({ request, how })} />
@@ -855,6 +905,9 @@ export function AccountsPage() {
                       <span style={{ marginInlineStart: 6 }}>
                         <Tag tone="negative">{a.disabledTag}</Tag>
                       </span>
+                    )}
+                    {u.disabled && u.disabled_reason && (
+                      <div className="xsmall faint">{a.disabledBecause(u.disabled_reason)}</div>
                     )}
                     {u.must_change_password && <span className="xsmall faint">{t.pendingPassword}</span>}
                     {u.github && (
@@ -922,15 +975,7 @@ export function AccountsPage() {
                                 <MenuItem
                                   onSelect={() => {
                                     close();
-                                    if (u.disabled || confirm(a.confirmDisable(u.display_name)))
-                                      setDisabled.mutate(
-                                        { user: u.name, disabled: !u.disabled },
-                                        {
-                                          onSuccess: () =>
-                                            toast("success", u.disabled ? a.enabled(u.name) : a.disabled(u.name)),
-                                          onError: fail(u.disabled ? a.notEnabled : a.notDisabled),
-                                        },
-                                      );
+                                    setSwitching(u);
                                   }}
                                 >
                                   {u.disabled ? <Power /> : <PowerOff />} {u.disabled ? a.enable : a.disable}
@@ -1028,6 +1073,25 @@ export function AccountsPage() {
             refetch();
             setSecret(made);
           }}
+        />
+      )}
+      {switching && (
+        <SwitchAccount
+          user={switching}
+          busy={setDisabled.isPending}
+          onClose={() => setSwitching(null)}
+          onSave={(reason) =>
+            setDisabled.mutate(
+              { user: switching.name, disabled: !switching.disabled, reason },
+              {
+                onSuccess: () => {
+                  toast("success", switching.disabled ? a.enabled(switching.name) : a.disabled(switching.name));
+                  setSwitching(null);
+                },
+                onError: fail(switching.disabled ? a.notEnabled : a.notDisabled),
+              },
+            )
+          }
         />
       )}
       {secret && (

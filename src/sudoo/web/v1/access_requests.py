@@ -112,7 +112,12 @@ def _tell_administrators(item: dict[str, Any]) -> None:
 @require("accounts.manage")
 def list_requests() -> Response:
     found = sorted(access_requests.all_requests().items(), key=lambda pair: -float(pair[1].get("created", 0)))
-    meta = {"domains": access_requests.domains(), "enabled": access_requests.enabled()}
+    awaiting = sum(1 for _, item in found if item["status"] == "unconfirmed")  # a count only: no names, no action
+    meta = {
+        "domains": access_requests.domains(),
+        "enabled": access_requests.enabled(),
+        "awaiting_confirmation": awaiting,
+    }
     return ok([resource(key, item) for key, item in found if item["status"] != "unconfirmed"], meta=meta)
 
 

@@ -336,13 +336,19 @@ def test_disabling_through_the_api_drops_a_waiting_request_and_enabling_does_not
     queued = post_start(person, person_headers, "dev-b")
     assert queued.status_code == 202 and len(queue.items()) == 1
     admin_client, admin_headers = admin
-    assert admin_client.post("/api/v1/users/sync1/disable", headers=admin_headers).status_code == 200
+    assert (
+        admin_client.post("/api/v1/users/sync1/disable", json={"reason": "test"}, headers=admin_headers).status_code
+        == 200
+    )
     metrics.INSTANCES["dev-a"] = {"running": False}  # room appears: it would start if the person were enabled
     assert queue.dispatch() == [] and STARTED == [] and queue.items() == []
     assert any(
         e["event"] == "capacity queue: dropped" and "disabled" in str(e.get("detail")) for e in audit.latest(limit=20)
     )
     assert person.get("/api/v1/account").status_code == 401  # the session ended at once
-    assert admin_client.post("/api/v1/users/sync1/enable", headers=admin_headers).status_code == 200
+    assert (
+        admin_client.post("/api/v1/users/sync1/enable", json={"reason": "test"}, headers=admin_headers).status_code
+        == 200
+    )
     assert queue.dispatch() == [] and STARTED == [] and queue.items() == []  # not revived
     assert person.get("/api/v1/account").status_code == 401  # nor the session

@@ -498,10 +498,13 @@ def is_disabled(account: Mapping[str, Any] | None) -> bool:
     return bool(account and account.get("disabled"))
 
 
-def disable(username: str, by: str) -> bool:
+def disable(username: str, by: str, reason: str) -> bool:
     """Disable an account: it cannot sign in, its sessions end now, and the API tokens it owns stop working. Its
     data, its role and its project access stay, for when it is enabled again. False when it was disabled already.
-    The last active super admin cannot be disabled (the same guard as deleting it)."""
+    The last active super admin cannot be disabled (the same guard as deleting it). The reason is required and kept."""
+    reason = reason.strip()
+    if not reason:
+        raise ValueError("Say why: the reason is kept for the other administrators.")
     with _LOCK:
         users = all_users()
         account = users.get(username)
@@ -512,21 +515,23 @@ def disable(username: str, by: str) -> bool:
         active = [n for n, u in users.items() if u["role"] == "super_admin" and not is_disabled(u)]
         if account["role"] == "super_admin" and active == [username]:
             raise ValueError("The last active super admin cannot be disabled.")
-        update(username, disabled=True, disabled_at=time.time(), disabled_by=by)
+        update(username, disabled=True, disabled_at=time.time(), disabled_by=by, disabled_reason=reason[:300])
         end_sessions(username)  # a new session version: every cookie of the account stops working
         return True
 
 
-def enable(username: str) -> bool:
+def enable(username: str, reason: str) -> bool:
     """Enable a disabled account again (it signs in as before; its old sessions stay ended). False when it was not
-    disabled."""
+    disabled. A reason is required (the route writes it in the audit log, next to the reason it was disabled)."""
+    if not reason.strip():
+        raise ValueError("Say why this account is enabled again: the reason is written in the audit log.")
     with _LOCK:
         account = get(username)
         if account is None:
             raise ValueError("No such account.")
         if not is_disabled(account):
             return False
-        update(username, disabled=None, disabled_at=None, disabled_by=None)
+        update(username, disabled=None, disabled_at=None, disabled_by=None, disabled_reason=None)
         return True
 
 

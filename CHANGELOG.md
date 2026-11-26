@@ -40,6 +40,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - Step by step workflow guides in English and Arabic (`docs/manual/`), with screenshots from the demo.
 - User manual: the first-run setup page has eight steps, not two; the certificate "Expires soon" window follows `ALERT_CERTIFICATE_DAYS`; production updates are always backed up first; maintenance backs up first only for Odoo image updates; the client portal is a Business plan feature.
+- **Reason for disabling and enabling an account (Task 53, cross-cut 34):** both calls now need a short reason (up to 300
+  characters), kept in the audit log and shown as `disabled_reason`. The access-request list also reports how many
+  requests still wait for e-mail confirmation (`meta.awaiting_confirmation`, a count only).
 - **Optional AI explanation of failed builds (Task 18c):** off by default. With an administrator's settings (a
   separate `EXPLAIN_ALLOWED_DESTINATIONS` list of public `host:port` entries, a model and a vaulted key) and a
   per-project opt-in, a person who can read the branch's logs can press "Explain with AI" on a failed build, see the

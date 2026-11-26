@@ -351,3 +351,18 @@ def test_a_visit_starts_a_paused_instance_only_when_the_limits_allow(
     gateway._WAKE_REQUESTED.clear()
     assert gateway.wake_decision("v-dev-2")[0] == "full" and started_jobs == []  # the panel cap
     assert stages.of(store.read_env("v-dev-2")) == "development"
+
+
+def test_a_push_or_pull_request_of_a_disabled_person_creates_no_instance(started: list[Any]) -> None:
+    creator, sender = _account("super_admin"), _account("developer", 4206)
+    project = _project(creator)
+    projects.change(project["id"], lambda p: {**p, "seen": ["main"]})
+    accounts.update(sender, disabled=True)
+    assert charged.disabled_sender(4206) and sender not in (charged.disabled_sender(4206) or "")
+    assert charged.disabled_sender(None) is None and charged.disabled_sender(999999) is None
+    assert automation.branch_created("acme/charge", "feature", github_id=4206) is None  # not charged to the creator
+    assert not started
+    assert any(e["event"] == "no instance for a new branch" for e in audit.latest(5))
+    # enabled again: the same kind of push creates one for the next branch (the first branch is already handled)
+    accounts.update(sender, disabled=None)
+    assert charged.disabled_sender(4206) is None

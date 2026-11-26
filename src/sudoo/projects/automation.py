@@ -120,7 +120,7 @@ def branch_created(repository: str, branch: str, user: str = "system", github_id
         _remember(project["id"], add={branch}, base=known)
         branches.forget(project["id"])
         charged, how = charge.of(project, github_id)
-        refused = creation_refusal(project, branch, charged)
+        refused = charge.disabled_sender(github_id) or creation_refusal(project, branch, charged)
         if refused:
             audit.record(user, None, "no instance for a new branch", detail=f"{project['id']} {branch}: {refused}")
             return None

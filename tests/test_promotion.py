@@ -612,6 +612,28 @@ def test_previews_reuse_a_branchs_instance_and_keep_to_the_limit(
     assert previews.closed(projects.get(pid) or {}, 1) == {"deleted": None} and started == []
 
 
+def test_a_pull_request_of_a_disabled_person_gets_no_preview(
+    github_stand_in: list[Any], planned: list[dict[str, Any]]
+) -> None:
+    from sudoo import accounts
+    from sudoo.auth import github as github_auth
+
+    HEADS.update(main="a" * 40)
+    pid = _project(pr_previews=True)
+    accounts.create("pm-sender", "developer", "tidal-amber-orchard-58", must_change=False)
+    github_auth.link("pm-sender", github_auth.GitHubUser(id=4301, login="pmsender"))
+    accounts.update("pm-sender", disabled=True)
+    try:
+        answer = previews.opened(projects.get(pid) or {}, _pull(5, "feature-5"), github_id=4301)
+        assert answer["preview"] is None and "disabled" in answer["reason"] and "pm-sender" not in answer["reason"]
+        assert planned == []
+        accounts.update("pm-sender", disabled=None)
+        assert previews.opened(projects.get(pid) or {}, _pull(6, "feature-6"), github_id=4301)["preview"]
+    finally:
+        accounts.update("pm-sender", disabled=None)
+        accounts.delete("pm-sender")
+
+
 def test_forks_get_no_preview_unless_the_project_allows_them(
     github_stand_in: list[Any], planned: list[dict[str, Any]]
 ) -> None:

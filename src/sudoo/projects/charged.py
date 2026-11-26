@@ -54,6 +54,20 @@ def of(project: Mapping[str, Any], github_id: int | None = None) -> tuple[str, s
     return SYSTEM, "none"
 
 
+def disabled_sender(github_id: int | None) -> str | None:
+    """Why automation makes no instance for this GitHub sender, or None: the panel account linked to them is
+    disabled. Such a person is not charged (of() skips them), and they must not get an instance made for them by
+    the creator's or the panel's allowance either. The text names no one: it may be shown beside a pull request."""
+    from sudoo.auth import github
+
+    if github_id is None:
+        return None
+    name = github.linked_account(github_id)
+    if name and accounts.is_disabled(accounts.get(name)):
+        return "the account of the person who pushed or opened it is disabled"
+    return None
+
+
 def label(name: str, how: str) -> str:
     """Said where the person is told whose limit an automatic instance used."""
     return {"sender": f"{name} (the person who pushed or opened it)", "creator": f"{name} (the project's creator)"}.get(

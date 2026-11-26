@@ -276,7 +276,7 @@ def opened(
             name, existing, status = members[0], True, "ready"
         else:
             charged, how = charge.of(project, github_id)
-            refused = refusal(project, charged)
+            refused = charge.disabled_sender(github_id) or refusal(project, charged)
             if refused:
                 if (known or {}).get("reason") != refused:
                     _save(str(project["id"]), number, {**facts, "instance": None, "existing": False,

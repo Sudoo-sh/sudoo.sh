@@ -49,6 +49,22 @@ const en = {
       title: "A group of settings",
       body: "Each group has a title and a short note on what it controls, then its settings one by one.",
     },
+    "plugins-tabs": {
+      title: "Plugin lists",
+      body: "Switch between the plugins you can add and the ones already installed.",
+    },
+    "plugins-card": {
+      title: "A plugin",
+      body: "Each card is one plugin. Open it to read about it before you install anything.",
+    },
+    "accounts-new": {
+      title: "Add an account",
+      body: "Add a person here, with a role that decides what they can do. This only opens the form.",
+    },
+    "accounts-rows": {
+      title: "Your accounts",
+      body: "Each row is a person, with their role. Open one to change it.",
+    },
     "audit-filters": {
       title: "Find an entry",
       body: "Search the log, or narrow it by who, what, which instance and when.",
@@ -137,6 +153,22 @@ const ar: typeof en = {
     "settings-section": {
       title: "مجموعة إعدادات",
       body: "لكل مجموعة عنوان وملاحظة قصيرة عمّا تتحكم به، ثم إعداداتها واحدًا واحدًا.",
+    },
+    "plugins-tabs": {
+      title: "قوائم الإضافات",
+      body: "انتقل بين الإضافات التي يمكنك إضافتها والإضافات المثبَّتة.",
+    },
+    "plugins-card": {
+      title: "إضافة",
+      body: "كل بطاقة إضافة واحدة. افتحها لتقرأ عنها قبل أن تثبّت أي شيء.",
+    },
+    "accounts-new": {
+      title: "أضف حسابًا",
+      body: "أضف شخصًا من هنا، بدور يحدد ما يستطيع فعله. هذا يفتح النموذج فقط.",
+    },
+    "accounts-rows": {
+      title: "حساباتك",
+      body: "كل صف شخص، مع دوره. افتح واحدًا لتغييره.",
     },
     "audit-filters": {
       title: "ابحث عن سجل",

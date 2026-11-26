@@ -74,7 +74,31 @@ export const SETTINGS_TOUR: TourDef = {
   ],
 };
 
-export const PAGE_TOURS: readonly TourDef[] = [PROJECTS_TOUR, BACKUPS_TOUR, AUDIT_TOUR, INSTANCES_TOUR, SETTINGS_TOUR];
+export const PLUGINS_TOUR: TourDef = {
+  id: "plugins-page",
+  steps: [
+    { id: "plugins-tabs", target: "plugins-tabs", doc: "manual/12-plugins-and-marketplace.md" },
+    { id: "plugins-card", target: "plugins-card", doc: "manual/12-plugins-and-marketplace.md" },
+  ],
+};
+
+export const ACCOUNTS_TOUR: TourDef = {
+  id: "accounts-page",
+  steps: [
+    { id: "accounts-new", target: "accounts-new", doc: "manual/07-team-members-and-roles.md" },
+    { id: "accounts-rows", target: "accounts-rows", doc: "manual/07-team-members-and-roles.md" },
+  ],
+};
+
+export const PAGE_TOURS: readonly TourDef[] = [
+  PROJECTS_TOUR,
+  BACKUPS_TOUR,
+  AUDIT_TOUR,
+  INSTANCES_TOUR,
+  SETTINGS_TOUR,
+  PLUGINS_TOUR,
+  ACCOUNTS_TOUR,
+];
 
 /** Whether a tour may start by itself on its own: a page tour waits until the welcome tour has been seen. */
 export const mayAutoStartTour = (state: TourState, id: string) =>
@@ -142,7 +166,8 @@ export function place(
     { left: midLeft, top: rect.top - gap - size.height, ok: fitsY(rect.top - gap - size.height) },
   ];
   const side = sides.find((s) => s.ok);
-  if (side) return { left: room(side.left, screen.width - size.width), top: room(side.top, screen.height - size.height) };
+  if (side)
+    return { left: room(side.left, screen.width - size.width), top: room(side.top, screen.height - size.height) };
   // no room on any side (a very large item): the corner of the screen farthest from the item's middle
   return { left: room(midLeft, screen.width - size.width), top: room(midTop, screen.height - size.height) };
 }

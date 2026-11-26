@@ -401,6 +401,36 @@ def test_a_creation_that_cannot_begin_after_its_stage_was_recorded_gets_the_stag
         projects.remove(found["id"])
 
 
+def test_a_creation_that_cannot_begin_puts_back_only_what_it_wrote_in_an_existing_branch(monkeypatch) -> None:
+    from sudoo import projects
+    from sudoo.instances import planning
+
+    found = projects.create(repository="Acme/Keep", odoo_version="18.0", edition="community", origin="linked", user="t")
+    projects.record_branch(found["id"], "feat", sha="abc", changed_by="earlier")  # a branch with facts but no stage
+    plan = dict.fromkeys(planning.SHOWN)
+    plan.update({"name": "rollkeep", "project": found["id"], "branch": "feat", "stage": "development",
+                 "auto_update": False, "auto_upgrade": False, "auto_pause": False, "delete_after_days": 0})  # fmt: skip
+
+    class NoThread:
+        def __init__(self, *a, **k) -> None: ...  # type: ignore[no-untyped-def]
+
+        def start(self) -> None:
+            projects.record_branch(found["id"], "feat", note="written by another writer meanwhile")
+            raise RuntimeError("can't start new thread")
+
+    monkeypatch.setattr(jobs.threading, "Thread", NoThread)
+    try:
+        with pytest.raises(RuntimeError):
+            planning.start(plan, "u")
+        assert projects.get(found["id"])["branches"]["feat"] == {
+            "sha": "abc",
+            "changed_by": "earlier",
+            "note": "written by another writer meanwhile",
+        }
+    finally:
+        projects.remove(found["id"])
+
+
 def test_a_failed_publication_refuses_a_preview_and_an_automatic_creation_with_the_temporary_text(admin) -> None:
     from sudoo import projects
     from sudoo.projects import automation, previews
@@ -418,3 +448,12 @@ def test_a_failed_publication_refuses_a_preview_and_an_automatic_creation_with_t
     finally:
         slots.PUBLISH.failed = False
         projects.remove(found["id"])
+
+
+def test_an_armed_check_does_not_outlive_the_admission_lock_on_a_reused_thread() -> None:
+    docrun.run("a")
+    with slots.ADMISSION:
+        slots.arm(admit(max_running=1), None)  # a creation check passed, then planning failed: no start followed
+    with slots.ADMISSION:
+        slots.record_hold("j7", "newer", "u")  # the next request's start on the same thread: nothing armed to judge it
+    assert "j7" in slots.snapshot().held

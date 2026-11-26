@@ -7,6 +7,7 @@ is the repository's first instance (projects/), and the branch's stage is record
 
 from __future__ import annotations
 
+import copy
 from collections.abc import Callable, Mapping
 from typing import Any
 
@@ -88,7 +89,12 @@ def start(plan: dict[str, Any], user: str, fn: Callable[..., object] | None = No
             from sudoo import projects
 
             found = projects.get(plan["project"])
-            before.append((found.get("branches") or {}).get(plan["branch"]) if found is not None else None)
+            old = copy.deepcopy(((found or {}).get("branches") or {}).get(plan["branch"]) or {})
+            record_stage(plan, user)
+            after = ((projects.get(plan["project"]) or {}).get("branches") or {}).get(plan["branch"]) or {}
+            keys = {key: after[key] for key in ("stage", "changed_by") if after.get(key) != old.get(key)}
+            before.append((old, keys))
+            return
         record_stage(plan, user)
 
     try:
@@ -100,7 +106,7 @@ def start(plan: dict[str, Any], user: str, fn: Callable[..., object] | None = No
         if before and plan["project"] and plan["branch"]:  # recorded, and the job then could not begin: undo it
             from sudoo import projects
 
-            projects.put_back_branch(plan["project"], plan["branch"], before[0])
+            projects.put_back_branch(plan["project"], plan["branch"], *before[0])
         raise
 
 

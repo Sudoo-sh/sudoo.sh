@@ -29,6 +29,7 @@ to that stage (web/v1/projects.py), with the rules of instances/stages.py.
 
 from __future__ import annotations
 
+import copy
 import re
 import threading
 import time
@@ -333,15 +334,24 @@ def record_branch(project_id: str, branch: str, **values: Any) -> None:
     change(project_id, update)
 
 
-def put_back_branch(project_id: str, branch: str, before: Document | None) -> None:
-    """Return a branch's recorded facts to what they were (None: it had none), for a record whose start did not happen."""
+def put_back_branch(project_id: str, branch: str, before: Mapping[str, Any], wrote: Mapping[str, Any]) -> None:
+    """Undo only what a start wrote into a branch: each key in `wrote` goes back to its value in `before` (absent: removed),
+    and only while it still holds what was written, so another writer's later change to the branch stays."""
 
     def update(project: Document) -> Document:
         branches = dict(project.get("branches") or {})
-        if before is None:
-            branches.pop(branch, None)
+        current = dict(branches.get(branch) or {})
+        for key, value in wrote.items():
+            if current.get(key) != value:
+                continue
+            if key in before:
+                current[key] = copy.deepcopy(before[key])
+            else:
+                current.pop(key, None)
+        if current:
+            branches[branch] = current
         else:
-            branches[branch] = before
+            branches.pop(branch, None)
         project["branches"] = branches
         return project
 

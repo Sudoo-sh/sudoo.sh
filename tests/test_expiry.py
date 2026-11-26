@@ -19,7 +19,7 @@ from sudoo import accounts, background
 from sudoo.config import live, settings
 from sudoo.core import jobs
 from sudoo.core.state import STATE
-from sudoo.instances import capacity, expiry, monitor, operations, store
+from sudoo.instances import capacity, expiry, monitor, operations, stages, store
 from sudoo.projects import notices
 from sudoo.storage import storage
 
@@ -253,7 +253,9 @@ def test_an_instance_stopped_at_the_end_of_its_lifetime_is_extended_by_an_admini
 def test_an_extended_instance_stays_stopped_when_the_server_cannot_run_one_more(
     app: Flask, admin: Client, started: list[tuple[str, Any, tuple[Any, ...]]], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(capacity, "refusal", lambda reservation=None: "This server runs at most 2 instances at once.")
+    monkeypatch.setattr(
+        capacity, "refusal", lambda reservation=None, **_: "This server runs at most 2 instances at once."
+    )
     _instance(created_days_ago=31, days=30)
     STATE.update(NAME, switched_off=True, expired_at=int(time.time()) - DAY)
     client, headers = admin
@@ -262,6 +264,24 @@ def test_an_extended_instance_stays_stopped_when_the_server_cannot_run_one_more(
     assert "stays stopped" in answer.get_json()["meta"]["restart"] and started == []
     assert store.read_env(NAME)["DELETE_AFTER_DAYS"] == "60" and not STATE.get(NAME).get("expired_at")
     assert settings.expiry_extend_max_days == 30
+
+
+def test_an_extended_instance_is_checked_against_its_own_stage_and_person(
+    app: Flask, admin: Client, started: list[tuple[str, Any, tuple[Any, ...]]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    asked: list[dict[str, Any]] = []
+
+    def refusal(reservation: Any = None, **kwargs: Any) -> str | None:
+        asked.append(kwargs)
+        return "Pause one of yours first."
+
+    monkeypatch.setattr(capacity, "refusal", refusal)
+    _instance(created_days_ago=31, days=30)
+    STATE.update(NAME, switched_off=True, expired_at=int(time.time()) - DAY)
+    client, headers = admin
+    assert "stays stopped" in _patch(client, headers, 60).get_json()["meta"]["restart"] and started == []
+    env = store.read_env(NAME)
+    assert asked == [{"stage": stages.of(env), "user": env.get("CREATED_BY") or None}]
 
 
 def test_the_instance_says_when_it_was_stopped_and_when_it_will_be_deleted(app: Flask, admin: Client) -> None:

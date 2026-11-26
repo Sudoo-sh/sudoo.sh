@@ -11,7 +11,9 @@ from flask.testing import FlaskClient
 
 from sudoo import accounts
 from sudoo.config import live
-from sudoo.instances import capacity, metrics, store
+from sudoo.core import jobs
+from sudoo.core.jobs import Job
+from sudoo.instances import backups, capacity, metrics, store
 
 Client = tuple[FlaskClient, dict[str, str]]
 
@@ -171,3 +173,44 @@ def test_simultaneous_starts_cannot_pass_the_limit_together(admin: Client, monke
     finally:
         release.set()
         live.change({"max_running_non_production_per_user": None})
+
+
+@pytest.fixture
+def started(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """No job really runs: the names of the instances a request would have started."""
+    names: list[str] = []
+
+    def fake_start(instance: str, action: str, kind: str, fn: object, *args: object, **_: object) -> Job:
+        names.append(instance)
+        return Job(instance, action, kind, "system")
+
+    monkeypatch.setattr(jobs, "start", fake_start)
+    monkeypatch.setattr(backups, "latest", lambda name: {"db": "x"})  # something to restore
+    return names
+
+
+@pytest.mark.parametrize(
+    ("action", "body"),
+    [("restart", {}), ("upgrade", {"modules": "base"}), ("restore", {})],
+    ids=lambda value: str(value),
+)
+def test_every_action_that_starts_a_stopped_instance_respects_the_running_limit(
+    admin: Client, running: None, started: list[str], action: str, body: dict[str, str]
+) -> None:
+    client, headers = admin
+    live.change({"max_running_non_production_per_user": 2})
+    write_env("dev-e", {"STAGE": "development", "CREATED_BY": "admin1"})
+    answer = client.post(f"/api/v1/instances/dev-e/actions/{action}", json=body, headers=headers)
+    assert answer.status_code == 403 and "Pause one of yours first" in answer.get_json()["detail"]
+    assert started == []
+
+
+def test_restarting_a_running_instance_or_a_stopped_production_one_is_not_refused(
+    admin: Client, running: None, started: list[str]
+) -> None:
+    client, headers = admin
+    live.change({"max_running_non_production_per_user": 2})
+    assert client.post("/api/v1/instances/dev-a/actions/restart", headers=headers).status_code == 202
+    write_env("prod-f", {"STAGE": "production", "CREATED_BY": "admin1"})
+    answer = client.post("/api/v1/instances/prod-f/actions/restart", json={"confirm_production": True}, headers=headers)
+    assert answer.status_code != 403 and started == ["dev-a", "prod-f"]

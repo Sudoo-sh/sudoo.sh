@@ -122,6 +122,10 @@ ACTIONS = {
 }
 
 
+STARTING_ACTIONS = frozenset({"start", "restart", "restore", "rollback", "upgrade", "change-engine"})
+"""Actions that always end with Odoo running (operations.wake, restart, _finish_restore, upgrade_modules): on an
+instance that is not running they count as one more running instance, like a start."""
+
 BUILD_ACTIONS = frozenset({"update", "update-submodules"})
 """Actions that build the instance from its branch's latest code: each is a build of the branch (projects/builds.py)."""
 
@@ -701,11 +705,14 @@ def _extended(name: str, before: Mapping[str, Any]) -> str | None:
     if not STATE.get(name).get("expired_at"):
         return None
     STATE.update(name, expired_at=None)
-    refused = capacity.refusal()
+    env = store.read_env(name)
+    with quotas.LOCK:  # from the limit check until the start's job is registered, as in run()
+        refused = capacity.refusal(stage=stages.of(env), user=env.get("CREATED_BY") or None)
+        if not refused:
+            jobs.start(name, "Start", "wake", operations.wake, name, user=g.user["name"])
     if refused:
         log(f"{name} extended but not restarted", ok=False, detail=refused)
         return f"The lifetime was extended, but {name} stays stopped. {refused}"
-    jobs.start(name, "Start", "wake", operations.wake, name, user=g.user["name"])
     log("started again after its lifetime was extended", instance=name)
     return None
 
@@ -994,10 +1001,13 @@ def run(name: str, action: str) -> Response:
     fn, args = _job_for(action, name, check.body())
     build = {"build": "manual"} if action in BUILD_ACTIONS else None  # a new build in the branch's history
     with quotas.LOCK:  # from the limit check until the start's job is registered (it counts as running from then on)
-        if action == "start" and not _running(name):
+        if action in STARTING_ACTIONS and not _running(name):
             env = store.read_env(name)
             if _refuse_over_capacity(
-                f"start of {name} refused (running instances)", stages.of(env), env.get("CREATED_BY") or None
+                f"{action} of {name} refused (running instances)",
+                stages.of(env),
+                env.get("CREATED_BY") or None,
+                queued=action == "start",  # only a plain start can wait in line
             ):
                 waiting = queue.enqueue_start(
                     name, g.user["name"], env.get("CREATED_BY") or None, stages.of(env), access.role_permissions(g.user)

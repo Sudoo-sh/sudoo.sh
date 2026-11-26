@@ -15,7 +15,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { api, errorText } from "@/api/client";
+import { api, call, errorText } from "@/api/client";
 import { useAccessRequests, useCall, useInvitations, useRoles, useUsers } from "@/api/queries";
 import { Link } from "react-router";
 import type { AccountRequest, Invitation, InvitationPolicy, Role, SignInMethod, User } from "@/api/types";
@@ -257,7 +257,7 @@ function AccountForm({
     /^\d{0,4}$/.test(runLimit.trim()) &&
     (!!user || (inviting ? canInvite : choiceReady(password, person)));
   const save = async () => {
-    if (self && form.role !== user!.role && !(await confirm(t.form.confirmOwnRole))) return;
+    if (self && form.role !== user!.role && !(await confirm(t.form.confirmOwnRole, { danger: true }))) return;
     setBusy(true);
     try {
       const body = { ...form, email: form.email.trim() };
@@ -804,7 +804,10 @@ export function AccountsPage() {
   const resetFactors = useCall((user: string) => api.del(`/users/${user}/second-factors`), refresh);
   const setDisabled = useCall(
     (p: { user: string; disabled: boolean; reason: string }) =>
-      api.post(`/users/${p.user}/${p.disabled ? "disable" : "enable"}`, { reason: p.reason }),
+      // meta.changed is false when somebody else had already done it: nothing was changed and no reason was kept
+      call<User>("POST", `/users/${p.user}/${p.disabled ? "disable" : "enable"}`, { reason: p.reason }).then(
+        (answer) => answer.meta?.changed !== false,
+      ),
     refresh,
   );
   const remove = useCall((user: string) => api.del(`/users/${user}`), refresh);
@@ -1098,8 +1101,14 @@ export function AccountsPage() {
             setDisabled.mutate(
               { user: switching.name, disabled: !switching.disabled, reason },
               {
-                onSuccess: () => {
-                  toast("success", switching.disabled ? a.enabled(switching.name) : a.disabled(switching.name));
+                onSuccess: (changed) => {
+                  if (changed)
+                    toast("success", switching.disabled ? a.enabled(switching.name) : a.disabled(switching.name));
+                  else
+                    toast(
+                      "info",
+                      switching.disabled ? a.alreadyEnabled(switching.name) : a.alreadyDisabled(switching.name),
+                    );
                   setSwitching(null);
                 },
                 onError: fail(switching.disabled ? a.notEnabled : a.notDisabled),

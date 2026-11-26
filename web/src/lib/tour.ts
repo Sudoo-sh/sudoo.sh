@@ -90,6 +90,35 @@ export const ACCOUNTS_TOUR: TourDef = {
   ],
 };
 
+export const TOKENS_TOUR: TourDef = {
+  id: "tokens-page",
+  steps: [
+    { id: "tokens-new", target: "tokens-new", doc: "USER_MANUAL.md#9-accounts-and-roles" },
+    { id: "tokens-rows", target: "tokens-rows", doc: "USER_MANUAL.md#9-accounts-and-roles" },
+  ],
+};
+
+export const TEMPLATES_TOUR: TourDef = {
+  id: "templates-page",
+  steps: [
+    { id: "templates-list", target: "templates-list", doc: "ADMIN_GUIDE.md#17-e-mail-templates" },
+    { id: "templates-editor", target: "templates-editor", doc: "ADMIN_GUIDE.md#17-e-mail-templates" },
+  ],
+};
+
+export const GITHUB_TOUR: TourDef = {
+  id: "github-page",
+  steps: [
+    { id: "github-app", target: "github-app", doc: "manual/02-connect-github-first-project.md" },
+    { id: "github-keys", target: "github-keys", doc: "manual/02-connect-github-first-project.md" },
+  ],
+};
+
+export const MAINTENANCE_TOUR: TourDef = {
+  id: "maintenance-page",
+  steps: [{ id: "maintenance-card", target: "maintenance-card", doc: "manual/10-maintenance-windows.md" }],
+};
+
 export const PAGE_TOURS: readonly TourDef[] = [
   PROJECTS_TOUR,
   BACKUPS_TOUR,
@@ -98,6 +127,10 @@ export const PAGE_TOURS: readonly TourDef[] = [
   SETTINGS_TOUR,
   PLUGINS_TOUR,
   ACCOUNTS_TOUR,
+  TOKENS_TOUR,
+  TEMPLATES_TOUR,
+  GITHUB_TOUR,
+  MAINTENANCE_TOUR,
 ];
 
 /** Whether a tour may start by itself on its own: a page tour waits until the welcome tour has been seen. */

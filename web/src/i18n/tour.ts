@@ -63,7 +63,35 @@ const en = {
     },
     "accounts-rows": {
       title: "Your accounts",
-      body: "Each row is a person, with their role. Open one to change it.",
+      body: "Each row is a person, with their role and when they last signed in. The menu at the end of a row lists what you can do for that person.",
+    },
+    "tokens-new": {
+      title: "Make a token",
+      body: "A token lets a script or another tool use the panel's API. This only opens the form.",
+    },
+    "tokens-rows": {
+      title: "Your tokens",
+      body: "Each row is one token, with when it was made and last used. Revoke stops a token working, and asks you first.",
+    },
+    "templates-list": {
+      title: "Pick an e-mail",
+      body: "Each item is an e-mail the panel sends, and who gets it. One you have changed is marked.",
+    },
+    "templates-editor": {
+      title: "Its text",
+      body: "Read or change the wording here. A change is kept only when you save it.",
+    },
+    "github-app": {
+      title: "The GitHub App",
+      body: "The App lets the panel read your private repositories. Public repositories need nothing.",
+    },
+    "github-keys": {
+      title: "Deploy keys",
+      body: "One key per repository, for servers that do not use the App.",
+    },
+    "maintenance-card": {
+      title: "A planned change",
+      body: "Each card says why a change is needed, what it works on, and its window.",
     },
     "audit-filters": {
       title: "Find an entry",
@@ -168,7 +196,35 @@ const ar: typeof en = {
     },
     "accounts-rows": {
       title: "حساباتك",
-      body: "كل صف شخص، مع دوره. افتح واحدًا لتغييره.",
+      body: "كل صف شخص، مع دوره وآخر تسجيل دخول له. قائمة نهاية الصف تعرض ما يمكنك فعله لهذا الشخص.",
+    },
+    "tokens-new": {
+      title: "أنشئ رمزًا",
+      body: "الرمز يتيح لسكربت أو أداة أخرى استخدام واجهة اللوحة البرمجية. هذا يفتح النموذج فقط.",
+    },
+    "tokens-rows": {
+      title: "رموزك",
+      body: "كل صف رمز واحد، مع وقت إنشائه وآخر استخدام له. الإلغاء يوقف عمل الرمز ويسألك أولًا.",
+    },
+    "templates-list": {
+      title: "اختر رسالة",
+      body: "كل عنصر رسالة بريد ترسلها اللوحة، ومن يستلمها. التي غيّرتها تظهر عليها علامة.",
+    },
+    "templates-editor": {
+      title: "نصها",
+      body: "اقرأ الصياغة هنا أو غيّرها. لا يُحفظ التغيير إلا عندما تحفظه.",
+    },
+    "github-app": {
+      title: "تطبيق GitHub",
+      body: "يتيح التطبيق للوحة قراءة مستودعاتك الخاصة. المستودعات العامة لا تحتاج إلى شيء.",
+    },
+    "github-keys": {
+      title: "مفاتيح النشر",
+      body: "مفتاح لكل مستودع، للخوادم التي لا تستخدم التطبيق.",
+    },
+    "maintenance-card": {
+      title: "تغيير مخطّط",
+      body: "كل بطاقة تذكر لماذا يلزم التغيير، وعلى ماذا يعمل، ونافذته.",
     },
     "audit-filters": {
       title: "ابحث عن سجل",

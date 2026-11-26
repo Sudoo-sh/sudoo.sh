@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input";
 import { Modal, useToast } from "@/components/app/overlay";
 import { ago } from "@/lib/format";
+import { TOKENS_TOUR } from "@/lib/tour";
 import type { Token } from "@/api/types";
 import { useT } from "@/i18n";
 import words from "@/i18n/admin";
@@ -46,8 +47,9 @@ export function TokensPage() {
     <Page>
       <PageHead
         title={t.title}
+        tour={TOKENS_TOUR}
         actions={
-          <Button variant="primary" icon={<Plus />} onClick={() => setCreating(true)}>
+          <Button variant="primary" icon={<Plus />} onClick={() => setCreating(true)} data-tour="tokens-new">
             {t.new}
           </Button>
         }
@@ -87,8 +89,8 @@ export function TokensPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {tokens.map((token) => (
-                <TableRow key={token.id}>
+              {tokens.map((token, index) => (
+                <TableRow key={token.id} data-tour={index === 0 ? "tokens-rows" : undefined}>
                   <TableCell>
                     <div>
                       <bdi>{token.name}</bdi>

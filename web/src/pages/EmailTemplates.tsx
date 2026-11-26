@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { SelectBox } from "@/components/app/select";
 import { Modal, useToast } from "@/components/app/overlay";
 import { ago } from "@/lib/format";
+import { TEMPLATES_TOUR } from "@/lib/tour";
 import { useT } from "@/i18n";
 import words from "@/i18n/admin";
 import common from "@/i18n/common";
@@ -317,7 +318,9 @@ export function EmailTemplatesPage() {
   const select = (key: string) => setParams({ e: key }, { preventScrollReset: true, replace: true });
   return (
     <Page wide>
-      <PageHead title={t.title}>{t.lead}</PageHead>
+      <PageHead title={t.title} tour={TEMPLATES_TOUR}>
+        {t.lead}
+      </PageHead>
       {isPending || !chosen || !draft ? (
         <Skeleton height={480} />
       ) : (
@@ -331,7 +334,7 @@ export function EmailTemplatesPage() {
             </Callout>
           )}
           <div className="mail-templates">
-            <nav className="mail-list" aria-label={t.list}>
+            <nav className="mail-list" aria-label={t.list} data-tour="templates-list">
               <SelectBox
                 className="mail-select"
                 aria-label={t.choose}
@@ -365,7 +368,7 @@ export function EmailTemplatesPage() {
                 </button>
               ))}
             </nav>
-            <div className="stack" key={chosen.key}>
+            <div className="stack" key={chosen.key} data-tour="templates-editor">
               <Editor
                 template={chosen}
                 draft={draft}

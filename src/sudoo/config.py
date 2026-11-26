@@ -1590,6 +1590,20 @@ class Settings(BaseSettings):
         "although they resolve to a private, local or link-local address.",
     )
 
+    explain_allowed_destinations: str = Field(
+        "",
+        description="'Explain with AI' (explain/): the exact host:port pairs a failed build's excerpt may be sent to, "
+        "comma-separated (api.example.com:443). Only public addresses are reachable; no wildcards, no networks. "
+        "Empty: the feature cannot send anything.",
+    )
+
+    explain_user_limit_per_hour: int = Field(
+        10, ge=1, le=1000, description="'Explain with AI': explanations one person may confirm per hour."
+    )
+    explain_project_limit_per_hour: int = Field(
+        30, ge=1, le=10000, description="'Explain with AI': explanations one project may have confirmed per hour."
+    )
+
     # ------------------------------------------------------------------ support access (support/, docs/ADMIN_GUIDE.md)
     support_access: bool = Field(
         True,
@@ -1986,6 +2000,21 @@ class Settings(BaseSettings):
                     raise ValueError(f"{part[:80]} is neither a host name nor a network") from None
         if len(found) > 50:
             raise ValueError("at most 50 hosts or networks")
+        return ",".join(dict.fromkeys(found))
+
+    @field_validator("explain_allowed_destinations")
+    @classmethod
+    def _explain_allowed_destinations(cls, value: str) -> str:
+        import re
+
+        found = [part.strip().lower() for part in value.split(",") if part.strip()]
+        for part in found:
+            if not re.fullmatch(r"[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?:[0-9]{1,5}", part) or not (
+                1 <= int(part.rsplit(":", 1)[1]) <= 65535
+            ):
+                raise ValueError(f"{part[:80]} is not an exact host:port (no wildcards, no networks)")
+        if len(found) > 10:
+            raise ValueError("at most 10 destinations")
         return ",".join(dict.fromkeys(found))
 
     @field_validator("alert_webhook_1_url", "alert_webhook_2_url", "alert_webhook_3_url")

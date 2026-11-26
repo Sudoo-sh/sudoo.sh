@@ -691,6 +691,9 @@ notifications](USER_MANUAL.md#status-and-notifications).
 | `NOTIFICATION_RETRIES` | int | `5` | **live** | Times a delivery that got no answer, HTTP 429 or a 5xx is tried again: 30 seconds after the first try, then twice as long each time, at most an hour (0 to 10). |
 | `NOTIFICATION_CHANNELS_PER_PROJECT` | int | `10` | **live** | Channels one project may have (1 to 50). |
 | `NOTIFICATION_ALLOWED_HOSTS` | text | empty | **live** | Host names or networks, comma-separated (`hooks.internal`, `10.0.0.0/8`), that webhooks may reach although they resolve to a private, local or link-local address. Empty: only public addresses. |
+| `EXPLAIN_ALLOWED_DESTINATIONS` | text | empty | **live** | The exact `host:port` pairs that "Explain with AI" may send a failed build's excerpt to, comma-separated (`api.example.com:443`). Only public addresses are reachable: a private, loopback or link-local address (a model on your own network, cloud metadata, the panel's own services) is refused whatever is listed. No wildcards or networks. Empty: nothing can be sent. |
+| `EXPLAIN_USER_LIMIT_PER_HOUR` | int | `10` | **live** | "Explain with AI": explanations one person may confirm per hour (1 to 1000). A limit on requests, not on what the model provider charges. |
+| `EXPLAIN_PROJECT_LIMIT_PER_HOUR` | int | `30` | **live** | "Explain with AI": explanations one project may have confirmed per hour (1 to 10000). A limit on requests, not on what the model provider charges. |
 
 ---
 

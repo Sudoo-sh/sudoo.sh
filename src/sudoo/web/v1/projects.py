@@ -503,6 +503,9 @@ def delete_project(project_id: str) -> Response:
         )
     projects.remove(project_id)
     builds.forget_project(project_id)
+    from sudoo.explain import service as explain
+
+    explain.forget_project(project_id)
     log("project deleted", detail=f"{project_id} ({found['repository']})")
     events.publish("project", project_id)
     return no_content()

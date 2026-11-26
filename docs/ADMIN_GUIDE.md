@@ -43,6 +43,7 @@ domains and certificates, off-site copies of backups.
 31. [Production access rules (beta)](#31-production-access-rules-beta)
 32. [Maintenance windows](#32-maintenance-windows)
 33. [Kubernetes engine (beta)](#33-kubernetes-engine-beta)
+34. [AI explanation of failed builds (optional)](#34-ai-explanation-of-failed-builds-optional)
 
 ---
 
@@ -3348,3 +3349,40 @@ your cluster's certificate authority, so the new node refuses any other server. 
   ([Kubernetes engine, section 16](KUBERNETES_ENGINE.md#16-real-high-availability-later-phase)).
 * Remove k3s with `/usr/local/bin/k3s-uninstall.sh` once no instance runs on it (move them to Docker first): it
   deletes every Kubernetes instance's data.
+
+---
+
+## 34. AI explanation of failed builds (optional)
+
+Off by default. When an administrator turns it on, a person who may read a branch's logs can press **Explain with AI**
+on a failed build of a project that opted in. The panel shows the exact text it would send, and nothing leaves the
+server until that person confirms. The answer is plain text, labelled as written by a model, and is not stored; the
+panel runs nothing and changes nothing because of it.
+
+**Set up** (Settings, Advanced; needs `settings.manage`):
+
+1. Add the service's `host:port` to `EXPLAIN_ALLOWED_DESTINATIONS` in the server's settings. This list is separate
+   from the notification allowlist, and is empty by default. Only public addresses are accepted: servers on a private
+   network or the same machine are **not supported in this version** (a later mode would need its own review). The
+   panel's own address and cloud metadata or link-local addresses are always refused.
+2. In Settings enter the chat-completions URL (no query string, parameters or `#`: the address is shown as plain text
+   to administrators, so put the key in the key field only), a model name and an API key (saved in the panel's vault, never shown
+   again), and switch it on.
+3. Turn it on for each project that should use it (a person with `projects.manage`, from a failed build's card).
+
+**What is sent.** A fixed instruction (English or Arabic), the recognised cause's title when there is one, and at
+most 40 lines (4000 characters) of the stored error details of that build, scrubbed again. Never the step's title,
+the branch, the instance name, the repository or the person's name. The scrubber hides the patterns it knows (private
+keys, bearer tokens, `key=value` secrets, URL credentials, JWTs, known key shapes, long random strings, e-mail and IP
+addresses, and some wrapped lines). It is best effort: **it cannot guarantee that no secret or personal text is left
+in**, which is why the person sees and confirms the text first. A hosted service receives it under its own terms;
+nothing is promised from the type of endpoint alone.
+
+**Limits.** Each person can have a few previews open at once (and the panel a fixed number in all). A preview works once and for five minutes, and is checked again at confirm (the person's rights, the
+project's opt-in, the settings, the build and the destination). One request is in flight at a time, and the hourly
+limits `EXPLAIN_USER_LIMIT_PER_HOUR` (10) and `EXPLAIN_PROJECT_LIMIT_PER_HOUR` (30) apply. They limit the number of
+requests, not what the service charges. The connection is verified TLS to the checked, pinned address; the whole
+exchange has a total deadline and an answer-size cap; errors never repeat the address, the key or the answer.
+
+The audit log records who asked, the project, the build, the host and the size, never the text, the answer or the key.
+A model can be wrong, and text in a log can try to mislead it: treat the answer as a hint.

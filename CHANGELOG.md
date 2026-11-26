@@ -40,6 +40,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - Step by step workflow guides in English and Arabic (`docs/manual/`), with screenshots from the demo.
 - User manual: the first-run setup page has eight steps, not two; the certificate "Expires soon" window follows `ALERT_CERTIFICATE_DAYS`; production updates are always backed up first; maintenance backs up first only for Odoo image updates; the client portal is a Business plan feature.
+- **Optional AI explanation of failed builds (Task 18c):** off by default. With an administrator's settings (a
+  separate `EXPLAIN_ALLOWED_DESTINATIONS` list of public `host:port` entries, a model and a vaulted key) and a
+  per-project opt-in, a person who can read the branch's logs can press "Explain with AI" on a failed build, see the
+  exact scrubbed excerpt and fixed instruction that would be sent, and confirm (single use, five minutes, rechecked
+  at confirm). One request at a time, hourly per-person and per-project request limits (not a cost cap), a total
+  deadline and size cap, no redirects, the checked address pinned. The answer is plain text, labelled as model-written,
+  and not stored. Scrubbing is best effort and cannot guarantee that no secret is included; a model can be wrong or
+  misled by log text. Servers on a private network are not supported. The notification sender now shares one tested
+  exchange function with it.
 - **The failed-build commit status names the cause (Task 18b):** when a failed build's cause was recognised, the
   commit status on GitHub reads "<step category>: <cause title>" (a fixed word such as Modules or Database, never the step's own title, which can hold names; cut at 140 characters) and still links to the
   branch in the panel; otherwise it keeps the build's result text. It uses the Commit statuses permission the panel

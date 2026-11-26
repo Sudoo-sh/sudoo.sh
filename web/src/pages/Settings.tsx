@@ -11,6 +11,7 @@ import {
   RotateCcw,
   Send,
   ServerCog,
+  Sparkles,
   Webhook,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
@@ -34,6 +35,8 @@ import { SelectBox } from "@/components/app/select";
 import { Modal, useToast } from "@/components/app/overlay";
 import { TabInk } from "@/components/app/motion";
 import { useLocale, useT } from "@/i18n";
+import explainI18n from "@/i18n/explain";
+import { ExplainSettingsFields } from "@/components/ExplainWithAi";
 import { bytes } from "@/lib/format";
 import common from "@/i18n/common";
 import words from "@/i18n/settings";
@@ -1032,6 +1035,7 @@ function ResourceSettings({
 export function SettingsPage() {
   const me = useMe();
   const can = useCan();
+  const explainWords = useT(explainI18n).settings;
   const { data: settings, isPending } = useSettings();
   const { data: alerts } = useAlerts(can("audit.view"));
   // the standing alert of the bell, shown here too: the page is where the password is changed
@@ -1334,6 +1338,9 @@ export function SettingsPage() {
             )}
             {tab === "advanced" && (
               <>
+                <Section title={explainWords.title} text={explainWords.text} icon={<Sparkles />}>
+                  <ExplainSettingsFields />
+                </Section>
                 {other.length > 0 && (
                   <Section title={t.other.title} text={t.other.text}>
                     {rows(other)}

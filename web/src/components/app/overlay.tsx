@@ -232,6 +232,8 @@ export function Menu({
         onCloseAutoFocus={(event) => {
           // back to the button that opened it
           event.preventDefault();
+          // unless a menu item opened a dialog: the dialog has the focus then, and keeps it
+          if (document.querySelector('[role="dialog"], [role="alertdialog"]')) return;
           anchor.current?.querySelector<HTMLElement>("button, a")?.focus({ preventScroll: true });
         }}
       >

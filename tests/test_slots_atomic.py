@@ -232,10 +232,10 @@ def test_a_check_armed_for_one_instance_is_not_used_for_another() -> None:
 
 
 def test_a_check_for_a_creation_is_not_used_by_a_start_of_an_instance_that_exists() -> None:
-    docrun.run("a")
+    docrun.run("b")  # the limit of 1 is full
     with slots.ADMISSION:
         slots.arm(admit(max_running=1), None)  # armed for a creation (no instance)
-        slots.record_hold("jx", "a", "u")  # "a" exists: not judged by it, and the arm is dropped
+        slots.record_hold("jx", "a", "u")  # "a" exists and is not running: not judged by that arm, which is dropped
         slots.record_hold("jy", "new", "u")  # the arm was consumed: this creation is not judged either
     assert {"jx", "jy"} <= set(slots.snapshot().held)
     with slots.ADMISSION:

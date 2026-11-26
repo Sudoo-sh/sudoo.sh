@@ -19,6 +19,7 @@ provider charges. The key is stored encrypted (core/vault.py), is never returned
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import re
@@ -259,12 +260,16 @@ def preview(user: str, project_id: str, entry: Mapping[str, Any], lang: str) -> 
             if float(doc.get("expires") or 0) < now:
                 storage().delete(PREVIEWS, key)
 
-    purge(storage().all(PREVIEWS))
-    storage().put(PREVIEWS, preview_id, {
-        "id": preview_id, "user": user, "project": project_id, "build": str(entry["id"]), "lang": lang,
-        "hash": _hash(payload), "host": _host(found["endpoint"]), "model": found["model"],
-        "version": found["version"], "expires": now + PREVIEW_SECONDS, "used": False,
-    })  # fmt: skip
+    try:
+        purge(storage().all(PREVIEWS))
+        storage().put(PREVIEWS, preview_id, {
+            "id": preview_id, "user": user, "project": project_id, "build": str(entry["id"]), "lang": lang,
+            "hash": _hash(payload), "host": _host(found["endpoint"]), "model": found["model"],
+            "version": found["version"], "expires": now + PREVIEW_SECONDS, "used": False,
+        })  # fmt: skip
+    except BaseException:
+        _unadmit(preview_id, quiet=True)  # a failed write must not hold a slot until it expires
+        raise
     return {
         "id": preview_id,
         "expires_in": PREVIEW_SECONDS,
@@ -291,8 +296,13 @@ def _admit(user: str, preview_id: str, now: float) -> None:
     storage().change(USAGE, "previews", change)
 
 
-def _unadmit(preview_id: str) -> None:
-    """A used preview no longer counts as open."""
+def _unadmit(preview_id: str, quiet: bool = False) -> None:
+    """A used preview no longer counts as open. Best effort when quiet: a failure here only leaves the slot until it
+    expires (a few minutes) and must not change the outcome of the request."""
+    if quiet:
+        with contextlib.suppress(Exception):
+            _unadmit(preview_id)
+        return
 
     def change(found: dict[str, Any] | None) -> dict[str, Any]:
         found = dict(found or {})
@@ -364,7 +374,7 @@ def confirm(user: str, project_id: str, entry: Mapping[str, Any], preview_id: st
     _reserve(user, project_id)
     try:
         claimed = _claim(preview_id, user, project_id, entry, _hash(payload), found["version"])
-        _unadmit(preview_id)
+        _unadmit(preview_id, quiet=True)
         if claimed.get("host") != _host(found["endpoint"]) or claimed.get("model") != found["model"]:
             raise ExplainError("The settings changed since the preview. Make a new one.", 409)
         try:

@@ -446,3 +446,38 @@ def test_many_at_once_on_one_preview_send_exactly_once(exchange: Exchange) -> No
     for t in threads:
         t.join(10)
     assert len(exchange.calls) == 1 and results.count("sent") == 1, results
+
+
+def test_a_failed_preview_write_does_not_hold_a_slot(exchange: Exchange, monkeypatch: pytest.MonkeyPatch) -> None:
+    _on()
+    real_put = storage().put
+
+    def broken(collection: str, key: str, doc: Any) -> None:
+        if collection == service.PREVIEWS:
+            raise OSError("disk full")
+        real_put(collection, key, doc)
+
+    monkeypatch.setattr(type(storage()), "put", lambda self, c, k, d: broken(c, k, d))
+    with pytest.raises(OSError):
+        service.preview("u", "p1", ENTRY, "en")
+    monkeypatch.undo()
+    assert (storage().get(service.USAGE, "previews") or {}).get("open") == []
+
+
+def test_a_failing_slot_release_does_not_stop_the_answer(exchange: Exchange, monkeypatch: pytest.MonkeyPatch) -> None:
+    _on()
+    shown = service.preview("u", "p1", ENTRY, "en")
+    cls = type(storage())
+    real_change = cls.change
+
+    def change(self: Any, collection: str, key: str, fn: Any) -> Any:
+        if collection == service.USAGE and key == "previews":
+            raise OSError("store busy")
+        return real_change(self, collection, key, fn)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(cls, "change", change)
+        assert service.confirm("u", "p1", ENTRY, shown["id"])["generated"] is True
+    # the global busy flag was released too, so another preview can be made and confirmed
+    again = service.preview("u", "p1", ENTRY, "en")
+    assert service.confirm("u", "p1", ENTRY, again["id"])["generated"] is True

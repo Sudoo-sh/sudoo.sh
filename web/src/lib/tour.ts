@@ -27,6 +27,34 @@ export const PANEL_TOUR: readonly TourStepDef[] = [
   { id: "help", target: "nav-help", doc: "manual/README.md" },
 ];
 
+/** One tour: its name (what is stored as seen) and its steps. */
+export type TourDef = { id: string; steps: readonly TourStepDef[] };
+
+export const PANEL_TOUR_DEF: TourDef = { id: PANEL_TOUR_ID, steps: PANEL_TOUR };
+
+/** Page tours: each starts by itself on its page once the welcome tour is seen, and has a "?" in the page header. */
+export const PROJECTS_TOUR: TourDef = {
+  id: "projects-page",
+  steps: [
+    { id: "projects-new", target: "projects-new", doc: "manual/02-connect-github-first-project.md#steps" },
+    { id: "projects-grid", target: "projects-grid", doc: "manual/03-branches-stages-promotion.md" },
+  ],
+};
+
+export const BACKUPS_TOUR: TourDef = {
+  id: "backups-page",
+  steps: [
+    { id: "backups-list", target: "backups-list", doc: "manual/04-backups-and-restores.md" },
+    { id: "backups-actions", target: "backups-actions", doc: "manual/04-backups-and-restores.md#steps" },
+  ],
+};
+
+export const PAGE_TOURS: readonly TourDef[] = [PROJECTS_TOUR, BACKUPS_TOUR];
+
+/** Whether a tour may start by itself on its own: a page tour waits until the welcome tour has been seen. */
+export const mayAutoStartTour = (state: TourState, id: string) =>
+  mayAutoStart(state, id) && (id === PANEL_TOUR_ID || state.seen.includes(PANEL_TOUR_ID));
+
 /** Where a step's "Learn more" goes: the page inside this panel's own Help. */
 export const manualPath = (doc: string) => `/help/docs/${doc}`;
 
@@ -77,12 +105,25 @@ export function place(
   gap = 12,
 ): { left: number; top: number } {
   const room = (v: number, max: number) => Math.max(8, Math.min(v, max - 8));
-  let left = rect.right + gap;
-  if (left + size.width > screen.width - 8) left = rect.left - gap - size.width;
-  if (left < 8) left = rect.left;
-  const top = rect.top + (rect.bottom - rect.top) / 2 - size.height / 2;
-  return { left: room(left, screen.width - size.width + 8), top: room(top, screen.height - size.height + 8) };
+  const midTop = rect.top + (rect.bottom - rect.top) / 2 - size.height / 2;
+  const midLeft = rect.left + (rect.right - rect.left) / 2 - size.width / 2;
+  const fitsX = (l: number) => l >= 8 && l + size.width <= screen.width - 8;
+  const fitsY = (t: number) => t >= 8 && t + size.height <= screen.height - 8;
+  // beside the item first (the sidebar case), then below, then above: never over the item itself
+  const sides: { left: number; top: number; ok: boolean }[] = [
+    { left: rect.right + gap, top: midTop, ok: fitsX(rect.right + gap) },
+    { left: rect.left - gap - size.width, top: midTop, ok: fitsX(rect.left - gap - size.width) },
+    { left: midLeft, top: rect.bottom + gap, ok: fitsY(rect.bottom + gap) },
+    { left: midLeft, top: rect.top - gap - size.height, ok: fitsY(rect.top - gap - size.height) },
+  ];
+  const side = sides.find((s) => s.ok);
+  if (side) return { left: room(side.left, screen.width - size.width), top: room(side.top, screen.height - size.height) };
+  // no room on any side (a very large item): the corner of the screen farthest from the item's middle
+  return { left: room(midLeft, screen.width - size.width), top: room(midTop, screen.height - size.height) };
 }
 
 /** The Help page's "Show the tour again" asks the open tour component to start (it listens for this event). */
 export const TOUR_RESTART_EVENT = "sudoo:tour-restart";
+
+/** A page's "?" button asks one tour to start: the event's detail is the tour's id (none: the welcome tour). */
+export const askTour = (id: string) => window.dispatchEvent(new CustomEvent(TOUR_RESTART_EVENT, { detail: id }));

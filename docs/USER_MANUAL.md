@@ -1754,6 +1754,16 @@ Every setting is described in [Configuration](CONFIGURATION.md).
 with a table of contents and an **On this page** list of the current page's sections. Links between the pages work
 as in the repository.
 
+### Page tours
+
+A short tour starts by itself the first time you open **Projects** or **Backups**, once you have seen the first-visit
+tour. It outlines one item at a time in plum and never clicks anything for you; the **bin** on a backup is only
+pointed at, and deleting still asks you first. **Next**, **Back** and **Skip** work, and **Esc** closes it. To see a
+tour again, press the small **?** beside the page title (**Take the tour**; it is not the **?** at the top right,
+which opens the help panel). **Restart all tours** and the tips switch are on the Account page. An administrator
+can turn every tour off with the `TOURS_ENABLED` setting, which also hides the small **?**. What you have seen is
+kept on your account on the server.
+
 ### The help button
 
 The **?** button at the top right of every page opens the help panel at the side (press **?** on the keyboard

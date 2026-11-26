@@ -17,7 +17,26 @@ const en = {
   checkFailed: "Could not start the tour",
   checkFailedText: "The panel could not check the tour settings just now. Try again in a moment.",
   off: "The administrator has turned the tours off for this panel.",
+  takeTour: "Take the tour",
+  nothingTitle: "Nothing to show yet",
+  nothingText: "This page has nothing for the tour to point at yet. Come back when it has some content.",
   steps: {
+    "projects-new": {
+      title: "New project",
+      body: "Connect a GitHub repository here. Each project is one repository.",
+    },
+    "projects-grid": {
+      title: "Your projects",
+      body: "Each card is a project, with its branches and the instances they run.",
+    },
+    "backups-list": {
+      title: "Backups of an instance",
+      body: "Backups are grouped by instance, newest first, with the kind, the time taken and the size.",
+    },
+    "backups-actions": {
+      title: "Download or delete",
+      body: "Download a backup here. The bin deletes it for good, and asks you first. To restore one, open the instance's page.",
+    },
     intro: {
       title: "Welcome to your panel",
       body: "A short tour shows where the main things are. You can skip it now and show it again from Help.",
@@ -59,7 +78,26 @@ const ar: typeof en = {
   checkFailed: "تعذّر بدء الجولة",
   checkFailedText: "تعذّر على اللوحة التحقق من إعدادات الجولة الآن. حاول مرة أخرى بعد قليل.",
   off: "أوقف المسؤول الجولات في هذه اللوحة.",
+  takeTour: "ابدأ الجولة",
+  nothingTitle: "لا شيء لعرضه بعد",
+  nothingText: "لا يوجد في هذه الصفحة ما تشير إليه الجولة بعد. عُد حين يظهر فيها محتوى.",
   steps: {
+    "projects-new": {
+      title: "مشروع جديد",
+      body: "اربط مستودعًا من GitHub من هنا. كل مشروع هو مستودع واحد.",
+    },
+    "projects-grid": {
+      title: "مشاريعك",
+      body: "كل بطاقة مشروع، مع فروعه والبيئات التي تعمل منها.",
+    },
+    "backups-list": {
+      title: "النسخ الاحتياطية لبيئة",
+      body: "تُجمَّع النسخ حسب البيئة، الأحدث أولًا، مع النوع ووقت الأخذ والحجم.",
+    },
+    "backups-actions": {
+      title: "التنزيل أو الحذف",
+      body: "نزّل نسخة من هنا. وزر سلة المهملات يحذفها نهائيًا ويسألك أولًا. ولاستعادة نسخة افتح صفحة البيئة.",
+    },
     intro: {
       title: "مرحبًا بك في لوحتك",
       body: "جولة قصيرة تريك أين أهم الأشياء. يمكنك تخطيها الآن وإظهارها من جديد من المساعدة.",

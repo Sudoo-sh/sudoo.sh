@@ -13,6 +13,7 @@ import { useToast } from "@/components/app/overlay";
 import { useT } from "@/i18n";
 import words from "@/i18n/operations";
 import { ago, bytes, count, dateTime } from "@/lib/format";
+import { BACKUPS_TOUR } from "@/lib/tour";
 import { PremiumSlot } from "@/premium/components";
 
 function Details({ backup: b }: { backup: Backup }) {
@@ -44,7 +45,7 @@ export function BackupsPage() {
 
   return (
     <Page>
-      <PageHead title={t.title}>
+      <PageHead title={t.title} tour={BACKUPS_TOUR}>
         {t.text}
         {backups?.length ? t.summary(count(backups.length, "backup"), bytes(total)) : ""}
       </PageHead>
@@ -62,9 +63,9 @@ export function BackupsPage() {
           </Empty>
         </div>
       ) : (
-        groups.map((group) => (
+        groups.map((group, groupIndex) => (
           <section className="card rise" key={group.name}>
-            <div className="card-head">
+            <div className="card-head" data-tour={groupIndex === 0 ? "backups-list" : undefined}>
               <div className="spacer">
                 <h2>
                   <bdi>{group.name}</bdi>
@@ -89,7 +90,7 @@ export function BackupsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {group.rows.map((backup) => (
+                {group.rows.map((backup, rowIndex) => (
                   <TableRow key={backup.file}>
                     <TableCell>
                       <Tag tone={backup.kind === "daily" ? "accent" : undefined}>
@@ -103,7 +104,10 @@ export function BackupsPage() {
                     <TableCell className="small">
                       <Details backup={backup} />
                     </TableCell>
-                    <TableCell className="actions nowrap">
+                    <TableCell
+                      className="actions nowrap"
+                      data-tour={groupIndex === 0 && rowIndex === 0 ? "backups-actions" : undefined}
+                    >
                       <Button asChild variant="soft" size="sm">
                         <a href={`/api/v1/backups/${encodeURIComponent(backup.file)}`} download>
                           <Download /> {t.download}

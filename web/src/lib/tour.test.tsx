@@ -5,7 +5,21 @@ import tourWords from "@/i18n/tour";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter } from "react-router";
 import { TourCard } from "@/components/TourCard";
-import { PANEL_TOUR, manualPath, PANEL_TOUR_ID, mayAutoStart, place, settle, shouldStart, visibleSteps } from "./tour";
+import {
+  BACKUPS_TOUR,
+  PAGE_TOURS,
+  PANEL_TOUR,
+  PANEL_TOUR_ID,
+  PROJECTS_TOUR,
+  manualPath,
+  mayAutoStart,
+  mayAutoStartTour,
+  place,
+  settle,
+  shouldStart,
+  visibleSteps,
+  type TourDef,
+} from "./tour";
 
 describe("the panel tour", () => {
   it("has unique step ids, each with words in English and Arabic", () => {
@@ -22,7 +36,7 @@ describe("the panel tour", () => {
 
   it("links every step to a page that exists, and to a real heading of the User Manual", () => {
     const docs = join(__dirname, "../../../docs");
-    for (const step of PANEL_TOUR) {
+    for (const step of [...PANEL_TOUR, ...PAGE_TOURS.flatMap((tour) => tour.steps)]) {
       const [file, heading] = step.doc.split("#");
       expect(existsSync(join(docs, file!)), step.doc).toBe(true);
       expect(manualPath(step.doc)).toBe(`/help/docs/${step.doc}`);
@@ -43,6 +57,50 @@ describe("the panel tour", () => {
         expect(slugs).toContain(heading);
       }
     }
+  });
+
+  it("has page tours with their own saved names, unique step ids and words in both languages", () => {
+    const names = ["panel-welcome", ...PAGE_TOURS.map((t) => t.id)];
+    expect(new Set(names).size).toBe(names.length);
+    for (const name of names) expect(name).toMatch(/^[a-z0-9][a-z0-9-]{0,39}$/); // what the server accepts
+    const all = [...PANEL_TOUR, ...PAGE_TOURS.flatMap((t) => t.steps)].map((s) => s.id);
+    expect(new Set(all).size).toBe(all.length);
+    for (const tour of PAGE_TOURS)
+      for (const step of tour.steps) {
+        expect(step.target, step.id).toBeDefined();
+        for (const lang of ["en", "ar"] as const) {
+          const w = tourWords[lang].steps[step.id as keyof typeof tourWords.en.steps];
+          expect(w.title.trim()).not.toBe("");
+          expect(w.body.trim()).not.toBe("");
+        }
+      }
+    for (const lang of ["en", "ar"] as const)
+      for (const key of ["takeTour", "nothingTitle", "nothingText"] as const)
+        expect(tourWords[lang][key].trim()).not.toBe("");
+  });
+
+  it("starts a page tour by itself only after the welcome tour was seen, and respects the switches", () => {
+    const base = { seen: [] as string[], tips: true, enabled: true };
+    expect(mayAutoStartTour(base, "panel-welcome")).toBe(true);
+    expect(mayAutoStartTour(base, PROJECTS_TOUR.id)).toBe(false); // welcome first
+    const welcomed = { ...base, seen: ["panel-welcome"] };
+    expect(mayAutoStartTour(welcomed, PROJECTS_TOUR.id)).toBe(true);
+    expect(mayAutoStartTour({ ...welcomed, seen: ["panel-welcome", PROJECTS_TOUR.id] }, PROJECTS_TOUR.id)).toBe(false);
+    expect(mayAutoStartTour({ ...welcomed, tips: false }, BACKUPS_TOUR.id)).toBe(false);
+    expect(mayAutoStartTour({ ...welcomed, enabled: false }, BACKUPS_TOUR.id)).toBe(false);
+  });
+
+  it("skips page steps whose target is not on the page (empty states) and does not start with none", () => {
+    const empty: TourDef = PROJECTS_TOUR;
+    expect(visibleSteps(empty.steps, (t) => t === "projects-new").map((s) => s.id)).toEqual(["projects-new"]);
+    expect(
+      shouldStart(
+        visibleSteps(empty.steps, () => false),
+        false,
+        false,
+      ),
+    ).toBe(false);
+    expect(settle(BACKUPS_TOUR.steps, "backups-actions", (t) => t === "backups-list")).toBeNull();
   });
 
   it("keeps only the steps whose target is on the screen", () => {
@@ -138,5 +196,20 @@ describe("the panel tour", () => {
     expect(low.top + size.height).toBeLessThanOrEqual(screen.height);
     const high = place({ left: 0, right: 240, top: 0, bottom: 10 }, size, screen);
     expect(high.top).toBeGreaterThanOrEqual(8);
+  });
+
+  it("never covers the item it points at when there is room on any side", () => {
+    const screen = { width: 1000, height: 700 };
+    const size = { width: 320, height: 180 };
+    const overlaps = (r: { left: number; right: number; top: number; bottom: number }, p: { left: number; top: number }) =>
+      p.left < r.right && p.left + size.width > r.left && p.top < r.bottom && p.top + size.height > r.top;
+    // a wide bar across the top: below it; a wide bar across the bottom: above it
+    for (const r of [
+      { left: 20, right: 980, top: 20, bottom: 80 },
+      { left: 20, right: 980, top: 600, bottom: 660 },
+      { left: 300, right: 700, top: 300, bottom: 400 },
+    ]) {
+      expect(overlaps(r, place(r, size, screen))).toBe(false);
+    }
   });
 });

@@ -285,6 +285,22 @@ def test_guided_tour_progress_is_kept_per_person_on_the_server_and_an_administra
     assert accounts.get(name)["tours"] == {"seen": [], "tips": True}  # unchanged by the refused bodies
 
 
+def test_page_tours_are_kept_by_their_ids_for_a_viewer_and_never_touch_other_account_fields(app: Flask) -> None:
+    name = _user("viewer")  # the lowest role: a tour is the person's own progress, so it needs no more
+    client, _ = _sign_in(app, name)
+    headers = _headers(client)
+    before = {k: v for k, v in accounts.get(name).items() if k != "tours"}
+    for tour in ("panel-welcome", "projects-page", "backups-page", "projects-page"):  # the last is a repeat
+        saved = client.patch("/api/v1/account", json={"tours": {"mark": [tour]}}, headers=headers)
+        assert saved.status_code == 200
+    seen = ["panel-welcome", "projects-page", "backups-page"]
+    assert client.get("/api/v1/session").get_json()["data"]["tours"]["seen"] == seen
+    assert accounts.get(name)["tours"]["seen"] == seen
+    assert {k: v for k, v in accounts.get(name).items() if k != "tours"} == before
+    client.patch("/api/v1/account", json={"tours": {"seen": []}}, headers=headers)  # "Restart all tours"
+    assert client.get("/api/v1/session").get_json()["data"]["tours"]["seen"] == []
+
+
 def test_marking_tours_seen_from_many_places_at_once_keeps_every_one(app: Flask) -> None:
     import _thread  # real threads: the suite's fixture replaces threading.Thread with one that runs at once
 

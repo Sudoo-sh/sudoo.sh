@@ -479,8 +479,8 @@ body:has(.toast, [data-slot="dialog-overlay"], [data-slot="sheet-overlay"], [dat
   pointer-events: none;
 }
 
-// the step of the first-visit tour points at this sidebar item (components/Tour.tsx)
-.nav-link[data-tour-current] {
+// the step of a tour points at this item (components/Tour.tsx): a plum outline, no dimming, no blocking
+[data-tour-current] {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
 }

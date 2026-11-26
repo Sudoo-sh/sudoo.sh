@@ -4,6 +4,7 @@ import {
   BookOpen,
   CircleAlert,
   CircleCheck,
+  CircleHelp,
   Info,
   ChevronRight,
   ChevronsUpDown,
@@ -33,6 +34,8 @@ import { useLiveEvents, type Sync } from "@/api/live";
 import { keys, useAlerts, useInstances, useMetrics, usePluginNotices, useProjects } from "@/api/queries";
 import type { Alert } from "@/api/types";
 import { useT } from "@/i18n";
+import tourWords from "@/i18n/tour";
+import { askTour, type TourDef } from "@/lib/tour";
 import common from "@/i18n/common";
 import { ago, percent } from "@/lib/format";
 import { NARROW, useMedia } from "@/lib/media";
@@ -609,14 +612,36 @@ export function PageHead({
   actions,
   below,
   side,
+  tour,
 }: {
   title: ReactNode;
   children?: ReactNode;
   actions?: ReactNode;
   below?: ReactNode;
   side?: ReactNode;
+  /** This page's tour: a "?" button in the header starts it, and it starts by itself on a first visit. */
+  tour?: TourDef;
 }) {
   const mark = useContext(PageMark);
+  const me = useMe();
+  const words = useT(tourWords);
+  const tourButton = tour && me.tours.enabled && (
+    <Button
+      variant="ghost"
+      size="sm"
+      icon={<CircleHelp />}
+      aria-label={words.takeTour}
+      title={words.takeTour}
+      onClick={() => askTour(tour.id)}
+    />
+  );
+  const shownActions =
+    tourButton || actions ? (
+      <>
+        {tourButton}
+        {actions}
+      </>
+    ) : null;
   return (
     <div className={side ? "page-head page-head-split" : "page-head"}>
       <div className="titles">
@@ -633,12 +658,13 @@ export function PageHead({
       </div>
       {side ? (
         <div className="page-head-side">
-          {actions && <div className="actions">{actions}</div>}
+          {shownActions && <div className="actions">{shownActions}</div>}
           {side}
         </div>
       ) : (
-        actions && <div className="actions">{actions}</div>
+        shownActions && <div className="actions">{shownActions}</div>
       )}
+      {tour && <Tour def={tour} />}
     </div>
   );
 }

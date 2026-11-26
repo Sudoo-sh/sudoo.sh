@@ -159,3 +159,70 @@ def test_ordinary_lines_with_key_or_password_words_stay() -> None:
 def test_over_hiding_is_known() -> None:
     # "token was <word>" is read as a secret named by the word before "was": ordinary text can lose a word
     assert "<hidden>" in scrub("the token was not valid")[0]
+
+
+URL_SECRETS = [
+    ("s3cr/et", "git clone https://bob:s3cr/et@host.example/repo.git"),
+    ("p@ss", "git clone https://bob:p@ss@host.example/repo.git"),
+    ("pa:ss:w0rd", "git clone https://bob:pa:ss:w0rd@host.example/repo.git"),
+    ("pa%40ss%2Fx", "git clone https://bob:pa%40ss%2Fx@host.example/repo.git"),
+    ("pw?x#y", "fetch https://bob:pw?x#y@host.example/repo.git"),
+    ("p/w", "psql postgresql://odoo:p/w@db/odoo?sslmode=require"),
+    ("ghs_ABCDEF0123456789", "fetch https://ghs_ABCDEF0123456789@host.example/repo.git"),
+    ("hunter2", "redis://:hunter2@cache:6379/0"),
+    ("pp1", "git+https://u:pp1@host.example/r.git and more text"),
+    ("w0rd", "proxy=http://user:w0rd@proxy:3128, retrying"),
+]
+
+
+@pytest.mark.parametrize(("secret", "line"), URL_SECRETS)
+def test_an_address_with_a_user_and_password_hides_both_whatever_characters_the_password_has(
+    secret: str, line: str
+) -> None:
+    text, count = scrub(line)
+    assert secret not in text and count >= 1, text
+    assert "bob" not in text and "ghs_" not in text and "odoo:" not in text, text
+
+
+def test_the_host_and_path_after_the_credentials_stay_readable() -> None:
+    assert scrub("git clone https://bob:s3cr/et@host.example/repo.git")[0] == (
+        "git clone https://<hidden>@host.example/repo.git"
+    )
+    assert scrub("postgres://odoo:hunter2@db:5432/odoo failed")[0] == "postgres://<hidden>@db:5432/odoo failed"
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "see http://localhost:8069/web?db=x@y ok",
+        "https://example.com/a@b",
+        "GET http://odoo:8069/web/login?redirect=/web#a@b",
+    ],
+)
+def test_an_address_without_credentials_is_not_taken_for_one(line: str) -> None:
+    assert scrub(line)[0] == line
+
+
+@pytest.mark.parametrize(
+    ("secret", "line"),
+    [
+        ('pa"ss word', 'password: "pa\\"ss word" trailing'),
+        ("pa'ss", "password = 'pa\\'ss' then"),
+        ("abc 123", "Key = 'abc 123'"),
+        ("abc123", "{'api_key': 'abc123', 'x': 1}"),
+        ("abc123", "key: abc123"),
+        ("abc123", "key=abc123"),
+        ("abc123", "secret=abc123; other=1"),
+        ("abc123", "x-api-key: abc123"),
+        ("abc123", '{"token": "abc123"}'),
+    ],
+)
+def test_name_and_value_pairs_for_the_secret_names_hide_the_whole_value(secret: str, line: str) -> None:
+    text, count = scrub(line)
+    assert secret not in text and "ss word" not in text and count >= 1, text
+
+
+def test_url_and_pair_limits_that_remain_are_real() -> None:
+    # a password with a space in it, and an all-digit password with a "/" (it reads as a port): not hidden
+    assert "pa ss" in scrub("amqp://user:pa ss@host")[0]
+    assert "123/45" in scrub("https://u:123/45@h/x")[0]

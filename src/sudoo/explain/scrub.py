@@ -34,11 +34,17 @@ _NAME = (
     r"[\w.-]*(?:pass(?:word|wd|phrase)?|pwd|secret|token|api[_-]?key|apikey|access[_-]?key|private[_-]?key|"
     r"credential|auth|signature|cookie|session[_-]?id|dsn|connection[_-]?string|(?<![a-z])key(?![a-z]))[\w.-]*"
 )
-_PAIR = re.compile(rf"(?i)(?<![\w-])((?:--)?{_NAME})([\"']?\s*[:=]\s*)(\"[^\"]*\"|'[^']*'|[^\n]+)")
+_PAIR = re.compile(
+    rf"(?i)(?<![\w-])((?:--)?{_NAME})([\"']?\s*[:=]\s*)(\"(?:[^\"\\\n]|\\.)*\"|'(?:[^'\\\n]|\\.)*'|[^\n]+)"
+)  # a quoted value may hold a backslash-escaped quote; an unclosed quote falls back to the rest of the line
 _FLAG = re.compile(
     r"(?i)(--[\w-]*(?:pass(?:word|wd)?|token|secret|api[_-]?key|access[_-]?key|auth)[\w-]*\s+)(\"[^\"]*\"|'[^']*'|\S+)"
 )
-_USERINFO = re.compile(r"\b([a-zA-Z][a-zA-Z0-9+.-]*://)[^\s/@:]*:[^\s/@]*@")
+_USERINFO = re.compile(
+    r"\b([a-zA-Z][a-zA-Z0-9+.-]*://)"
+    r"(?:[^\s/]*@"  # everything up to the last "@" before the first "/" (a password may hold ":", "@", "?", "#")
+    r"|[^\s/@:]*:(?!\d{1,5}(?:/|\s|$))[^\s]*@)"  # a password with a "/" in it: up to the last "@" of the word, unless
+)  # what follows the first ":" is a port (host:8080/path?x=a@b is an address, not a credential)
 _CLI_USER = re.compile(r"(?i)(\s(?:-u|--user)(?:\s+|=))[^\s:]+:\S+")  # curl -u user:pass
 _CLI_P = re.compile(r"(?<=\s)-p\S+")  # mysql -pPASSWORD (the value is stuck to the flag)
 _IS = re.compile(r"(?i)\b(pass(?:word|wd|phrase)|secret|token|api key|private key)\b([^\n]{0,60}?\b(?:is|was)\s+)(\S+)")

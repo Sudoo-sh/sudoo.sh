@@ -9,6 +9,7 @@ import type { Backup } from "@/api/types";
 import { Page, PageHead } from "@/components/Shell";
 import { Button, Empty, Skeleton, Tag } from "@/components/app/basics";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useConfirm } from "@/components/app/confirm";
 import { useToast } from "@/components/app/overlay";
 import { useT } from "@/i18n";
 import words from "@/i18n/operations";
@@ -32,6 +33,7 @@ export function BackupsPage() {
   const { data: instances } = useInstances();
   const total = backups?.reduce((sum, b) => sum + b.size, 0) ?? 0;
   const t = useT(words).backups;
+  const [confirm, askDialog] = useConfirm();
 
   const groups = useMemo(() => {
     const byInstance = new Map<string, Backup[]>();
@@ -45,6 +47,7 @@ export function BackupsPage() {
 
   return (
     <Page>
+      {askDialog}
       <PageHead title={t.title} tour={BACKUPS_TOUR}>
         {t.text}
         {backups?.length ? t.summary(count(backups.length, "backup"), bytes(total)) : ""}
@@ -119,8 +122,9 @@ export function BackupsPage() {
                         icon={<Trash2 />}
                         aria-label={t.delete}
                         onClick={() =>
-                          confirm(t.confirmDelete(backup.file)) &&
-                          remove.mutate(backup.file, { onSuccess: () => toast("success", t.deleted) })
+                          void confirm(t.confirmDelete(backup.file), { action: t.delete, danger: true }).then((yes) => {
+                            if (yes) remove.mutate(backup.file, { onSuccess: () => toast("success", t.deleted) });
+                          })
                         }
                       />
                     </TableCell>

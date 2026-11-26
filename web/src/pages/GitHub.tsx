@@ -19,6 +19,7 @@ import { Page, PageHead } from "@/components/Shell";
 import { Button, Callout, CopyField, Empty, Field, Skeleton, Spinner, Switch, Tag } from "@/components/app/basics";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
+import { useConfirm } from "@/components/app/confirm";
 import { Modal, useToast } from "@/components/app/overlay";
 import { ago } from "@/lib/format";
 import { GITHUB_TOUR } from "@/lib/tour";
@@ -159,8 +160,10 @@ function Installations({ app, canManage }: { app: GitHubApp; canManage: boolean 
   const forget = useCall((id: number) => api.del(`/github/app/installations/${id}`), APP_KEY);
   const t = useT(words).installations;
   const refresh = useT(common).common.refresh;
+  const [confirm, askDialog] = useConfirm();
   return (
     <div className="stack-sm">
+      {askDialog}
       <div className="row" style={{ flexWrap: "wrap" }}>
         <h3 className="spacer">{t.title}</h3>
         {canManage && (
@@ -222,7 +225,11 @@ function Installations({ app, canManage }: { app: GitHubApp; canManage: boolean 
                       variant="ghost"
                       icon={<Trash2 />}
                       aria-label={t.forget}
-                      onClick={() => confirm(t.confirmForget(i.account)) && forget.mutate(i.id)}
+                      onClick={() =>
+                        void confirm(t.confirmForget(i.account), { action: t.forget, danger: true }).then((yes) => {
+                          if (yes) forget.mutate(i.id);
+                        })
+                      }
                     />
                   )}
                 </TableCell>
@@ -245,6 +252,7 @@ function AppCard() {
   } | null>(null);
   const t = useT(words).app;
   const done = useT(common).common.done;
+  const [confirm, askDialog] = useConfirm();
   const disconnect = useCall(
     () => api.del<{ settings_url: string; installations: { account: string; settings_url: string }[] }>("/github/app"),
     APP_KEY,
@@ -260,6 +268,7 @@ function AppCard() {
   const app = state.app;
   return (
     <section className="card rise" data-tour="github-app">
+      {askDialog}
       <div className="card-head">
         <Plug />
         <h2>{t.title}</h2>
@@ -300,10 +309,12 @@ function AppCard() {
                   icon={<Unplug />}
                   loading={disconnect.isPending}
                   onClick={() =>
-                    confirm(t.confirmDisconnect) &&
-                    disconnect.mutate(undefined, {
-                      onSuccess: setRemoved,
-                      onError: (e) => toast("error", t.notDisconnected, errorText(e)),
+                    void confirm(t.confirmDisconnect, { action: t.disconnect, danger: true }).then((yes) => {
+                      if (yes)
+                        disconnect.mutate(undefined, {
+                          onSuccess: setRemoved,
+                          onError: (e) => toast("error", t.notDisconnected, errorText(e)),
+                        });
                     })
                   }
                 >
@@ -372,8 +383,10 @@ export function GitHubPage() {
   const all = useT(words);
   const t = all.keys;
   const c = useT(common).common;
+  const [confirm, askDialog] = useConfirm();
   return (
     <Page>
+      {askDialog}
       <PageHead title={all.title} tour={GITHUB_TOUR}>
         {all.lead}
       </PageHead>
@@ -433,8 +446,9 @@ export function GitHubPage() {
                       icon={<Trash2 />}
                       aria-label={c.delete}
                       onClick={() =>
-                        confirm(t.confirmDelete(k.repo)) &&
-                        remove.mutate(k.repo, { onSuccess: () => toast("success", t.deleted) })
+                        void confirm(t.confirmDelete(k.repo), { action: c.delete, danger: true }).then((yes) => {
+                          if (yes) remove.mutate(k.repo, { onSuccess: () => toast("success", t.deleted) });
+                        })
                       }
                     />
                   </TableCell>

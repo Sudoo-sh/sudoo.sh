@@ -40,6 +40,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - Step by step workflow guides in English and Arabic (`docs/manual/`), with screenshots from the demo.
 - User manual: the first-run setup page has eight steps, not two; the certificate "Expires soon" window follows `ALERT_CERTIFICATE_DAYS`; production updates are always backed up first; maintenance backs up first only for Odoo image updates; the client portal is a Business plan feature.
+- **The panel's own question dialog:** `useConfirm()` (`web/src/components/app/confirm.tsx`) replaces the browser's
+  `confirm()` everywhere (deleting or disabling an account, revoking an invitation, token, backup or GitHub link,
+  removing a submodule, changing your own role). It is the panel's dialog, so it follows the theme and the language and
+  takes keyboard focus. A test (`web/src/no-native-dialogs.test.ts`) fails when a file in `web/src` calls the browser's
+  `confirm`, `alert` or `prompt`.
 - **Reason for disabling and enabling an account (Task 53, cross-cut 34):** both calls now need a short reason (up to 300
   characters), kept in the audit log and shown as `disabled_reason`. The access-request list also reports how many
   requests still wait for e-mail confirmation (`meta.awaiting_confirmation`, a count only).

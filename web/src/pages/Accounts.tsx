@@ -37,6 +37,7 @@ import {
   withoutRequiredFactor,
   type AccountTab,
 } from "@/lib/account-tabs";
+import { useConfirm } from "@/components/app/confirm";
 import { Menu, MenuItem, MenuSeparator, Modal, useToast } from "@/components/app/overlay";
 import { ago, fullDateTime } from "@/lib/format";
 import { generatePassword, type Person } from "@/lib/password";
@@ -217,6 +218,7 @@ function AccountForm({
 }) {
   const me = useMe();
   const toast = useToast();
+  const [confirm, dialog] = useConfirm();
   const { data } = useRoles();
   const [form, setForm] = useState<Form>(
     user
@@ -255,7 +257,7 @@ function AccountForm({
     /^\d{0,4}$/.test(runLimit.trim()) &&
     (!!user || (inviting ? canInvite : choiceReady(password, person)));
   const save = async () => {
-    if (self && form.role !== user!.role && !confirm(t.form.confirmOwnRole)) return;
+    if (self && form.role !== user!.role && !(await confirm(t.form.confirmOwnRole))) return;
     setBusy(true);
     try {
       const body = { ...form, email: form.email.trim() };
@@ -297,163 +299,166 @@ function AccountForm({
   const description = user ? <span className="mono">{user.name}</span> : inviting ? t.invite.text : t.form.newText;
   const submit = user ? all.common.save : inviting ? t.invite.send : all.common.create;
   return (
-    <Modal
-      wide
-      title={title}
-      description={description}
-      onClose={onClose}
-      footer={
-        <>
-          <Button onClick={onClose}>{all.common.cancel}</Button>
-          <Button
-            variant="primary"
-            icon={inviting ? <Send /> : undefined}
-            loading={busy}
-            disabled={!ready}
-            onClick={save}
-          >
-            {submit}
-          </Button>
-        </>
-      }
-    >
-      <div className="stack">
-        {!user && policy?.password_allowed && canInvite && (
-          <div className="field">
-            <span className="label">{t.invite.how}</span>
-            <Segmented<"invite" | "password">
-              value={mode}
-              onChange={setMode}
-              options={[
-                {
-                  value: "invite",
-                  label: (
-                    <>
-                      <MailPlus size={14} /> {t.invite.byEmail}
-                    </>
-                  ),
-                },
-                {
-                  value: "password",
-                  label: (
-                    <>
-                      <KeyRound size={14} /> {t.invite.byPassword}
-                    </>
-                  ),
-                },
-              ]}
-            />
-          </div>
-        )}
-        {!user && !canInvite && (
-          <Callout tone={policy?.password_allowed ? "info" : "warning"}>
-            {policy?.password_allowed ? t.invite.passwordNote : t.invite.noMail}{" "}
-            <Link to="/settings?tab=email" viewTransition>
-              {t.invite.setUpMail}
-            </Link>
-          </Callout>
-        )}
-        {!user && canInvite && mode === "password" && <Callout tone="info">{t.invite.passwordAlways}</Callout>}
-        <div className="form-grid">
-          <Field
-            label={t.form.email}
-            hint={
-              user
-                ? t.form.emailHintEdit
-                : inviting && policy
-                  ? t.invite.expiresIn(policy.invitation_hours)
-                  : t.form.emailHintNew
-            }
-            className={inviting ? "full" : undefined}
-          >
-            <Input
-              type="email"
-              dir="ltr"
-              autoComplete="off"
-              autoFocus={!user}
-              value={form.email}
-              onChange={set("email")}
-            />
-          </Field>
-          {!inviting && (
-            <Field label={t.form.phone} hint={t.form.optional}>
-              <Input type="tel" dir="ltr" value={form.phone} onChange={set("phone")} />
-            </Field>
-          )}
-          <Field label={t.form.firstName} hint={inviting ? t.invite.namesOptional : undefined}>
-            <Input autoFocus={!!user} value={form.first_name} onChange={set("first_name")} />
-          </Field>
-          <Field label={t.form.lastName} hint={inviting ? t.invite.namesOptional : undefined}>
-            <Input value={form.last_name} onChange={set("last_name")} />
-          </Field>
-        </div>
-        <div className="field">
-          <span className="label">{t.form.role}</span>
-          <div className="grid-2">
-            {roles.map((role) => (
-              <button
-                key={role.name}
-                type="button"
-                className="choice"
-                aria-pressed={form.role === role.name}
-                onClick={() => setForm({ ...form, role: role.name })}
-              >
-                <span>
-                  <span className="t">{all.roles[role.name] ?? role.label}</span>
-                  <br />
-                  <span className="d">{t.accounts.roleDescriptions[role.name] ?? role.description}</span>
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-        {(inviting || (user && !user.github)) && (
-          <Field label={t.signIn.githubLogin} hint={t.signIn.githubLoginHint}>
-            <div className="input-group">
-              <GitHubMark />
-              <Input
-                dir="ltr"
-                autoComplete="off"
-                spellCheck={false}
-                placeholder="octocat"
-                maxLength={40}
-                value={githubLogin}
-                onChange={(e) => setGithubLogin(e.target.value)}
+    <>
+      <Modal
+        wide
+        title={title}
+        description={description}
+        onClose={onClose}
+        footer={
+          <>
+            <Button onClick={onClose}>{all.common.cancel}</Button>
+            <Button
+              variant="primary"
+              icon={inviting ? <Send /> : undefined}
+              loading={busy}
+              disabled={!ready}
+              onClick={save}
+            >
+              {submit}
+            </Button>
+          </>
+        }
+      >
+        <div className="stack">
+          {!user && policy?.password_allowed && canInvite && (
+            <div className="field">
+              <span className="label">{t.invite.how}</span>
+              <Segmented<"invite" | "password">
+                value={mode}
+                onChange={setMode}
+                options={[
+                  {
+                    value: "invite",
+                    label: (
+                      <>
+                        <MailPlus size={14} /> {t.invite.byEmail}
+                      </>
+                    ),
+                  },
+                  {
+                    value: "password",
+                    label: (
+                      <>
+                        <KeyRound size={14} /> {t.invite.byPassword}
+                      </>
+                    ),
+                  },
+                ]}
               />
             </div>
-          </Field>
-        )}
-        {user && (
-          <Field
-            label={t.signIn.runLimit}
-            hint={t.signIn.runLimitHint(t.signIn.runLimitSetting(user.running_limit_default))}
-          >
-            <Input
-              dir="ltr"
-              inputMode="numeric"
-              autoComplete="off"
-              placeholder={t.signIn.runLimitSetting(user.running_limit_default)}
-              maxLength={4}
-              value={runLimit}
-              onChange={(e) => setRunLimit(e.target.value)}
-            />
-          </Field>
-        )}
-        {user && (
-          <SignInFields
-            methods={methods}
-            fallback={user.sign_in_methods_chosen ? ["password", "github"] : user.sign_in_methods}
-            onChange={setMethods}
-          />
-        )}
-        {!user && !inviting && (
-          <div className="field">
-            <span className="label">{t.form.password}</span>
-            <PasswordChoiceFields choice={password} onChange={setPassword} person={person} />
+          )}
+          {!user && !canInvite && (
+            <Callout tone={policy?.password_allowed ? "info" : "warning"}>
+              {policy?.password_allowed ? t.invite.passwordNote : t.invite.noMail}{" "}
+              <Link to="/settings?tab=email" viewTransition>
+                {t.invite.setUpMail}
+              </Link>
+            </Callout>
+          )}
+          {!user && canInvite && mode === "password" && <Callout tone="info">{t.invite.passwordAlways}</Callout>}
+          <div className="form-grid">
+            <Field
+              label={t.form.email}
+              hint={
+                user
+                  ? t.form.emailHintEdit
+                  : inviting && policy
+                    ? t.invite.expiresIn(policy.invitation_hours)
+                    : t.form.emailHintNew
+              }
+              className={inviting ? "full" : undefined}
+            >
+              <Input
+                type="email"
+                dir="ltr"
+                autoComplete="off"
+                autoFocus={!user}
+                value={form.email}
+                onChange={set("email")}
+              />
+            </Field>
+            {!inviting && (
+              <Field label={t.form.phone} hint={t.form.optional}>
+                <Input type="tel" dir="ltr" value={form.phone} onChange={set("phone")} />
+              </Field>
+            )}
+            <Field label={t.form.firstName} hint={inviting ? t.invite.namesOptional : undefined}>
+              <Input autoFocus={!!user} value={form.first_name} onChange={set("first_name")} />
+            </Field>
+            <Field label={t.form.lastName} hint={inviting ? t.invite.namesOptional : undefined}>
+              <Input value={form.last_name} onChange={set("last_name")} />
+            </Field>
           </div>
-        )}
-      </div>
-    </Modal>
+          <div className="field">
+            <span className="label">{t.form.role}</span>
+            <div className="grid-2">
+              {roles.map((role) => (
+                <button
+                  key={role.name}
+                  type="button"
+                  className="choice"
+                  aria-pressed={form.role === role.name}
+                  onClick={() => setForm({ ...form, role: role.name })}
+                >
+                  <span>
+                    <span className="t">{all.roles[role.name] ?? role.label}</span>
+                    <br />
+                    <span className="d">{t.accounts.roleDescriptions[role.name] ?? role.description}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+          {(inviting || (user && !user.github)) && (
+            <Field label={t.signIn.githubLogin} hint={t.signIn.githubLoginHint}>
+              <div className="input-group">
+                <GitHubMark />
+                <Input
+                  dir="ltr"
+                  autoComplete="off"
+                  spellCheck={false}
+                  placeholder="octocat"
+                  maxLength={40}
+                  value={githubLogin}
+                  onChange={(e) => setGithubLogin(e.target.value)}
+                />
+              </div>
+            </Field>
+          )}
+          {user && (
+            <Field
+              label={t.signIn.runLimit}
+              hint={t.signIn.runLimitHint(t.signIn.runLimitSetting(user.running_limit_default))}
+            >
+              <Input
+                dir="ltr"
+                inputMode="numeric"
+                autoComplete="off"
+                placeholder={t.signIn.runLimitSetting(user.running_limit_default)}
+                maxLength={4}
+                value={runLimit}
+                onChange={(e) => setRunLimit(e.target.value)}
+              />
+            </Field>
+          )}
+          {user && (
+            <SignInFields
+              methods={methods}
+              fallback={user.sign_in_methods_chosen ? ["password", "github"] : user.sign_in_methods}
+              onChange={setMethods}
+            />
+          )}
+          {!user && !inviting && (
+            <div className="field">
+              <span className="label">{t.form.password}</span>
+              <PasswordChoiceFields choice={password} onChange={setPassword} person={person} />
+            </div>
+          )}
+        </div>
+      </Modal>
+      {dialog}
+    </>
   );
 }
 
@@ -794,6 +799,7 @@ export function AccountsPage() {
   const [secret, setSecret] = useState<Made | null>(null);
   const [resetting, setResetting] = useState<User | null>(null);
   const [switching, setSwitching] = useState<User | null>(null);
+  const [confirm, askDialog] = useConfirm();
   const refresh = [["users"]] as const;
   const resetFactors = useCall((user: string) => api.del(`/users/${user}/second-factors`), refresh);
   const setDisabled = useCall(
@@ -997,11 +1003,16 @@ export function AccountsPage() {
                                   danger
                                   onSelect={() => {
                                     close();
-                                    if (confirm(t.confirmDelete(u.display_name)))
-                                      remove.mutate(u.name, {
-                                        onSuccess: () => toast("success", t.deleted(u.name)),
-                                        onError: fail(t.notDeleted),
-                                      });
+                                    void confirm(t.confirmDelete(u.display_name), {
+                                      action: all.common.delete,
+                                      danger: true,
+                                    }).then((yes) => {
+                                      if (yes)
+                                        remove.mutate(u.name, {
+                                          onSuccess: () => toast("success", t.deleted(u.name)),
+                                          onError: fail(t.notDeleted),
+                                        });
+                                    });
                                   }}
                                 >
                                   <Trash2 /> {t.delete}
@@ -1027,10 +1038,12 @@ export function AccountsPage() {
                     })
                   }
                   onRevoke={() =>
-                    confirm(i.confirmRevoke(v.email)) &&
-                    revoke.mutate(v.id, {
-                      onSuccess: () => toast("success", i.revoked(v.email)),
-                      onError: fail(i.notRevoked),
+                    void confirm(i.confirmRevoke(v.email), { action: i.revoke, danger: true }).then((yes) => {
+                      if (yes)
+                        revoke.mutate(v.id, {
+                          onSuccess: () => toast("success", i.revoked(v.email)),
+                          onError: fail(i.notRevoked),
+                        });
                     })
                   }
                 />
@@ -1075,6 +1088,7 @@ export function AccountsPage() {
           }}
         />
       )}
+      {askDialog}
       {switching && (
         <SwitchAccount
           user={switching}

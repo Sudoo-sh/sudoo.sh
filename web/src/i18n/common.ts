@@ -76,6 +76,7 @@ const en = {
   units: EN_UNITS,
   common: {
     cancel: "Cancel",
+    areYouSure: "Are you sure?",
     clear: "Clear",
     save: "Save",
     saved: "Saved",
@@ -229,6 +230,7 @@ const ar: Common = {
   units: AR_UNITS,
   common: {
     cancel: "إلغاء",
+    areYouSure: "هل أنت متأكد؟",
     clear: "مسح",
     save: "حفظ",
     saved: "حُفظ",

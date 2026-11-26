@@ -106,6 +106,7 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { SelectBox } from "@/components/app/select";
+import { useConfirm } from "@/components/app/confirm";
 import { Menu, MenuItem, MenuSeparator, Modal, useToast } from "@/components/app/overlay";
 import { TabInk, useHero } from "@/components/app/motion";
 import { useT } from "@/i18n";
@@ -1365,8 +1366,10 @@ function CodeTab({
 }) {
   const all = useT(words);
   const t = all.code;
+  const [confirm, askDialog] = useConfirm();
   return (
     <div className="grid-2" style={{ alignItems: "start" }}>
+      {askDialog}
       <div className="card">
         <div className="card-head">
           <h2>{t.commits}</h2>
@@ -1417,8 +1420,9 @@ function CodeTab({
                         disabled={busy}
                         aria-label={t.remove}
                         onClick={() =>
-                          confirm(t.removeConfirm(s.path)) &&
-                          act("remove-submodule", all.jobs.removeSubmodule, { path: s.path })
+                          void confirm(t.removeConfirm(s.path), { action: t.remove, danger: true }).then((yes) => {
+                            if (yes) act("remove-submodule", all.jobs.removeSubmodule, { path: s.path });
+                          })
                         }
                       />
                     )}

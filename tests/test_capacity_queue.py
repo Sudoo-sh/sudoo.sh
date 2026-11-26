@@ -237,6 +237,20 @@ def test_a_disabled_or_deleted_account_does_not_start_anything() -> None:
     assert queue.dispatch() == [] and STARTED == [] and queue.items() == []  # both dropped, not kept for later
 
 
+def test_a_disabled_or_deleted_charged_person_stops_a_waiting_request_but_nobody_does_not() -> None:
+    make("dev-a", "development", "sync1", False)
+    make("dev-b", "development", "sync1", False)
+    make("dev-c", "development", "sync1", False)
+    queue.enqueue_start("dev-a", "sync1", "admin1", "development", held("instances.update"))  # charged to another
+    queue.enqueue_start("dev-b", "sync1", "system", "development", held("instances.update"))  # nobody: valid
+    queue.enqueue_start("dev-c", "sync1", None, "development", held("instances.update"))  # nobody: valid
+    accounts.update("admin1", disabled=True)  # after the request waited, before its job
+    assert queue.dispatch() == ["dev-b", "dev-c"] and queue.items() == []
+    assert [name for name, _ in STARTED] == ["dev-b", "dev-c"]  # the charged one was dropped, not started
+    queue.enqueue_start("dev-a", "sync1", "ghost-person", "development", held("instances.update"))  # deleted
+    assert queue.dispatch() == [] and queue.items() == []
+
+
 def test_a_role_that_lost_the_right_while_waiting_does_not_start() -> None:
     make("dev-a", "development", "sync1", False)
     queue.enqueue_start("dev-a", "sync1", "sync1", "development", held("instances.view"))  # could not update

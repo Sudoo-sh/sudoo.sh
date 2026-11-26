@@ -159,6 +159,11 @@ def _refused(item: Mapping[str, Any]) -> str | None:
         return "the account no longer exists"
     if accounts.is_disabled(account):
         return "the account is disabled"
+    paying = str(item.get("charged") or "")
+    if paying and paying not in ("system", str(item["user"])):  # nobody ("" or "system") is valid: only the panel limit
+        owner = accounts.get(paying)
+        if owner is None or accounts.is_disabled(owner):
+            return "the person whose limit it counts against no longer has an enabled account"
     need = "instances.create" if item["kind"] == "create" else "instances.update"
     held = item.get("held")
     if held is not None and need not in held:

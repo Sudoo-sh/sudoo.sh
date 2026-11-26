@@ -17,7 +17,7 @@ from sudoo.config import live
 from sudoo.core import jobs
 from sudoo.core.jobs import Job
 from sudoo.instances import metrics, planning, store
-from sudoo.limits import queue
+from sudoo.limits import queue, quotas
 from sudoo.storage import storage
 
 Client = tuple[FlaskClient, dict[str, str]]
@@ -52,7 +52,10 @@ def clean_up(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) ->
     metrics.INSTANCES.clear()
     for key in list(storage().all(queue.COLLECTION)):
         storage().delete(queue.COLLECTION, key)
-    live.change({"max_running_non_production_per_user": None, "max_running_instances": None, "capacity_queue": False})
+    live.change({"max_running_non_production_per_user": None, "max_running_instances": None, "capacity_queue": False,
+                 "max_instances": None, "max_instances_per_user": None, "create_cooldown_minutes": None})  # fmt: skip
+    for user in ("admin1", "sync1"):
+        storage().delete(quotas.CREATIONS, user)
     for user in ("admin1", "sync1"):
         if (accounts.get(user) or {}).get("disabled"):
             accounts.update(user, disabled=False)
@@ -352,3 +355,71 @@ def test_disabling_through_the_api_drops_a_waiting_request_and_enabling_does_not
     )
     assert queue.dispatch() == [] and STARTED == [] and queue.items() == []  # not revived
     assert person.get("/api/v1/account").status_code == 401  # nor the session
+
+
+def plan_for(name: str) -> dict[str, Any]:
+    return {"name": name, "stage": "development", "project": "", "branch": "", "ports": {}}
+
+
+def test_a_creation_is_checked_against_the_instance_limits_at_its_turn() -> None:
+    queue.enqueue_create(plan_for("later"), "admin1", "admin1", held("instances.create"))
+    make("dev-a", "development", "admin1", False)  # made while it waited
+    live.change({"max_instances_per_user": 1})
+    assert queue.dispatch() == [] and STARTED == []
+    (item,) = queue.items()
+    assert "most one user may have" in str(item["waiting_for"])  # it waits and says what for
+    live.change({"max_instances": 1, "max_instances_per_user": None})
+    assert queue.dispatch() == [] and "maximum of 1 instances" in str(queue.items()[0]["waiting_for"])
+    shutil.rmtree(store.folder("dev-a"))  # room again: the same item starts, nothing was lost
+    assert queue.dispatch() == ["later"] and STARTED == [("later", "create")]
+
+
+def test_a_blocked_creation_does_not_hold_up_another_person_or_itself_count() -> None:
+    queue.enqueue_create(plan_for("later"), "admin1", "admin1", held("instances.create"))
+    make("dev-a", "development", "admin1", False)
+    make("dev-b", "development", "sync1", False)
+    queue.enqueue_start("dev-b", "sync1", "sync1", "development", held("instances.update"))
+    live.change({"max_instances_per_user": 1})
+    assert queue.dispatch() == ["dev-b"] and [i["instance"] for i in queue.items()] == ["later"]
+    shutil.rmtree(store.folder("dev-a"))
+    assert queue.dispatch() == ["later"]  # alone at its limit of 1: a waiting item does not count itself
+
+
+def test_the_turn_does_not_charge_the_waiting_time_or_the_count_again() -> None:
+    live.change({"create_cooldown_minutes": 60})
+    quotas.claim("admin1")  # what asking for the creation does, before it is queued
+    charged = dict(storage().get(quotas.CREATIONS, "admin1") or {})
+    queue.enqueue_create(plan_for("later"), "admin1", "admin1", held("instances.create"))
+    assert queue.dispatch() == ["later"]  # the waiting time that was charged at the request does not block it
+    assert dict(storage().get(quotas.CREATIONS, "admin1") or {}) == charged  # and it was recorded once only
+
+
+def test_a_cancelled_item_stays_cancelled_while_its_reason_is_being_written() -> None:
+    item = queue.enqueue_create(plan_for("later"), "admin1", "admin1", held("instances.create"))
+    assert queue.cancel(str(item["id"]), "admin1", admin=False)
+    queue._note(str(item["id"]), "some reason")  # a dispatcher that read the item before the cancel
+    assert queue.items() == [] and storage().get(queue.COLLECTION, str(item["id"])) is None
+
+
+def test_a_creation_that_fails_to_start_does_not_stop_the_line(monkeypatch: pytest.MonkeyPatch) -> None:
+    def broken(plan: dict[str, Any], user: str) -> Job:
+        if plan["name"] == "bad":
+            raise RuntimeError("no ports")
+        STARTED.append((str(plan["name"]), "create"))
+        return Job(str(plan["name"]), "Create", "create", user)
+
+    monkeypatch.setattr(planning, "start", broken)
+    queue.enqueue_create(plan_for("bad"), "admin1", "admin1", held("instances.create"))
+    queue.enqueue_create(plan_for("good"), "admin1", "admin1", held("instances.create"))
+    assert queue.dispatch() == ["good"] and queue.items() == []  # the failed one is audited and gone, not stuck
+
+
+def test_a_start_is_refused_for_the_instances_own_owner_not_whoever_asks() -> None:
+    from sudoo.instances import capacity
+
+    make("dev-a", "development", "admin1", True)
+    make("dev-b", "development", "admin1", False)
+    make("prod", "production", "admin1", False)
+    limit(own=1)
+    assert capacity.start_refusal("dev-b") is not None  # sync1 owns it and runs one already
+    assert capacity.start_refusal("prod") is None  # production is never refused

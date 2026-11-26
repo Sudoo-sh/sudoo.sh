@@ -73,6 +73,7 @@ def resource(item: Mapping[str, Any]) -> dict[str, Any]:
         "stage": item.get("stage"),
         "position": number,
         "created_at": item["created_at"],
+        "waiting_for": item.get("waiting_for"),
         "status": f"Waiting for capacity (position {number})",
     }
 
@@ -175,7 +176,7 @@ def dispatch() -> list[str]:
     """Start what can start now, first in line first; the names started. Safe to call at any time, also from two
     threads: an item is taken out of the line before it starts, so it never starts twice (a cancel, a replay or a
     second dispatcher finds it gone), and the capacity check and the job's registration share quotas.LOCK."""
-    from sudoo.instances import capacity, metrics, planning, store
+    from sudoo.instances import metrics, planning, store
     from sudoo.limits import quotas
 
     started: list[str] = []
@@ -193,7 +194,9 @@ def dispatch() -> list[str]:
                 if _take(str(item["id"])) is not None:
                     audit.record(user, None, "capacity queue: dropped", name, ok=False, detail=why)
                 continue
-            if capacity.refusal(stage=str(item.get("stage") or ""), user=charged) is not None:
+            blocked = _blocked(item, charged)
+            _note(str(item["id"]), blocked)
+            if blocked is not None:
                 continue  # no room for this one (its person or the panel): the next may still fit
             if _take(str(item["id"])) is None:
                 continue  # cancelled or started by another dispatcher meanwhile
@@ -211,6 +214,36 @@ def dispatch() -> list[str]:
                 audit.record(user, None, "started from the capacity queue", name, detail=str(item["kind"]))
                 started.append(name)
     return started
+
+
+def _blocked(item: Mapping[str, Any], charged: str | None) -> str | None:
+    """Why the request cannot start at its turn, or None (the caller holds quotas.LOCK). The running limits for a
+    start, the same ones plus the instance limits for a creation: a creation passed the instance limits when it was
+    asked for (and its waiting time was charged then), but instances may have been made while it waited. Nothing
+    is recorded here, so asking again every few seconds charges nothing."""
+    from sudoo.instances import capacity
+    from sudoo.limits import quotas
+
+    if item["kind"] == "start":  # the owner now, as the HTTP start reads it (CREATED_BY)
+        return capacity.start_refusal(str(item["instance"]))
+    try:
+        quotas.check(str(item["user"]))
+    except quotas.QuotaError as error:
+        return error.message
+    return capacity.refusal(stage=str(item.get("stage") or ""), user=charged)
+
+
+def _note(item_id: str, why: str | None) -> None:
+    """Keep what the request waits for on the item (shown with its position), written only when it changes and
+    only while the item is still waiting: a cancelled item must not come back."""
+    with _LOCK:
+        item = storage().get(COLLECTION, item_id)
+        if item is not None and item.get("waiting_for") != why:
+            storage().put(
+                COLLECTION,
+                item_id,
+                {key: value for key, value in {**item, "waiting_for": why}.items() if value is not None},
+            )
 
 
 def _take(item_id: str) -> Document | None:

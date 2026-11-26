@@ -66,9 +66,11 @@ def usage(user: str) -> dict[str, object]:
     }
 
 
-def claim(user: str) -> None:
-    """Check every limit for a new instance of `user` and, when all allow it, record the creation now.
-    Raises QuotaError saying which limit, and when it is a waiting time, how long."""
+def check(user: str) -> None:
+    """The structural limits only (MAX_INSTANCES, MAX_INSTANCES_PER_USER) for a new instance of `user`, recording
+    nothing: QuotaError when one is reached. A creation waiting in the capacity queue is not counted, so when it
+    asks at its turn (limits/queue.py) it does not count itself. The waiting time is claim()'s alone: it is charged
+    once, when the request arrives, never again at the turn."""
     with LOCK:
         names, pending = _counted()
         total = len(names) + len(pending)
@@ -83,6 +85,13 @@ def claim(user: str) -> None:
                 "Delete one of yours first.",
                 403,
             )
+
+
+def claim(user: str) -> None:
+    """Check every limit for a new instance of `user` and, when all allow it, record the creation now.
+    Raises QuotaError saying which limit, and when it is a waiting time, how long."""
+    with LOCK:
+        check(user)
         cooldown = settings.create_cooldown_minutes * 60
 
         def record(document: Document | None) -> Document:

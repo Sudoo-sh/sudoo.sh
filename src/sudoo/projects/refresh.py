@@ -33,7 +33,8 @@ from typing import Any
 from sudoo import link_deadline, projects
 from sudoo.config import settings
 from sudoo.core import audit, events, jobs
-from sudoo.instances import stages, store
+from sudoo.instances import capacity, metrics, stages, store
+from sudoo.limits import quotas
 from sudoo.projects import access, builds, staging
 
 KEY = "staging_refresh"
@@ -163,7 +164,13 @@ def run(project: Mapping[str, Any], user: str = "system") -> dict[str, Any]:
             if reason:
                 mine_skipped.append({"instance": name, "reason": reason})
                 continue
-            jobs.start(name, ACTION, "restore", staging.rebuild, name, user=user, details={"build": "rebuild"})
+            with quotas.LOCK:  # a stopped staging instance ends up running: one more against the limits
+                refused = None if metrics.INSTANCES.get(name, {}).get("running") else capacity.start_refusal(name)
+                if not refused:
+                    jobs.start(name, ACTION, "restore", staging.rebuild, name, user=user, details={"build": "rebuild"})
+            if refused:
+                mine_skipped.append({"instance": name, "reason": refused})
+                continue
             mine_started.append(name)
         if not members:
             mine_skipped.append({"instance": "", "reason": "the branch has no staging instance"})

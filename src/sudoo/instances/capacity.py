@@ -290,6 +290,15 @@ def snapshot() -> dict[str, Any]:
     return {**metrics.snapshot(), "capacity": current()}
 
 
+def start_refusal(name: str) -> str | None:
+    """Why the stopped instance `name` may not start now, or None: refusal() with the instance's own stage and
+    owner (CREATED_BY), read from its .env. Every start of a stopped instance asks this, with quotas.LOCK held from
+    here until its job is registered. Never asked for a visitor's identity: the owner is the instance's, not the
+    caller's."""
+    env = store.read_env(name)
+    return refusal(stage=stages.of(env), user=env.get("CREATED_BY") or None)
+
+
 def refusal(
     reservation: tuple[int, int] | None = None,
     stage: str | None = None,

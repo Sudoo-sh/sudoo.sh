@@ -705,9 +705,8 @@ def _extended(name: str, before: Mapping[str, Any]) -> str | None:
     if not STATE.get(name).get("expired_at"):
         return None
     STATE.update(name, expired_at=None)
-    env = store.read_env(name)
     with quotas.LOCK:  # from the limit check until the start's job is registered, as in run()
-        refused = capacity.refusal(stage=stages.of(env), user=env.get("CREATED_BY") or None)
+        refused = capacity.start_refusal(name)
         if not refused:
             jobs.start(name, "Start", "wake", operations.wake, name, user=g.user["name"])
     if refused:

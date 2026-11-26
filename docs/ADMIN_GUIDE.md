@@ -3378,7 +3378,7 @@ addresses, and some wrapped lines). It is best effort: **it cannot guarantee tha
 in**, which is why the person sees and confirms the text first. A hosted service receives it under its own terms;
 nothing is promised from the type of endpoint alone.
 
-**Limits.** Each person can have a few previews open at once (and the panel a fixed number in all). A preview works once and for five minutes, and is checked again at confirm (the person's rights, the
+**Limits.** Each person can have a few previews open at once (and the panel a fixed number in all, counted atomically). A preview works once and for five minutes, and is checked again at confirm (the person's rights, the
 project's opt-in, the settings, the build and the destination). One request is in flight at a time, and the hourly
 limits `EXPLAIN_USER_LIMIT_PER_HOUR` (10) and `EXPLAIN_PROJECT_LIMIT_PER_HOUR` (30) apply. They limit the number of
 requests, not what the service charges. The connection is verified TLS to the checked, pinned address; the whole

@@ -251,14 +251,8 @@ def preview(user: str, project_id: str, entry: Mapping[str, Any], lang: str) -> 
     payload, count = build_payload(entry, lang, found["model"])
     shown = json.dumps(payload, ensure_ascii=False, indent=2)
     now = time.time()
-    # previews are limited too: a few open ones per person and a cap in all (not atomic with the check, so a burst can
-    # pass it by a few; it bounds the collection, which is what it is for)
-    open_now = [
-        d for d in storage().all(PREVIEWS).values() if not d.get("used") and float(d.get("expires") or 0) >= now
-    ]
-    if sum(d.get("user") == user for d in open_now) >= PREVIEWS_PER_USER or len(open_now) >= PREVIEWS_IN_ALL:
-        raise ExplainError("Too many previews are open. Wait a few minutes or use one you have.", 429)
     preview_id = secrets.token_hex(16)
+    _admit(user, preview_id, now)
 
     def purge(docs: dict[str, Any]) -> None:
         for key, doc in docs.items():
@@ -280,6 +274,32 @@ def preview(user: str, project_id: str, entry: Mapping[str, Any], lang: str) -> 
         "bytes": len(json.dumps(payload, ensure_ascii=False).encode()),
         "hidden": count,
     }
+
+
+def _admit(user: str, preview_id: str, now: float) -> None:
+    """Let one more preview be open, or raise 429: a few per person and a fixed number in all. One atomic change of one
+    document (a write lock in the store), so concurrent requests, from any worker, cannot pass the limit together."""
+
+    def change(found: dict[str, Any] | None) -> dict[str, Any]:
+        found = dict(found or {})
+        open_now = [o for o in found.get("open") or [] if float(o["expires"]) > now]
+        if sum(o["user"] == user for o in open_now) >= PREVIEWS_PER_USER or len(open_now) >= PREVIEWS_IN_ALL:
+            raise ExplainError("Too many previews are open. Wait a few minutes or use one you have.", 429)
+        found["open"] = [*open_now, {"id": preview_id, "user": user, "expires": now + PREVIEW_SECONDS}]
+        return found
+
+    storage().change(USAGE, "previews", change)
+
+
+def _unadmit(preview_id: str) -> None:
+    """A used preview no longer counts as open."""
+
+    def change(found: dict[str, Any] | None) -> dict[str, Any]:
+        found = dict(found or {})
+        found["open"] = [o for o in found.get("open") or [] if o.get("id") != preview_id]
+        return found
+
+    storage().change(USAGE, "previews", change)
 
 
 def _reserve(user: str, project_id: str) -> None:
@@ -344,6 +364,7 @@ def confirm(user: str, project_id: str, entry: Mapping[str, Any], preview_id: st
     _reserve(user, project_id)
     try:
         claimed = _claim(preview_id, user, project_id, entry, _hash(payload), found["version"])
+        _unadmit(preview_id)
         if claimed.get("host") != _host(found["endpoint"]) or claimed.get("model") != found["model"]:
             raise ExplainError("The settings changed since the preview. Make a new one.", 409)
         try:

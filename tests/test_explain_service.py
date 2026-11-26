@@ -368,9 +368,47 @@ def test_previews_are_limited_per_person_and_in_all(monkeypatch: pytest.MonkeyPa
     with pytest.raises(ExplainError) as error:
         service.preview("third", "p1", ENTRY, "en")
     assert error.value.status == 429
-    # used and expired ones do not count
-    for key, doc in list(storage().all(service.PREVIEWS).items()):
-        storage().put(service.PREVIEWS, key, {**doc, "used": True})
+    monkeypatch.setattr(service, "PREVIEWS_IN_ALL", 200)
+    # a used one stops counting
+    first = sorted(storage().all(service.PREVIEWS))[0]
+    owner = storage().all(service.PREVIEWS)[first]["user"]
+    service.confirm(owner, "p1", ENTRY, first)
+    service.preview(owner, "p1", ENTRY, "en")
+
+
+def test_many_previews_made_at_once_cannot_pass_the_limits(exchange: Exchange, monkeypatch: pytest.MonkeyPatch) -> None:
+    import threading
+
+    _on()
+    monkeypatch.setattr(service, "PREVIEWS_IN_ALL", 7)
+    outcomes: list[str] = []
+    start = threading.Barrier(24)
+
+    def go(user: str) -> None:
+        start.wait()
+        try:
+            service.preview(user, "p1", ENTRY, "en")
+            outcomes.append("made")
+        except ExplainError as error:
+            outcomes.append(str(error.status))
+
+    # 24 requests at once: 4 people, 6 each; per person at most 5 and in all at most 7
+    threads = [threading.Thread(target=go, args=(f"u{i % 4}",)) for i in range(24)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(20)
+    assert outcomes.count("made") == 7 and outcomes.count("429") == 17, outcomes
+    opened = storage().get(service.USAGE, "previews")["open"]  # type: ignore[index]
+    assert len(opened) == 7 and all(sum(o["user"] == u for o in opened) <= 5 for u in {o["user"] for o in opened})
+
+
+def test_an_expired_preview_stops_counting(exchange: Exchange, monkeypatch: pytest.MonkeyPatch) -> None:
+    _on()
+    for _ in range(service.PREVIEWS_PER_USER):
+        service.preview("u", "p1", ENTRY, "en")
+    later = time.time() + service.PREVIEW_SECONDS + 5
+    monkeypatch.setattr(time, "time", lambda: later)
     service.preview("u", "p1", ENTRY, "en")
 
 

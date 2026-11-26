@@ -395,6 +395,7 @@ def _abandon(job: Job) -> None:
     job.finished = time.time()
     job.finished_mono = time.monotonic()
     _publish_end(job)
+    job.changed()  # clients stop showing it as waiting to run
 
 
 def _run(job: Job, fn: Callable[..., object], args: tuple[Any, ...]) -> None:

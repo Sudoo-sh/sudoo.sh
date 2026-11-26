@@ -1756,7 +1756,7 @@ as in the repository.
 
 ### Page tours
 
-A short tour starts by itself the first time you open **Projects**, **All instances**, **Backups**, the **Audit log**, **Settings**, **Plugins**, **Accounts**, **API tokens**, **E-mail templates**, **GitHub access**, **Maintenance** or **New instance**, once you have seen the first-visit
+A short tour starts by itself the first time you open **Projects**, **All instances**, **Backups**, the **Audit log**, **Settings**, **Plugins**, **Accounts**, **API tokens**, **E-mail templates**, **GitHub access**, **Maintenance**, **New instance** or an **instance's own page**, once you have seen the first-visit
 tour. It outlines one item at a time in plum and never clicks anything for you; the **bin** on a backup is only
 pointed at, and deleting still asks you first. **Next**, **Back** and **Skip** work, and **Esc** closes it. To see a
 tour again, press the small **?** beside the page title (**Take the tour**; it is not the **?** at the top right,

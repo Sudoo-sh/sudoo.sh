@@ -128,6 +128,15 @@ export const NEW_INSTANCE_TOUR: TourDef = {
   ],
 };
 
+export const INSTANCE_TOUR: TourDef = {
+  id: "instance-page",
+  steps: [
+    { id: "instance-head", target: "instance-head", doc: "USER_MANUAL.md#4-an-instances-page" },
+    { id: "instance-more", target: "instance-more", doc: "USER_MANUAL.md#4-an-instances-page" },
+    { id: "instance-tabs", target: "instance-tabs", doc: "USER_MANUAL.md#4-an-instances-page" },
+  ],
+};
+
 export const PAGE_TOURS: readonly TourDef[] = [
   PROJECTS_TOUR,
   BACKUPS_TOUR,
@@ -141,6 +150,7 @@ export const PAGE_TOURS: readonly TourDef[] = [
   GITHUB_TOUR,
   MAINTENANCE_TOUR,
   NEW_INSTANCE_TOUR,
+  INSTANCE_TOUR,
 ];
 
 /** Whether a tour may start by itself on its own: a page tour waits until the welcome tour has been seen. */

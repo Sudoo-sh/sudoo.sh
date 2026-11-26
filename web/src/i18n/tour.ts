@@ -105,6 +105,18 @@ const en = {
       title: "Create it",
       body: "This button makes the instance once the form is ready. The tour never presses it.",
     },
+    "instance-head": {
+      title: "This instance",
+      body: "Its name, stage and status are here, with the Odoo version and, when it has them, its branch and link underneath.",
+    },
+    "instance-more": {
+      title: "More actions",
+      body: "The menu lists the other things you can do with this instance. Delete, if you may use it, asks you first.",
+    },
+    "instance-tabs": {
+      title: "Its tabs",
+      body: "Each tab is one part of the instance, such as its activity, code, logs and backups. You only see the tabs your role allows.",
+    },
     "audit-filters": {
       title: "Find an entry",
       body: "Search the log, or narrow it by who, what, which instance and when.",
@@ -249,6 +261,18 @@ const ar: typeof en = {
     "new-create": {
       title: "أنشئها",
       body: "يُنشئ هذا الزر البيئة عندما يكتمل النموذج. الجولة لا تضغطه أبدًا.",
+    },
+    "instance-head": {
+      title: "هذه البيئة",
+      body: "اسمها ومرحلتها وحالتها هنا، مع إصدار Odoo، وتحتها فرعها ورابطها إن وُجدا.",
+    },
+    "instance-more": {
+      title: "المزيد من الإجراءات",
+      body: "تعرض القائمة ما تستطيع فعله أيضًا بهذه البيئة. الحذف، إن كان متاحًا لك، يسألك أولًا.",
+    },
+    "instance-tabs": {
+      title: "تبويباتها",
+      body: "كل تبويب جزء من البيئة، مثل نشاطها وشيفرتها وسجلاتها ونسخها الاحتياطية. لا ترى إلا التبويبات التي يسمح بها دورك.",
     },
     "audit-filters": {
       title: "ابحث عن سجل",

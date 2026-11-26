@@ -290,10 +290,10 @@ def test_page_tours_are_kept_by_their_ids_for_a_viewer_and_never_touch_other_acc
     client, _ = _sign_in(app, name)
     headers = _headers(client)
     before = {k: v for k, v in accounts.get(name).items() if k != "tours"}
-    for tour in ("panel-welcome", "projects-page", "backups-page", "audit-page", "instances-page", "settings-page", "plugins-page", "accounts-page", "tokens-page", "templates-page", "github-page", "maintenance-page", "new-instance-page", "projects-page"):  # the last is a repeat
+    for tour in ("panel-welcome", "projects-page", "backups-page", "audit-page", "instances-page", "settings-page", "plugins-page", "accounts-page", "tokens-page", "templates-page", "github-page", "maintenance-page", "new-instance-page", "instance-page", "projects-page"):  # the last is a repeat
         saved = client.patch("/api/v1/account", json={"tours": {"mark": [tour]}}, headers=headers)
         assert saved.status_code == 200
-    seen = ["panel-welcome", "projects-page", "backups-page", "audit-page", "instances-page", "settings-page", "plugins-page", "accounts-page", "tokens-page", "templates-page", "github-page", "maintenance-page", "new-instance-page"]
+    seen = ["panel-welcome", "projects-page", "backups-page", "audit-page", "instances-page", "settings-page", "plugins-page", "accounts-page", "tokens-page", "templates-page", "github-page", "maintenance-page", "new-instance-page", "instance-page"]
     assert client.get("/api/v1/session").get_json()["data"]["tours"]["seen"] == seen
     assert accounts.get(name)["tours"]["seen"] == seen
     assert {k: v for k, v in accounts.get(name).items() if k != "tours"} == before

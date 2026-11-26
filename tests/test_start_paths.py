@@ -1,8 +1,7 @@
 """Every place that starts a job is listed and classified, found by reading the source (not a list kept by hand
 elsewhere). A new `jobs.start(...)` call fails this test until it is classified: it must hold the instance's running slot
 (holds_slot, or a creation or wake, which hold it by default), or be named as a job that does not start an instance, or
-be named as a known gap. The gaps are jobs that can restart or start an instance without the running-limit check or the
-slot hold; the list is the open work, not a claim that they are fine.
+be named as a known gap (GAP: none is left now; a new one can be added there while it is open work).
 This is an inventory of one spelling, `jobs.start(...)`, not proof of coverage: a start that goes around jobs.start
 (a direct docker or compose call, a wrapper) is not seen. The second test below fails on the spellings that would hide
 a call from the first (an alias, `from ... import start`, `core.jobs.start`, `jobs.start` passed as a value); it does
@@ -28,10 +27,10 @@ EXPECTED: dict[tuple[str, str, str | None], tuple[int, str]] = {
     ("background.py", "pause", None): (2, NOT_STARTING),
     ("background.py", "backup", None): (1, NOT_STARTING),
     ("background.py", "delete", None): (1, NOT_STARTING),
-    ("instances/integrity.py", "repair", None): (1, GAP),
     ("instances/planning.py", "create", None): (1, HOLD),
+    ("instances/integrity.py", "repair", "True"): (1, HOLD),
     ("limits/queue.py", "wake", None): (1, HOLD),
-    ("maintenance.py", "<dynamic>", None): (1, GAP),
+    ("maintenance.py", "<dynamic>", "True"): (1, HOLD),
     ("plugin_manager.py", "plugin-remove-paid", None): (1, NOT_STARTING),
     ("plugin_manager.py", "backup", None): (1, NOT_STARTING),
     ("premium/loader.py", "premium-sync", None): (1, NOT_STARTING),
@@ -39,17 +38,16 @@ EXPECTED: dict[tuple[str, str, str | None], tuple[int, str]] = {
     ("projects/automation.py", "delete", None): (1, NOT_STARTING),
     ("projects/previews.py", "delete", None): (1, NOT_STARTING),
     ("projects/refresh.py", "restore", "True"): (1, HOLD),
-    ("triggers/__init__.py", "update", None): (1, GAP),
-    ("triggers/__init__.py", "<dynamic>", None): (1, GAP),
-    ("upgrades/run.py", "db-upgrade", None): (1, GAP),
+    ("triggers/__init__.py", "<dynamic>", "True"): (1, HOLD),
+    ("upgrades/run.py", "db-upgrade", "True"): (1, HOLD),
     ("web/v1/imports.py", "restore", "True"): (1, HOLD),
     ("web/v1/instances.py", "restart", "True"): (1, HOLD),
     ("web/v1/instances.py", "<dynamic>", "True if action in STARTING_ACTIONS else None"): (1, HOLD),
     ("web/v1/instances.py", "wake", None): (1, HOLD),
     ("web/v1/plugins.py", "plugin-install", None): (1, NOT_STARTING),
     ("web/v1/plugins.py", "plugin-uninstall", None): (1, NOT_STARTING),
-    ("web/v1/project_resources.py", "restart", None): (1, GAP),
-    ("web/v1/projects.py", "restore", None): (1, GAP),
+    ("web/v1/project_resources.py", "restart", "True"): (1, HOLD),
+    ("web/v1/projects.py", "restore", "True"): (1, HOLD),
     ("web/v1/upgrades.py", "db-upgrade", "True"): (2, HOLD),
     ("web/v1/upgrades.py", "upgrade-test", "True"): (1, HOLD),
 }
@@ -138,3 +136,19 @@ def test_the_alias_check_sees_the_spellings_it_claims_to(monkeypatch) -> None:
         monkeypatch.setitem(globals(), "ROOT", Path(tmp))
         found_here = hidden_spellings()
     assert len(found_here) >= 4, found_here
+
+
+ADMITTED = ("start_admitted(", "quotas.LOCK", "admit_start(")
+
+
+def test_a_row_that_holds_the_slot_through_a_flag_also_checks_the_limit_in_its_file() -> None:
+    """Weak by design: the file mentions the check (capacity.start_admitted, or quotas.LOCK with admit_start). It does
+    not prove the check runs before the start on every path; the behavioural tests of each row do (test_slot_rows)."""
+    for (path, kind, flag), (_, how) in EXPECTED.items():
+        if how == HOLD and flag == "True" and kind not in ("create", "wake"):
+            text = (ROOT / path).read_text()
+            assert any(word in text for word in ADMITTED), (path, kind)
+
+
+def test_no_row_is_left_as_a_known_gap() -> None:
+    assert [key for key, (_, how) in EXPECTED.items() if how == GAP] == []

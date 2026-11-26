@@ -1,5 +1,5 @@
 """A job that stops or starts an instance holds its running slot while it runs and until the monitor has observed the
-instance after the job ended (core/jobs.py starting(), metrics observed_at), also when it failed and also for an
+instance after the job ended (core/jobs.py starting(), metrics.OBSERVED), also when it failed and also for an
 instance that ran when the job was asked for. Unknown (an engine that did not answer) is held, not stopped."""
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ import pytest
 from flask.testing import FlaskClient
 
 from sudoo.config import live
-from sudoo.core import jobs
+from sudoo.core import jobs, slots
 from sudoo.core.jobs import Job
 from sudoo.instances import capacity, metrics, store
 
@@ -49,13 +49,13 @@ def held_job(name: str, fn: Any, kind: str = "restart") -> Job:
 
 def wait_ended(job: Job) -> None:
     for _ in range(400):
-        if job.finished_mono is not None:
+        if job.finished_mono is not None and (job.end_seq is not None or not job.holds_slot):
             return
         time.sleep(0.01)
     raise AssertionError("the job did not end")
 
 
-def observe(name: str, running: bool, at: float | None) -> None:
+def observe(name: str, running: bool, at: int | None) -> None:
     metrics.INSTANCES[name] = {"running": running}
     if at is None:
         metrics.OBSERVED.pop(name, None)
@@ -66,9 +66,9 @@ def observe(name: str, running: bool, at: float | None) -> None:
 def test_a_running_instance_keeps_its_slot_while_a_job_takes_it_down_and_up() -> None:
     make("hold-a")
     gate = threading.Event()
-    observe("hold-a", True, time.monotonic())
+    observe("hold-a", True, slots.next_seq())
     job = held_job("hold-a", lambda j: gate.wait(10))
-    observe("hold-a", False, time.monotonic())  # the monitor sees it down in the middle of the restart
+    observe("hold-a", False, slots.next_seq())  # the monitor sees it down in the middle of the restart
     assert "hold-a" in jobs.starting() and capacity.running_figures("admin1")["own"] == 1
     gate.set()
     wait_ended(job)
@@ -79,9 +79,9 @@ def test_an_observation_that_started_before_the_job_ended_releases_nothing() -> 
     make("hold-b")
     job = held_job("hold-b", lambda j: None)
     wait_ended(job)
-    observe("hold-b", False, job.finished_mono - 0.5)  # a slow collection: read before the end, stored after it
+    observe("hold-b", False, job.end_seq - 1)  # a slow collection: read before the end, stored after it
     assert "hold-b" in jobs.starting() and jobs.unsettled() == ["hold-b"]
-    observe("hold-b", True, job.finished_mono + 0.01)
+    observe("hold-b", True, slots.next_seq())
     assert "hold-b" not in jobs.starting()
     assert jobs.unsettled() == []
 
@@ -95,9 +95,9 @@ def test_a_failed_job_is_held_until_the_instance_is_seen_too() -> None:
     job = held_job("hold-c", fail)
     wait_ended(job)
     assert job.status == "failed"
-    observe("hold-c", True, job.finished_mono - 1)
+    observe("hold-c", True, job.end_seq - 1)
     assert "hold-c" in jobs.starting()  # it may have been left running: not assumed stopped
-    observe("hold-c", True, job.finished_mono + 1)
+    observe("hold-c", True, slots.next_seq())
     assert "hold-c" not in jobs.starting()
 
 
@@ -107,7 +107,7 @@ def test_an_instance_the_engine_could_not_observe_stays_held() -> None:
     wait_ended(job)
     observe("hold-d", False, None)  # unknown: stopped for lack of an answer
     assert "hold-d" in jobs.starting() and jobs.unsettled() == ["hold-d"]
-    observe("hold-d", False, job.finished_mono + 1)
+    observe("hold-d", False, slots.next_seq())
     assert "hold-d" not in jobs.starting()
 
 
@@ -133,7 +133,7 @@ def test_a_job_without_the_flag_holds_nothing_and_creations_and_wakes_do() -> No
 def test_the_set_counts_an_instance_once_whatever_holds_it() -> None:
     make("hold-g")
     gate = threading.Event()
-    observe("hold-g", True, time.monotonic())
+    observe("hold-g", True, slots.next_seq())
     first = held_job("hold-g", lambda j: gate.wait(10))
     assert capacity.running_figures("admin1")["total"] == 1  # running and held: one slot
     gate.set()
@@ -150,7 +150,7 @@ def test_a_refusal_says_which_instances_wait_for_a_measurement() -> None:
     text = capacity.refusal(stage="development", user="admin1") or ""
     assert "runs at most 1 instance" in text and "1 instance still counts as running" in text
     assert "hold-h" not in text and "hold-i" not in text  # a count only: the names may be other people's
-    observe("hold-h", False, job.finished_mono + 1)
+    observe("hold-h", False, slots.next_seq())
     assert "still count" not in (capacity.refusal(stage="development", user="admin1") or "")
 
 
@@ -174,15 +174,15 @@ def test_deleting_and_recreating_a_name_overcounts_until_the_next_read_never_und
     make("hold-m")
     job = held_job("hold-m", lambda j: None)
     wait_ended(job)
-    observe("hold-m", True, job.finished_mono + 1)  # observed after the end: released
+    observe("hold-m", True, slots.next_seq())  # observed after the end: released
     assert "hold-m" not in jobs.starting()
     job2 = held_job("hold-m", lambda j: None)
     wait_ended(job2)
     shutil.rmtree(store.folder("hold-m"))
     make("hold-m")  # deleted and made again before anything asked: still the old job's hold
-    observe("hold-m", False, job2.finished_mono - 1)  # an old figure of the previous instance
+    observe("hold-m", False, job2.end_seq - 1)  # an old figure of the previous instance
     assert "hold-m" in jobs.starting()  # one slot too many, until a read that began after the end
-    observe("hold-m", True, job2.finished_mono + 1)
+    observe("hold-m", True, slots.next_seq())
     assert "hold-m" not in jobs.starting()
 
 
@@ -200,12 +200,12 @@ def test_two_overlapping_jobs_on_one_name_release_on_the_later_end() -> None:
     first = held_job("hold-o", lambda j: None)
     wait_ended(first)
     second = held_job("hold-o", lambda j: gate.wait(10))
-    observe("hold-o", True, time.monotonic())  # after the first ended, while the second still runs
+    observe("hold-o", True, slots.next_seq())  # after the first ended, while the second still runs
     assert "hold-o" in jobs.starting()
     gate.set()
     wait_ended(second)
     assert "hold-o" in jobs.starting()  # the earlier observation is older than the second end
-    observe("hold-o", True, second.finished_mono + 1)
+    observe("hold-o", True, slots.next_seq())
     assert "hold-o" not in jobs.starting()
 
 
@@ -234,7 +234,7 @@ def started(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
 def test_applying_resources_and_the_actions_pass_the_flag(admin: Client, started: list[dict[str, Any]]) -> None:
     client, headers = admin
     make("hold-j")
-    observe("hold-j", True, time.monotonic())
+    observe("hold-j", True, slots.next_seq())
     assert client.post("/api/v1/instances/hold-j/actions/restart", headers=headers).status_code == 202
     assert started[-1] == {"instance": "hold-j", "holds_slot": True}  # also a running instance
 
@@ -247,7 +247,7 @@ def test_import_into_a_stopped_instance_respects_the_limit_and_holds_the_slot(
     client, headers = admin
     make("hold-k")
     make("hold-l")
-    observe("hold-l", True, time.monotonic())
+    observe("hold-l", True, slots.next_seq())
     live.change({"max_running_non_production_per_user": 1})
     monkeypatch.setattr(imports, "get", lambda upload_id, name, user: {"id": upload_id, "file_name": "a.zip"})
     monkeypatch.setattr(imports, "check_file", lambda meta, version: None)
@@ -269,12 +269,12 @@ def _collect_with_stubs(monkeypatch: pytest.MonkeyPatch, kinds: dict[str, str], 
     got: dict[str, metrics.Usage] = {}
 
     def fake_capture(cmd, *a, **k):
-        times["ps"] = time.monotonic()
+        times["ps"] = slots.next_seq()
         rows = [{"Names": store.container(n, "odoo"), "ID": f"id-{n}", "State": state, "Status": "Up"} for n in kinds]
         return "\n".join(_json.dumps(r) for r in rows)
 
     def fake_elsewhere(names):
-        times["elsewhere"] = time.monotonic()
+        times["elsewhere"] = slots.next_seq()
         return answers
 
     monkeypatch.setattr(monitor, "capture", fake_capture)
@@ -293,9 +293,9 @@ def _collect_with_stubs(monkeypatch: pytest.MonkeyPatch, kinds: dict[str, str], 
         monitor.store, "read_env", lambda n: {} if kinds[n] == engines.DOCKER else {engines.ENV_KEY: kinds[n]}
     )
     monkeypatch.setattr(monitor.metrics, "sample", lambda host, usage, panel=None: got.update(usage))
-    before = time.monotonic()
+    before = slots.next_seq()
     monitor.collect()
-    times["before"], times["after"] = before, time.monotonic()
+    times["before"], times["after"] = before, slots.next_seq()
     return times, got
 
 
@@ -309,13 +309,13 @@ def test_collect_stamps_the_read_time_of_the_state_it_reports(monkeypatch: pytes
         {"col-d": engines.DOCKER, "col-k": engines.KUBERNETES, "col-x": engines.KUBERNETES},
         {"col-k": answer},
     )
-    # Docker: taken before `docker ps` ran, so a state shown is from then or later
-    assert times["before"] <= got["col-d"].observed_at <= times["ps"] <= times["after"]
-    # another engine with an answer: taken before that read
-    assert times["ps"] <= got["col-k"].observed_at <= times["elsewhere"] <= times["after"]
+    # Docker: the number was taken before `docker ps` ran, so a state shown is from then or later
+    assert times["before"] < got["col-d"].observed_seq < times["ps"] < times["after"]
+    # another engine with an answer: the same number, taken before that read
+    assert times["before"] < got["col-k"].observed_seq < times["elsewhere"] < times["after"]
     assert got["col-k"].running is True
     # another engine without an answer: no time (stays held), reported as stopped for lack of an answer
-    assert got["col-x"].observed_at is None and got["col-x"].running is False
+    assert got["col-x"].observed_seq is None and got["col-x"].running is False
     # the cached figures only give start times; `running` comes from the `docker ps` read of this pass
     assert monitor._STARTED is not None
 

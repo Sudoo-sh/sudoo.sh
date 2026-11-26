@@ -19,6 +19,7 @@ from werkzeug.exceptions import HTTPException
 
 from sudoo import accounts, background, exposure, link_deadline, triggers
 from sudoo.config import settings
+from sudoo.core import slots
 
 from . import docs, security, v1
 
@@ -72,6 +73,13 @@ def create_app() -> Flask:
         if request.path.startswith(security.API_PREFIX):
             return v1.problem(code, error.description or HTTPStatus(code).phrase)
         return jsonify(error=error.description), code  # the documentation's images, /healthz
+
+    @app.errorhandler(slots.Unavailable)
+    def slots_unavailable(error: slots.Unavailable) -> ResponseReturnValue:
+        """A start that could not be checked or recorded in time is refused, never started unrecorded."""
+        if request.path.startswith(security.API_PREFIX):
+            return v1.problem(503, str(error))
+        return jsonify(error=str(error)), 503
 
     @app.errorhandler(Exception)
     def unexpected_error(error: Exception) -> ResponseReturnValue:

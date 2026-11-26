@@ -10,16 +10,18 @@ LOCK from the check until the creation's job is registered, so creations started
 
 from __future__ import annotations
 
-import threading
 import time
 from dataclasses import dataclass
 
 from sudoo.config import settings
+from sudoo.core import slots
 from sudoo.instances import store
 from sudoo.storage import Document, storage
 
 CREATIONS = "creations"
-LOCK = threading.RLock()  # checking and recording a creation happen together (and starting its job, see above)
+# checking and recording a creation happen together (and starting its job, see above), for every process of the host
+# (core/slots.py): re-entrant, bounded wait (Busy: the start is refused, try again)
+LOCK = slots.ADMISSION
 
 
 @dataclass

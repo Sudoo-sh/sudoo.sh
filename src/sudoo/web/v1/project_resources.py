@@ -31,7 +31,7 @@ from flask import Blueprint, Response, abort, g
 
 from sudoo import projects
 from sudoo.core import events, jobs
-from sudoo.instances import disk_use, operations, resources, stages
+from sudoo.instances import capacity, disk_use, operations, resources, stages
 from sudoo.projects import access
 
 from .. import validation as check
@@ -190,10 +190,17 @@ def _apply(
         if jobs.busy(name) or access.instance_refusal(g.user, "projects.resources", name):
             waiting.append(name)
             continue
-        job = jobs.start(
-            name, "Apply resources", "restart", operations.apply_resources, name, previous, layer, scope,
-            user=g.user["name"],
-        )  # fmt: skip
+
+        def apply_now(name: str = name) -> Any:
+            return jobs.start(
+                name, "Apply resources", "restart", operations.apply_resources, name, previous, layer, scope,
+                user=g.user["name"], holds_slot=True,
+            )  # fmt: skip
+
+        job, _ = capacity.start_admitted(name, apply_now)
+        if job is None:  # a running limit refuses the restart: it waits like a busy instance
+            waiting.append(name)
+            continue
         started.append(job_resource(job))
     return {"plan": found, "jobs": started, "waiting": waiting}
 

@@ -113,6 +113,16 @@ more instances run than the estimate. To refuse creating and starting instances 
 when both limits allow one more (the person's is the one of whoever created the instance); otherwise the visitor sees
 a "Not starting right now" page that refreshes by itself, and the instance starts when there is room or someone
 starts it from the panel (starting it by hand is refused the same way).
+A job that starts or stops an instance (creating, waking, restarting, updating, restoring, applying resources, a
+repair, an automatic update or rollback, maintenance) holds the instance's running slot while it runs and until the
+monitor has read the instance after the job ended, whether the job worked or failed. The holds are kept in the panel's
+storage, so a restart does not forget them and a second panel process on the same host counts them; the check and the
+hold happen under one lock shared by those processes. A start that cannot be recorded within
+`SLOT_STORE_WAIT_SECONDS` is refused (503), never started unrecorded. A hold of a process that died is ended when
+another process finds its lock free, and is released by the next reading of the instance. Starts nobody waits on
+(maintenance, automatic updates, repairs, the automatic upgrade rollback) are skipped at the limit, written to the audit
+log, and tried again at their next pass. Not covered: panel processes on different hosts sharing one database, and
+instances no job started that a cluster does not report.
 Production instances count in that total but are never refused. To limit one person, set
 `MAX_RUNNING_NON_PRODUCTION_PER_USER` (the non-production instances they created that run or start at once; 0: no
 limit), or give one person another number on their page in **Accounts** (0 there: no limit for them). Both limits are

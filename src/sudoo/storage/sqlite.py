@@ -125,6 +125,18 @@ class SqliteStorage:
                 )
             return result
 
+    def bounded_change(
+        self, collection: str, key: str, fn: Callable[[Document | None], Document | None], wait_seconds: float
+    ) -> Document | None:
+        """change(), waiting at most `wait_seconds` for the write lock (the default wait is 10 seconds): for callers
+        that refuse rather than queue behind a busy database (core/slots.py)."""
+        db = self._db()
+        db.execute(f"PRAGMA busy_timeout={max(1, int(wait_seconds * 1000))}")
+        try:
+            return self.change(collection, key, fn)
+        finally:
+            db.execute("PRAGMA busy_timeout=10000")
+
     # ------------------------------------------------------------ audit log
 
     def log(self, entry: Document) -> None:

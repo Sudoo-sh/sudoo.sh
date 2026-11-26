@@ -22,6 +22,7 @@ Nothing here refuses anything unless MAX_RUNNING_INSTANCES is set (`refusal`); t
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -200,9 +201,50 @@ def _version_of(name: str) -> str:
         return "unknown"
 
 
+def counted_names() -> set[str]:
+    """The instances that count as running or starting: those this process's monitor sees running, those another
+    process's monitor published as running (core/slots.py), and those a job holds. Read once per use."""
+    from sudoo.core import slots
+
+    names = {name for name, figures in metrics.INSTANCES.items() if figures.get("running")} | jobs.starting()
+    snap = slots.snapshot()
+    if snap is not None:
+        names |= snap.running() & set(store.names())
+    return names
+
+
 def _running() -> int:
-    running = {name for name, figures in metrics.INSTANCES.items() if figures.get("running")}
-    return len(running | jobs.starting())
+    return len(counted_names())
+
+
+def admission_refusal(name: str) -> str | None:
+    """Why the stopped instance `name` may not be started now (the running limits; its own owner and stage, read from
+    its .env), or None. An instance that counts as running holds its slot already and is not asked. The caller holds
+    quotas.LOCK from here until the job is registered with holds_slot."""
+    if name in counted_names():
+        return None
+    try:
+        env = store.read_env(name)
+    except OSError:
+        return f"{name} could not be read."
+    return refusal(stage=stages.of(env), user=env.get("CREATED_BY") or None, own_voice=False)
+
+
+def start_admitted(name: str, start: Callable[[], Any]) -> tuple[Any, str | None]:
+    """(what `start` returned, None) when `name` may start and `start` was called, or (None, why) when a running limit
+    or the slot record refuses it. For starts nobody is waiting on (maintenance, triggers, repairs): the caller skips
+    and audits, and the next pass tries again. `start` registers the job with holds_slot."""
+    from sudoo.core import slots
+    from sudoo.limits import quotas
+
+    try:
+        with quotas.LOCK:
+            why = admission_refusal(name)
+            if why is not None:
+                return None, why
+            return start(), None
+    except slots.Unavailable as exc:
+        return None, str(exc)
 
 
 def _stage_of(name: str) -> str:
@@ -222,7 +264,7 @@ def _owner_of(name: str) -> str:
 def running_figures(user: str | None = None) -> dict[str, int]:
     """What runs or starts now: `total`, `production`, and `own` (the non-production instances `user` created).
     The figures the limits compare and the panel shows ("2 of 3 used")."""
-    names = {name for name, figures in metrics.INSTANCES.items() if figures.get("running")} | jobs.starting()
+    names = counted_names()
     production = sum(1 for name in names if _stage_of(name) == stages.PRODUCTION)
     own = 0
     if user:

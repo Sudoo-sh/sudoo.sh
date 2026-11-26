@@ -718,10 +718,12 @@ def rebuild(project_id: str, branch: str) -> Response:
     _refuse_locked_production(found, staging.production_instance(found))
     if jobs.busy(name):
         abort(409, f"{name} is busy with another job. Try again when it has finished.")
-    job = jobs.start(
-        name, "Rebuild from production", "restore", staging.rebuild, name, user=g.user["name"],
-        details={"build": "rebuild"},
-    )  # fmt: skip
+    with quotas.LOCK:  # from the limit check until the job is registered with its slot
+        instances_api.admit_start(name, f"rebuild of {project_id} {branch}")
+        job = jobs.start(
+            name, "Rebuild from production", "restore", staging.rebuild, name, user=g.user["name"],
+            details={"build": "rebuild"}, holds_slot=True,
+        )  # fmt: skip
     log("Rebuild from production", instance=name, detail=f"{project_id} {branch}")
     response = ok(job_resource(job), status=202)
     response.headers["Location"] = f"{PREFIX}/jobs/{job.id}"

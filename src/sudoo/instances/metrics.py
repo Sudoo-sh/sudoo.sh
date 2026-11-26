@@ -106,9 +106,9 @@ _HISTORY_SAMPLES = 1800  # one hour at the shortest interval (2 seconds); older 
 SERVER: dict[str, Any] = {}
 PANEL: dict[str, Any] = {}  # the panel's footprint by part (monitor.py): {"backend": {...}, "web": {...}, ...}
 INSTANCES: dict[str, dict[str, Any]] = {}
-# name -> time.monotonic() before the monitor started to read that instance's state (core/jobs.py releases a slot
-# only after a read that began after its job ended). Private to this process: never in INSTANCES, which clients see.
-OBSERVED: dict[str, float] = {}
+# name -> the core/slots.py number taken before the monitor started to read that instance's state (a slot is released
+# only by a read that began after its job ended). Private to this process: never in INSTANCES, which clients see.
+OBSERVED: dict[str, int] = {}
 _SERVER_HISTORY: deque[dict[str, Any]] = deque(maxlen=_HISTORY_SAMPLES)
 _INSTANCE_HISTORY: defaultdict[str, deque[dict[str, Any]]] = defaultdict(lambda: deque(maxlen=_HISTORY_SAMPLES))
 _LAST_SAMPLE = 0.0
@@ -125,7 +125,9 @@ class Usage:
     memory_limit_bytes: int
     started_at: float | None  # Unix time Odoo's container started, when running
     disk_bytes: int | None  # database and files, when known
-    observed_at: float | None = None  # time.monotonic() before the state was read; None: not observed this time
+    observed_seq: int | None = (
+        None  # core/slots.py number taken before the state was read; None: not observed this time
+    )
 
 
 def sample(server: dict[str, Any], usage: dict[str, Usage], panel: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -172,10 +174,10 @@ def sample(server: dict[str, Any], usage: dict[str, Usage], panel: dict[str, Any
             "disk_bytes": measured.disk_bytes,
         }
         INSTANCES[name] = figures
-        if measured.observed_at is None:  # the engine could not be asked: "running" is False for lack of an answer
+        if measured.observed_seq is None:  # the engine could not be asked: "running" is False for lack of an answer
             OBSERVED.pop(name, None)
         else:
-            OBSERVED[name] = measured.observed_at  # the state is from this time or later, never earlier
+            OBSERVED[name] = measured.observed_seq  # the state is from this number or later, never earlier
         _INSTANCE_HISTORY[name].append({"t": int(now), **{key: figures[key] for key in INSTANCE_SERIES}})
     return snapshot()
 

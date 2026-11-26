@@ -898,8 +898,24 @@ def _instances_work(item: Document) -> Document | None:
             counts["skipped"] += 1
             continue
         _step(item["id"], step)
-        job = jobs.start(name, f"Maintenance: {title(item)}", "update" if item["kind"] == "odoo_images" else "restart",
-                         work, name, item["kind"], bool(settings.maintenance_backup_first), user=WHO)  # fmt: skip
+        from sudoo.instances import capacity
+
+        def begin(
+            name: str = name, kind: str = item["kind"], label: str = f"Maintenance: {title(item)}", work: Any = work
+        ) -> Any:
+            return jobs.start(
+                name, label, "update" if kind == "odoo_images" else "restart", work, name, kind,
+                bool(settings.maintenance_backup_first), user=WHO, holds_slot=True,
+            )  # fmt: skip
+
+        job, why = capacity.start_admitted(name, begin)
+        if (
+            job is None
+        ):  # a running limit (or the slot record) refuses it: skipped and said so, the next run tries again
+            _step(item["id"], {**step, "status": "skipped", "detail": why})
+            audit.record(WHO, None, "maintenance skipped an instance", instance=name, detail=f"{title(item)}: {why}")
+            counts["skipped"] += 1
+            continue
         _wait(job)
         ok = job.status == "success"
         failed_once = failed_once or not ok

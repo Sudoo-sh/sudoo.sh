@@ -342,7 +342,18 @@ def watch_once(now: float | None = None) -> list[str]:
             _TRIED[name] = moment
             reason = "Odoo stopped answering after the upgrade"
             audit.record("system", None, "database upgrade rolled back automatically", name, ok=False, detail=reason)
-            jobs.start(name, "Cancel the Odoo upgrade (automatic)", "db-upgrade", cancel, name, reason)
+            from sudoo.instances import capacity
+
+            def cancel_now(name: str = name, reason: str = reason) -> Any:
+                return jobs.start(
+                    name, "Cancel the Odoo upgrade (automatic)", "db-upgrade", cancel, name, reason, holds_slot=True
+                )
+
+            job, why = capacity.start_admitted(name, cancel_now)
+            if job is None:  # refused: said so, tried again after WATCH_RETRY_SECONDS
+                audit.record("system", None, "automatic upgrade rollback skipped (running limit)", name, ok=False,
+                             detail=str(why)[:200])  # fmt: skip
+                continue
             started.append(name)
     return started
 

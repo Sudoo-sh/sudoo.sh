@@ -27,7 +27,7 @@ from typing import Any
 
 from sudoo import engines, exposure
 from sudoo.config import settings
-from sudoo.core import events, jobs
+from sudoo.core import events, jobs, slots
 from sudoo.core.shell import capture, succeeds
 from sudoo.core.state import STATE
 from sudoo.instances import capacity, disk_use, integrity, metrics, odoo, store
@@ -234,7 +234,7 @@ def panel_footprint(usage: dict[str, tuple[float, int, int]], cores: int) -> dic
 def collect() -> None:
     """Measure the server and every instance once."""
     containers: dict[str, dict[str, Any]] = {}
-    docker_read_at = time.monotonic()  # before `docker ps`: what it shows is the state at this time or later
+    read_seq = slots.try_seq()  # before `docker ps` and the other engines: what they show is from this number or later
     for line in capture(["docker", "ps", "-a", "--format", "{{json .}}"]).splitlines():
         entry = json.loads(line)
         containers[entry["Names"]] = entry
@@ -250,7 +250,6 @@ def collect() -> None:
     started = {c: _STARTED[cid] for cid, c in running_now.items() if cid in _STARTED}
     measured_instances: dict[str, metrics.Usage] = {}
     names = store.names()
-    other_read_at = time.monotonic()
     observed = _observed_elsewhere(names)  # instances of other engines than Docker (Kubernetes)
     for name in names:
         env = store.read_env(name)
@@ -289,8 +288,9 @@ def collect() -> None:
         HISTORY[name].append((int(now), round(cpu, 2), memory))
         stored = disk_usage(name)  # measured every STORAGE_MEASURE_MINUTES while it runs, kept while it is paused
         disk_bytes = (stored.get("db") or 0) + (stored.get("files") or 0) or None
-        read_at = docker_read_at if engines.kind_of(env) == engines.DOCKER else (other_read_at if other else None)
-        measured_instances[name] = metrics.Usage(running, cpu, memory, limit, odoo_started, disk_bytes, read_at)
+        # an engine that did not answer has no number: its instance is neither released nor shown as observed
+        read = read_seq if engines.kind_of(env) == engines.DOCKER or other else None
+        measured_instances[name] = metrics.Usage(running, cpu, memory, limit, odoo_started, disk_bytes, read)
 
     disk = shutil.disk_usage(settings.odoo_root)
     cpu = _host_cpu_percent()
@@ -304,6 +304,10 @@ def collect() -> None:
     )
     HOST["history"].append((int(now), round(cpu, 1), memory_used))
     panel = panel_footprint(usage, cores)
+    if read_seq is not None:  # for the other processes; this one keeps its own numbers in metrics.OBSERVED
+        slots.publish_observed(
+            read_seq, {n: u.running for n, u in measured_instances.items() if u.observed_seq is not None}, set(names)
+        )
     metrics.sample(
         {
             "cpu_percent": round(cpu, 1),

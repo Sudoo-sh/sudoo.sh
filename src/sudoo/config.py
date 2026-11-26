@@ -554,6 +554,14 @@ class Settings(BaseSettings):
         description="Instances running at once at most: creating or starting one more is refused; 0: never refused, "
         "only warned. Production instances are never refused by it.",
     )
+    slot_store_wait_seconds: int = Field(
+        5,
+        ge=1,
+        le=9,
+        description="Seconds a start waits to check the running limit and record that it holds a slot, or a job "
+        "waits to record that it ended, before the start is refused (try again) or the record is retried. Raise it "
+        "only if the database is slow.",
+    )
     capacity_queue: bool = Field(
         False,
         description="When a running-instances limit is reached, a new non-production instance or a start waits in "
@@ -2458,6 +2466,7 @@ EDITABLE = (
     "capacity_warning_percent",
     "max_running_instances",
     "max_running_non_production_per_user",
+    "slot_store_wait_seconds",
     "capacity_queue",
     "gateway_max_upload_mb",
     "gateway_idle_timeout_seconds",

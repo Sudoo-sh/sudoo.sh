@@ -73,7 +73,6 @@ from sudoo.core.state import STATE
 from sudoo.instances import (
     backups,
     capacity,
-    metrics,
     naming,
     odoo,
     odoo_apps,
@@ -952,7 +951,7 @@ def _refuse_joining_production(name: str, repo: str, branch: str) -> None:
 
 
 def _running(name: str) -> bool:
-    return bool(metrics.INSTANCES.get(name, {}).get("running"))
+    return name in capacity.counted_names()
 
 
 def _refuse_over_capacity(what: str, stage: str | None = None, user: str | None = None, *, queued: bool = True) -> bool:

@@ -796,7 +796,14 @@ function TabList({
     list.current?.querySelector<HTMLElement>(`#settings-tab-${TABS[next]!.id}`)?.focus();
   };
   return (
-    <div className="tabs settings-tabs" data-tour="settings-tabs" role="tablist" aria-label={t.tabsLabel} ref={list} onKeyDown={move}>
+    <div
+      className="tabs settings-tabs"
+      data-tour="settings-tabs"
+      role="tablist"
+      aria-label={t.tabsLabel}
+      ref={list}
+      onKeyDown={move}
+    >
       {TABS.map((item) => {
         const mark = marks[item.id];
         const state = [mark?.unsaved ? t.tabState.unsaved(mark.unsaved) : "", mark?.restart ? t.tabState.restart : ""]
@@ -1190,7 +1197,9 @@ export function SettingsPage() {
   useSubCrumb(t.tabs[tab]);
   return (
     <Page>
-      <PageHead title={t.title} tour={SETTINGS_TOUR}>{t.lead(<code key="env">.env</code>)}</PageHead>
+      <PageHead title={t.title} tour={SETTINGS_TOUR}>
+        {t.lead(<code key="env">.env</code>)}
+      </PageHead>
       {isPending ? (
         <Skeleton height={400} />
       ) : (

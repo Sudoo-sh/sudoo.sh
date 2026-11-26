@@ -201,8 +201,10 @@ describe("the panel tour", () => {
   it("never covers the item it points at when there is room on any side", () => {
     const screen = { width: 1000, height: 700 };
     const size = { width: 320, height: 180 };
-    const overlaps = (r: { left: number; right: number; top: number; bottom: number }, p: { left: number; top: number }) =>
-      p.left < r.right && p.left + size.width > r.left && p.top < r.bottom && p.top + size.height > r.top;
+    const overlaps = (
+      r: { left: number; right: number; top: number; bottom: number },
+      p: { left: number; top: number },
+    ) => p.left < r.right && p.left + size.width > r.left && p.top < r.bottom && p.top + size.height > r.top;
     // a wide bar across the top: below it; a wide bar across the bottom: above it
     for (const r of [
       { left: 20, right: 980, top: 20, bottom: 80 },

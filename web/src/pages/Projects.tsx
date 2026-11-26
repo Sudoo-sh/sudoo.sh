@@ -66,7 +66,15 @@ function useInstanceMap() {
 
 // ---------------------------------------------------------------- the list
 
-function ProjectCard({ project, instances, first }: { project: Project; instances: Map<string, Instance>; first?: boolean }) {
+function ProjectCard({
+  project,
+  instances,
+  first,
+}: {
+  project: Project;
+  instances: Map<string, Instance>;
+  first?: boolean;
+}) {
   const t = useT(words).list;
   const members = project.instances.names.map((n) => instances.get(n)).filter((i): i is Instance => !!i);
   const running = members.filter((i) => i.status === "online").length;

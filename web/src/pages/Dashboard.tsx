@@ -10,7 +10,9 @@ import { ExpiringSoon } from "@/components/ExpiringSoon";
 import { RecentActivity } from "@/components/RecentActivity";
 import { InstanceCard } from "@/components/InstanceCard";
 import { STAGE_ORDER, STAGES, StageTag } from "@/components/StageTag";
+import { useRemembered } from "@/lib/remembered";
 import { Page, PageHead, useCan } from "@/components/Shell";
+import { INSTANCES_TOUR } from "@/lib/tour";
 import { StatCard } from "@/components/StatCard";
 import { Button, Callout, Empty, Segmented, Skeleton } from "@/components/app/basics";
 import { Input } from "@/components/ui/input";
@@ -221,6 +223,7 @@ function Charts({ instances }: { instances: Instance[] | undefined }) {
 }
 
 type Filter = "all" | "online" | "paused" | "busy" | "expiring";
+const FILTERS: readonly Filter[] = ["all", "online", "paused", "busy", "expiring"];
 /** The list's tabs: what is running now, what failed, what was stopped at the end of its life, what was deleted */
 type View = "current" | "failed" | "stopped" | "deleted" | "all";
 const ASLEEP: InstanceStatus[] = ["paused", "switched_off", "stopped"];
@@ -235,8 +238,17 @@ export function DashboardPage() {
   const history = useDeferredValue(useHistory().data);
   const [query, setQuery] = useState("");
   const [params] = useSearchParams();
-  const [filter, setFilter] = useState<Filter>(params.get("filter") === "expiring" ? "expiring" : "all");
-  const [stage, setStage] = useState<Stage | "all">("all");
+  const [filter, setFilter] = useRemembered<Filter>(
+    "instances.filter",
+    FILTERS,
+    "all",
+    params.get("filter") === "expiring" ? "expiring" : undefined,
+  );
+  const [stage, setStage] = useRemembered<Stage | "all">(
+    "instances.stage",
+    ["all", ...(Object.keys(STAGE_ORDER) as Stage[])],
+    "all",
+  );
   const [view, setView] = useState<View>("all");
   const server = metrics?.server;
   const words = useT(dashboard);
@@ -303,9 +315,10 @@ export function DashboardPage() {
     <Page>
       <PageHead
         title={words.title}
+        tour={INSTANCES_TOUR}
         actions={
           can("instances.create") && (
-            <Button asChild variant="primary">
+            <Button asChild variant="primary" data-tour="instances-new">
               <Link to="/new" viewTransition>
                 <Plus /> {newInstance}
               </Link>
@@ -557,8 +570,8 @@ export function DashboardPage() {
         </div>
       ) : shown.length ? (
         <div className="instance-grid">
-          {shown.map((instance) => (
-            <InstanceCard key={instance.name} instance={instance} />
+          {shown.map((instance, index) => (
+            <InstanceCard key={instance.name} instance={instance} first={index === 0} />
           ))}
         </div>
       ) : (

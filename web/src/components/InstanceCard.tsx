@@ -38,7 +38,7 @@ export function JobLine({ job }: { job: Pick<Job, "action" | "status" | "progres
   );
 }
 
-export function InstanceCard({ instance }: { instance: Instance }) {
+export function InstanceCard({ instance, first }: { instance: Instance; first?: boolean }) {
   const usage = instance.usage;
   const t = useT(dashboard).card;
   const hero = useHero<HTMLSpanElement>(`instance:${instance.name}`);
@@ -52,7 +52,12 @@ export function InstanceCard({ instance }: { instance: Instance }) {
       staleTime: 10_000,
     });
   return (
-    <article className="card link instance-card" onPointerEnter={warm} onFocus={warm}>
+    <article
+      className="card link instance-card"
+      onPointerEnter={warm}
+      onFocus={warm}
+      data-tour={first ? "instances-card" : undefined}
+    >
       <div className="ic-head">
         <Monogram name={instance.name} />
         <div style={{ minWidth: 0, flex: 1 }}>

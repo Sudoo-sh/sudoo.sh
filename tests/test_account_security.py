@@ -5,6 +5,7 @@ checked (no unknown placeholders, no template code) and escaped."""
 from __future__ import annotations
 
 import json
+import threading
 import time
 from collections.abc import Callable, Iterator
 from typing import Any
@@ -232,6 +233,127 @@ def test_who_gets_the_sign_in_e_mail(app: Flask, mailbox: FakeMailer) -> None:
     _sign_in(app, name)
     assert len(mailbox.sent) == 1  # anyone may turn it on for themselves
     assert client.patch("/api/v1/account", json={"sign_in_email": "yes"}, headers=headers).status_code == 400
+
+
+def test_guided_tour_progress_is_kept_per_person_on_the_server_and_an_administrator_can_turn_tours_off(
+    app: Flask,
+) -> None:
+    name, other = _user("viewer"), _user("viewer")
+    client, signed_in = _sign_in(app, name)
+    headers = _headers(client)
+    assert signed_in.get_json()["data"]["tours"] == {"seen": [], "tips": True, "enabled": True}
+
+    saved = client.patch("/api/v1/account", json={"tours": {"mark": ["panel-welcome"]}}, headers=headers)
+    assert saved.status_code == 200
+    assert saved.get_json()["data"]["tours"] == {"seen": ["panel-welcome"], "tips": True, "enabled": True}
+    tips = client.patch("/api/v1/account", json={"tours": {"tips": False}}, headers=headers)
+    assert tips.get_json()["data"]["tours"] == {"seen": ["panel-welcome"], "tips": False, "enabled": True}  # kept
+    # a new browser of the same person sees the same
+    again = app.test_client().post("/api/v1/session", json={"username": name, "password": PASSWORD}, headers=ORIGIN)
+    assert again.get_json()["data"]["tours"] == {"seen": ["panel-welcome"], "tips": False, "enabled": True}
+    # another person is not affected
+    elsewhere, other_in = _sign_in(app, other)
+    assert other_in.get_json()["data"]["tours"] == {"seen": [], "tips": True, "enabled": True}
+
+    live.change({"tours_enabled": False})  # the administrator's switch, for everyone, at once
+    assert client.get("/api/v1/session").get_json()["data"]["tours"]["enabled"] is False
+    assert client.get("/api/v1/account").get_json()["data"]["tours"]["enabled"] is False
+    live.change({"tours_enabled": True})
+    restarted = client.patch("/api/v1/account", json={"tours": {"seen": []}}, headers=headers)
+    assert restarted.get_json()["data"]["tours"] == {"seen": [], "tips": False, "enabled": True}
+
+    # only the tour state changes: the profile and the other choices stay, and two saves in turn both stay
+    before = {k: v for k, v in accounts.get(name).items() if k != "tours"}
+    client.patch("/api/v1/account", json={"tours": {"mark": ["x-tour"]}}, headers=headers)
+    client.patch("/api/v1/account", json={"tours": {"tips": True}}, headers=headers)
+    after = accounts.get(name)
+    assert {k: v for k, v in after.items() if k != "tours"} == before
+    assert after["tours"] == {"seen": ["x-tour"], "tips": True}  # the reset before it left nothing else
+    client.patch("/api/v1/account", json={"tours": {"seen": []}}, headers=headers)
+
+    # two stale browsers: each marks its own tour without knowing the other's; both stay. Reset is explicit only.
+    client.patch("/api/v1/account", json={"tours": {"mark": ["tour-a"]}}, headers=headers)
+    client.patch("/api/v1/account", json={"tours": {"mark": ["tour-b"]}}, headers=headers)
+    assert accounts.get(name)["tours"]["seen"] == ["tour-a", "tour-b"]
+    client.patch("/api/v1/account", json={"tours": {"seen": [], "mark": ["tour-c"]}}, headers=headers)
+    assert accounts.get(name)["tours"]["seen"] == ["tour-c"]
+    client.patch("/api/v1/account", json={"tours": {"seen": []}}, headers=headers)
+
+    for wrong in ({}, {"x": 1}, {"tips": "no"}, {"seen": "panel-welcome"}, {"seen": ["panel-welcome"]}, {"mark": ["Bad Name"]},
+                  {"mark": [1]}, {"mark": "a"}, {"mark": ["a"] * 51}, "yes", None, ["panel-welcome"]):  # fmt: skip
+        assert client.patch("/api/v1/account", json={"tours": wrong}, headers=headers).status_code == 400
+    assert accounts.get(name)["tours"] == {"seen": [], "tips": True}  # unchanged by the refused bodies
+
+
+def test_page_tours_are_kept_by_their_ids_for_a_viewer_and_never_touch_other_account_fields(app: Flask) -> None:
+    name = _user("viewer")  # the lowest role: a tour is the person's own progress, so it needs no more
+    client, _ = _sign_in(app, name)
+    headers = _headers(client)
+    before = {k: v for k, v in accounts.get(name).items() if k != "tours"}
+    for tour in (
+        "panel-welcome",
+        "projects-page",
+        "backups-page",
+        "audit-page",
+        "instances-page",
+        "settings-page",
+        "plugins-page",
+        "accounts-page",
+        "tokens-page",
+        "templates-page",
+        "github-page",
+        "maintenance-page",
+        "new-instance-page",
+        "instance-page",
+        "projects-page",
+    ):  # the last is a repeat
+        saved = client.patch("/api/v1/account", json={"tours": {"mark": [tour]}}, headers=headers)
+        assert saved.status_code == 200
+    seen = [
+        "panel-welcome",
+        "projects-page",
+        "backups-page",
+        "audit-page",
+        "instances-page",
+        "settings-page",
+        "plugins-page",
+        "accounts-page",
+        "tokens-page",
+        "templates-page",
+        "github-page",
+        "maintenance-page",
+        "new-instance-page",
+        "instance-page",
+    ]
+    assert client.get("/api/v1/session").get_json()["data"]["tours"]["seen"] == seen
+    assert accounts.get(name)["tours"]["seen"] == seen
+    assert {k: v for k, v in accounts.get(name).items() if k != "tours"} == before
+    client.patch("/api/v1/account", json={"tours": {"seen": []}}, headers=headers)  # "Restart all tours"
+    assert client.get("/api/v1/session").get_json()["data"]["tours"]["seen"] == []
+
+
+def test_marking_tours_seen_from_many_places_at_once_keeps_every_one(app: Flask) -> None:
+    import _thread  # real threads: the suite's fixture replaces threading.Thread with one that runs at once
+
+    name = _user("viewer")
+    before = dict(accounts.get(name))
+    names = [f"tour-{n}" for n in range(12)]
+    gate, done = threading.Barrier(len(names)), threading.Semaphore(0)
+
+    def mark(one: str) -> None:
+        gate.wait()
+        accounts.update_tours(name, {"mark": [one]})
+        done.release()
+
+    for one in names:
+        _thread.start_new_thread(mark, (one,))
+    for _ in names:
+        assert done.acquire(timeout=20)
+    after = accounts.get(name)
+    assert sorted(after["tours"]["seen"]) == sorted(names)
+    assert {k: v for k, v in after.items() if k != "tours"} == {k: v for k, v in before.items() if k != "tours"}
+    accounts.update_tours(name, {"tips": False})
+    assert accounts.get(name)["tours"]["tips"] is False and len(accounts.get(name)["tours"]["seen"]) == 12
 
 
 def test_each_person_chooses_the_language_and_the_server_has_a_default(app: Flask) -> None:

@@ -120,8 +120,8 @@ export function MaintenanceList({ client = false }: { client?: boolean }) {
   return (
     <div className="maintenance-list">
       <p className="small muted">{t.facts.timezone(data.meta.timezone)}</p>
-      {items.map((item) => (
-        <MaintenanceCard key={item.id} item={item} meta={data.meta} client={client} />
+      {items.map((item, index) => (
+        <MaintenanceCard key={item.id} item={item} meta={data.meta} client={client} first={index === 0} />
       ))}
     </div>
   );
@@ -134,7 +134,17 @@ function windowWords(item: MaintenanceItem, t: Words): string | null {
   return item.window.chosen_by ? t.facts.chosenBy(item.window.chosen_by) : null;
 }
 
-function MaintenanceCard({ item, meta, client }: { item: MaintenanceItem; meta: MaintenanceMeta; client: boolean }) {
+function MaintenanceCard({
+  item,
+  meta,
+  client,
+  first,
+}: {
+  item: MaintenanceItem;
+  meta: MaintenanceMeta;
+  client: boolean;
+  first?: boolean;
+}) {
   const t = useT(words);
   const locale = useLocale();
   const now = useNow();
@@ -144,7 +154,11 @@ function MaintenanceCard({ item, meta, client }: { item: MaintenanceItem; meta: 
   const worksOn = item.instances.length ? item.instances.map((i) => i.name).join(", ") : t.scope[item.scope];
   const chosen = windowWords(item, t);
   return (
-    <section className="card pad maintenance-card" data-status={item.status}>
+    <section
+      className="card pad maintenance-card"
+      data-status={item.status}
+      data-tour={first && !client ? "maintenance-card" : undefined}
+    >
       <div className="row-wrap">
         <h2 className="spacer">{item.title[locale]}</h2>
         <Tag tone={item.required ? undefined : "accent"}>{item.required ? t.facts.required : t.facts.optional}</Tag>

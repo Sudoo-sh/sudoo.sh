@@ -74,6 +74,8 @@ def me() -> dict[str, Any]:
         "recovery_codes_needed": recovery.needed(account),
         "brand_color": settings.brand_color,
         "language": accounts.language(account),
+        # the guided tours: the ones this person has seen, their tips choice, and the panel's switch (TOURS_ENABLED)
+        "tours": {**accounts.tours(account), "enabled": settings.tours_enabled},
         # a super admin must accept the licence agreement before anything else (security.py)
         "licence_required": g.user["role"] == "super_admin" and licence.pending(),
         # the address this session belongs to: "panel", or "portal" (the client portal's, PORTAL_DOMAIN)

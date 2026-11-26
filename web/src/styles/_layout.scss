@@ -478,3 +478,14 @@ body:has(.toast, [data-slot="dialog-overlay"], [data-slot="sheet-overlay"], [dat
   transform: translateY(8px) scale(0.96);
   pointer-events: none;
 }
+
+// the step of a tour points at this item (components/Tour.tsx): a plum outline, no dimming, no blocking
+[data-tour-current] {
+  outline: 2px solid var(--primary) !important; // some controls reset their outline; a tour's pointer must always show
+  outline-offset: 2px;
+}
+
+// a table row is as wide as its table: draw the outline inside it so the card does not clip it
+tr[data-tour-current] {
+  outline-offset: -2px;
+}

@@ -477,6 +477,10 @@ class Settings(BaseSettings):
     default_language: Literal["en", "ar"] = Field(
         "en", description='Language of the web app for accounts that have not chosen one: "en" or "ar".'
     )
+    tours_enabled: bool = Field(
+        True,
+        description="Show the guided tours in the web app; off: no tour starts by itself or from Help, for everyone.",
+    )
     licence_required_version: str = Field(
         "1.0",
         pattern=r"^\d{1,3}\.\d{1,3}$",
@@ -2386,6 +2390,7 @@ EDITABLE = (
     # take effect at once
     "brand_color",
     "default_language",
+    "tours_enabled",
     "licence_required_version",
     "link_deadline_days",
     "require_second_factor",

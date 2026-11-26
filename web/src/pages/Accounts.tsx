@@ -20,6 +20,7 @@ import type { Invitation, InvitationPolicy, Role, SignInMethod, User } from "@/a
 import { GitHubMark } from "@/components/app/GitHubMark";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Page, PageHead, useMe } from "@/components/Shell";
+import { ACCOUNTS_TOUR } from "@/lib/tour";
 import { PasswordFields, passwordReady } from "@/components/PasswordFields";
 import { Button, Callout, CopyField, Empty, Field, Segmented, Skeleton, Switch, Tag } from "@/components/app/basics";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -595,8 +596,9 @@ export function AccountsPage() {
     <Page>
       <PageHead
         title={t.title}
+        tour={ACCOUNTS_TOUR}
         actions={
-          <Button variant="primary" icon={<UserPlus />} onClick={() => setEditing("new")}>
+          <Button variant="primary" icon={<UserPlus />} onClick={() => setEditing("new")} data-tour="accounts-new">
             {invited?.policy.mail_ready || !invited?.policy.password_allowed ? i.open : t.new}
           </Button>
         }
@@ -622,8 +624,8 @@ export function AccountsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {users.map((u) => (
-                <TableRow key={u.name}>
+              {users.map((u, index) => (
+                <TableRow key={u.name} data-tour={index === 0 ? "accounts-rows" : undefined}>
                   <TableCell>
                     <div className="row" style={{ gap: 12 }}>
                       <span className="avatar">{(u.first_name?.[0] ?? u.name[0]) + (u.last_name?.[0] ?? "")}</span>

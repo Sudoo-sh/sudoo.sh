@@ -26,6 +26,7 @@ import { ManagedSubdomainsCard } from "@/components/ManagedSubdomainsCard";
 import { PlanCard, PremiumFeaturesCard, PremiumSlot } from "@/premium/components";
 import { usePremium } from "@/premium/loader";
 import { Page, PageHead, useCan, useMe, useSubCrumb } from "@/components/Shell";
+import { SETTINGS_TOUR } from "@/lib/tour";
 import { Button, Callout, Skeleton, Switch, Tag } from "@/components/app/basics";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
@@ -74,7 +75,14 @@ const TABS: { id: TabId; groups: Group[] }[] = [
     groups: [
       {
         id: "contact",
-        keys: ["admin_contact_name", "admin_contact_email", "admin_contact_phone", "brand_color", "default_language"],
+        keys: [
+          "admin_contact_name",
+          "admin_contact_email",
+          "admin_contact_phone",
+          "brand_color",
+          "default_language",
+          "tours_enabled",
+        ],
       },
       { id: "help", keys: ["support_url", "hub_support_url", "docs_url", "plan_pricing_url", "plan_account_url"] },
     ],
@@ -662,7 +670,9 @@ function Section({
   icon,
   actions,
   children,
+  tour,
 }: {
+  tour?: string;
   title: string;
   text: ReactNode;
   icon?: ReactNode;
@@ -671,7 +681,7 @@ function Section({
 }) {
   return (
     <section className="card">
-      <div className="card-head">
+      <div className="card-head" data-tour={tour}>
         {icon}
         <div className="spacer">
           <h2>{title}</h2>
@@ -786,7 +796,14 @@ function TabList({
     list.current?.querySelector<HTMLElement>(`#settings-tab-${TABS[next]!.id}`)?.focus();
   };
   return (
-    <div className="tabs settings-tabs" role="tablist" aria-label={t.tabsLabel} ref={list} onKeyDown={move}>
+    <div
+      className="tabs settings-tabs"
+      data-tour="settings-tabs"
+      role="tablist"
+      aria-label={t.tabsLabel}
+      ref={list}
+      onKeyDown={move}
+    >
       {TABS.map((item) => {
         const mark = marks[item.id];
         const state = [mark?.unsaved ? t.tabState.unsaved(mark.unsaved) : "", mark?.restart ? t.tabState.restart : ""]
@@ -1180,7 +1197,9 @@ export function SettingsPage() {
   useSubCrumb(t.tabs[tab]);
   return (
     <Page>
-      <PageHead title={t.title}>{t.lead(<code key="env">.env</code>)}</PageHead>
+      <PageHead title={t.title} tour={SETTINGS_TOUR}>
+        {t.lead(<code key="env">.env</code>)}
+      </PageHead>
       {isPending ? (
         <Skeleton height={400} />
       ) : (
@@ -1215,9 +1234,10 @@ export function SettingsPage() {
           >
             {current.groups
               .filter((group) => !group.id.startsWith("offsite") || offsiteRuns)
-              .map((group) => (
+              .map((group, index) => (
                 <Section
                   key={group.id}
+                  tour={index === 0 ? "settings-section" : undefined}
                   {...groupWords(t, group)}
                   icon={
                     group.id === "email" ? (

@@ -21,6 +21,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input";
 import { Modal, useToast } from "@/components/app/overlay";
 import { ago } from "@/lib/format";
+import { GITHUB_TOUR } from "@/lib/tour";
 import { useT } from "@/i18n";
 import common from "@/i18n/common";
 import words from "@/i18n/github";
@@ -258,7 +259,7 @@ function AppCard() {
     );
   const app = state.app;
   return (
-    <section className="card rise">
+    <section className="card rise" data-tour="github-app">
       <div className="card-head">
         <Plug />
         <h2>{t.title}</h2>
@@ -373,9 +374,11 @@ export function GitHubPage() {
   const c = useT(common).common;
   return (
     <Page>
-      <PageHead title={all.title}>{all.lead}</PageHead>
+      <PageHead title={all.title} tour={GITHUB_TOUR}>
+        {all.lead}
+      </PageHead>
       <AppCard />
-      <section className="card rise">
+      <section className="card rise" data-tour="github-keys">
         <div className="card-head">
           <KeyRound />
           <h2>{t.title}</h2>

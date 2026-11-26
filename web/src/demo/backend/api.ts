@@ -240,6 +240,7 @@ export function me(): Session {
     recovery_codes_needed: users.find((u) => u.name === ME)!.second_factors.includes("totp") && recovery.left === 0,
     brand_color: String(setting("brand_color") ?? "#714B67"),
     language: language(),
+    tours: toursState(),
     licence_required: role.name === "super_admin" && licencePending(),
     address: "panel",
   };
@@ -267,6 +268,10 @@ let expiryEmail: boolean | null = null;
 let ownLanguage: Locale | null = storedLocale();
 const defaultLanguage = (): Locale =>
   isLocale(setting("default_language")) ? (setting("default_language") as Locale) : "en";
+/** What this visitor has seen of the guided tours: kept for the visit, like the rest of the demo's accounts. */
+let tourSeen: string[] = [];
+let tourTips = true;
+const toursState = () => ({ seen: tourSeen, tips: tourTips, enabled: setting("tours_enabled") !== false });
 const language = (): Locale => ownLanguage ?? browserLocale() ?? defaultLanguage();
 const RECOVERY_ALPHABET = "23456789abcdefghjkmnpqrstuvwxyz";
 const newRecoveryCodes = () => {
@@ -333,6 +338,7 @@ function account(): Account {
       github_login: user.github_login,
     },
     language: { value: language(), own_choice: ownLanguage, default: defaultLanguage() },
+    tours: toursState(),
   };
 }
 
@@ -608,6 +614,28 @@ route("PATCH", "/account", ({ body }) => {
     if (choice !== null && !isLocale(choice)) throw new Problem(400, "language must be one of en, ar, or null.");
     ownLanguage = choice;
     record(ME, choice ? `language set to ${choice}` : "language back to the default");
+  }
+  if ("tours" in body) {
+    const tours = body.tours as { mark?: unknown; seen?: unknown; tips?: unknown } | null;
+    const names = (value: unknown) =>
+      Array.isArray(value) &&
+      value.length <= 50 &&
+      value.every((v) => typeof v === "string" && /^[a-z0-9][a-z0-9-]{0,39}$/.test(v));
+    if (
+      !tours ||
+      typeof tours !== "object" ||
+      Array.isArray(tours) ||
+      !("mark" in tours || "seen" in tours || "tips" in tours)
+    )
+      throw new Problem(400, 'tours must be an object with "mark", "seen" and/or "tips".');
+    if ("tips" in tours && typeof tours.tips !== "boolean") throw new Problem(400, "tips must be true or false.");
+    if ("seen" in tours && !(Array.isArray(tours.seen) && tours.seen.length === 0))
+      throw new Problem(400, 'seen can only be [] (show every tour again); use "mark" to add tours seen.');
+    if ("mark" in tours && !names(tours.mark)) throw new Problem(400, "mark must be a list of at most 50 tour names.");
+    if ("seen" in tours) tourSeen = [];
+    if ("mark" in tours) tourSeen = [...tourSeen, ...(tours.mark as string[]).filter((n) => !tourSeen.includes(n))];
+    if ("tips" in tours) tourTips = tours.tips as boolean;
+    record(ME, "tours changed");
   }
   for (const key of ["first_name", "last_name", "email", "phone"] as const) {
     if (key in body) user[key] = String(body[key] ?? "") || null;

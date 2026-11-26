@@ -39,6 +39,7 @@ import { JobLine, Monogram } from "@/components/InstanceCard";
 import { JobDrawer } from "@/components/JobDrawer";
 import { LinkForm, marketplaceProblem, PublisherBadge } from "@/components/Marketplace";
 import { Page, PageHead, useCan } from "@/components/Shell";
+import { PLUGINS_TOUR } from "@/lib/tour";
 import { Button, Callout, Empty, Field, Segmented, Skeleton, Status, Tag } from "@/components/app/basics";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -217,12 +218,17 @@ const ACTION_TONE: Partial<Record<CatalogPlugin["action"], "positive" | "accent"
   incompatible: "caution",
 };
 
-function PluginCard({ plugin, onOpen }: { plugin: CatalogPlugin; onOpen: () => void }) {
+function PluginCard({ plugin, onOpen, first }: { plugin: CatalogPlugin; onOpen: () => void; first?: boolean }) {
   const t = useT(dict);
   const label = t.actionTags[plugin.action] ?? "";
   const tone = ACTION_TONE[plugin.action];
   return (
-    <button type="button" className="card link plugin-card" onClick={onOpen}>
+    <button
+      type="button"
+      className="card link plugin-card"
+      onClick={onOpen}
+      data-tour={first ? "plugins-card" : undefined}
+    >
       <div className="pc-head">
         <PluginIcon plugin={plugin} />
         <div className="pc-titles">
@@ -715,8 +721,8 @@ function Catalogue({
         </div>
       ) : (
         <div className="plugin-grid rise">
-          {plugins.map((plugin) => (
-            <PluginCard key={plugin.id} plugin={plugin} onOpen={() => setOpen(plugin)} />
+          {plugins.map((plugin, index) => (
+            <PluginCard key={plugin.id} plugin={plugin} onOpen={() => setOpen(plugin)} first={index === 0} />
           ))}
         </div>
       )}
@@ -1149,10 +1155,12 @@ export function PluginsPage() {
   };
   return (
     <Page>
-      <PageHead title={t.title}>{t.text}</PageHead>
+      <PageHead title={t.title} tour={PLUGINS_TOUR}>
+        {t.text}
+      </PageHead>
       {problem && <Callout tone={problem.tone}>{problem.text}</Callout>}
       {installer.work && <WorkCard work={installer.work} onFinished={installer.finish} onClear={installer.clear} />}
-      <nav className="tabs">
+      <nav className="tabs" data-tour="plugins-tabs">
         {TABS.map((id) => (
           <NavLink
             key={id}

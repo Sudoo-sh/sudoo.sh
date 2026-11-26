@@ -38,6 +38,7 @@ import {
   SquareTerminal,
   Trash2,
   Zap,
+  CircleHelp,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
@@ -76,6 +77,10 @@ import { ConnectButton } from "@/components/ConnectAs";
 import { EngineMoveDialog, otherEngine, useOfferedEngines } from "@/components/EngineMove";
 import { BackupCommentDialog, ImportDatabaseButton } from "@/components/ImportDatabase";
 import { Page, useCan } from "@/components/Shell";
+import { Tour } from "@/components/Tour";
+import { useMe } from "@/components/Session";
+import { askTour, INSTANCE_TOUR } from "@/lib/tour";
+import tourWords from "@/i18n/tour";
 import { StatCard } from "@/components/StatCard";
 import {
   Button,
@@ -150,6 +155,26 @@ const TABS: {
   { id: "tools", label: "tools", icon: <Gauge />, permission: "instances.profile" },
   { id: "upgrade", label: "upgrade", icon: <ArrowUpCircle />, permission: "instances.upgrade" },
 ];
+
+/** The "?" that replays this page's tour, and the tour itself (not shown when the instance is embedded in another page). */
+function InstanceTourButton() {
+  const me = useMe();
+  const words = useT(tourWords);
+  if (!me.tours.enabled) return null;
+  return (
+    <>
+      <Button
+        variant="ghost"
+        size="sm"
+        icon={<CircleHelp />}
+        aria-label={words.takeTour}
+        title={words.takeTour}
+        onClick={() => askTour(INSTANCE_TOUR.id)}
+      />
+      <Tour def={INSTANCE_TOUR} />
+    </>
+  );
+}
 
 /** What the caller may do in this instance: their role, narrowed by the project's access and the branch's lock. */
 function useCanIn(instance: Instance | undefined) {
@@ -234,7 +259,7 @@ export function InstanceView({
       <div className="page-head">
         <div className="hero spacer">
           {!embedded && <Monogram name={instance.name} large />}
-          <div className="titles" style={{ minWidth: 0 }}>
+          <div className="titles" style={{ minWidth: 0 }} data-tour={embedded ? undefined : "instance-head"}>
             <div className="row-wrap" style={{ gap: 12 }}>
               {embedded ? (
                 <h2 className="truncate instance-title">
@@ -318,6 +343,7 @@ export function InstanceView({
         {/* one way to open Odoo; on narrow screens Restart and Get latest code move into the "more" menu
             (.header-secondary, styles/_layout.scss) */}
         <div className="actions">
+          {!embedded && <InstanceTourButton />}
           {instance.url && !asleep && (!instance.lock || can("instances.logs")) && (
             <ConnectButton instance={instance} connectAs={can("instances.connect")} />
           )}
@@ -355,7 +381,14 @@ export function InstanceView({
           <PremiumSlot name="instance.actions" props={{ instance, busy, onJob: setJobId }} />
           {(can("instances.update") || can("instances.operate")) && (
             <Menu
-              trigger={(toggle) => <Button icon={<MoreHorizontal />} onClick={toggle} aria-label={t.moreActions} />}
+              trigger={(toggle) => (
+                <Button
+                  icon={<MoreHorizontal />}
+                  onClick={toggle}
+                  aria-label={t.moreActions}
+                  data-tour="instance-more"
+                />
+              )}
             >
               {(close) => {
                 const item = (fn: () => void) => () => {
@@ -539,7 +572,7 @@ export function InstanceView({
         </Callout>
       )}
 
-      <nav className="tabs" aria-label={instance.name}>
+      <nav className="tabs" aria-label={instance.name} data-tour={embedded ? undefined : "instance-tabs"}>
         {lead && (
           <Link
             to={tabLink(lead.id)}

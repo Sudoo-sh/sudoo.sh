@@ -4,6 +4,7 @@ import {
   BookOpen,
   CircleAlert,
   CircleCheck,
+  CircleHelp,
   Info,
   ChevronRight,
   ChevronsUpDown,
@@ -33,6 +34,8 @@ import { useLiveEvents, type Sync } from "@/api/live";
 import { keys, useAlerts, useInstances, useMetrics, usePluginNotices, useProjects } from "@/api/queries";
 import type { Alert } from "@/api/types";
 import { useT } from "@/i18n";
+import tourWords from "@/i18n/tour";
+import { askTour, type TourDef } from "@/lib/tour";
 import common from "@/i18n/common";
 import { ago, percent } from "@/lib/format";
 import { NARROW, useMedia } from "@/lib/media";
@@ -52,6 +55,7 @@ import maintenanceWords from "@/i18n/maintenance";
 import { PremiumSlot, usePremiumRoutes } from "@/premium/components";
 import { Menu, MenuItem, MenuSeparator, useToast } from "./app/overlay";
 
+import { Tour } from "./Tour";
 import { useCan, useMe } from "./Session";
 
 export { RequirePermission, RequireSession, useCan, useMe } from "./Session";
@@ -76,7 +80,9 @@ function NavItem({
   children,
   end,
   count,
+  tour,
 }: {
+  tour?: string;
   to: string;
   icon: ReactNode;
   children: ReactNode;
@@ -84,7 +90,13 @@ function NavItem({
   count?: number;
 }) {
   return (
-    <NavLink to={to} end={end} viewTransition className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}>
+    <NavLink
+      to={to}
+      end={end}
+      data-tour={tour}
+      viewTransition
+      className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}
+    >
       {icon}
       <span>{children}</span>
       {count != null && <span className="count">{count}</span>}
@@ -117,21 +129,21 @@ function Sidebar() {
       <Brand />
       <div className="nav-group">{t.workspace}</div>
       <nav>
-        <NavItem to="/projects" icon={<FolderKanban />} count={projects?.projects.length}>
+        <NavItem to="/projects" tour="nav-projects" icon={<FolderKanban />} count={projects?.projects.length}>
           {t.projects}
         </NavItem>
         <NavItem to="/" end icon={<LayoutGrid />} count={instances?.length}>
           {t.instances}
         </NavItem>
         {can("instances.create") && (
-          <NavItem to="/new" icon={<Plus />}>
+          <NavItem to="/new" tour="nav-new-instance" icon={<Plus />}>
             {t.newInstance}
           </NavItem>
         )}
         <NavItem to="/maintenance" icon={<Wrench />}>
           {maintenance}
         </NavItem>
-        <NavItem to="/help" icon={<BookOpen />}>
+        <NavItem to="/help" tour="nav-help" icon={<BookOpen />}>
           {t.help}
         </NavItem>
       </nav>
@@ -140,7 +152,7 @@ function Sidebar() {
           <div className="nav-group">{t.operations}</div>
           <nav>
             {can("backups.manage") && (
-              <NavItem to="/backups" icon={<DatabaseBackup />}>
+              <NavItem to="/backups" tour="nav-backups" icon={<DatabaseBackup />}>
                 {t.backups}
               </NavItem>
             )}
@@ -570,6 +582,7 @@ export function Shell() {
       </div>
       <BackToTop />
       <CommandPalette />
+      <Tour />
     </div>
   );
 }
@@ -599,14 +612,36 @@ export function PageHead({
   actions,
   below,
   side,
+  tour,
 }: {
   title: ReactNode;
   children?: ReactNode;
   actions?: ReactNode;
   below?: ReactNode;
   side?: ReactNode;
+  /** This page's tour: a "?" button in the header starts it, and it starts by itself on a first visit. */
+  tour?: TourDef;
 }) {
   const mark = useContext(PageMark);
+  const me = useMe();
+  const words = useT(tourWords);
+  const tourButton = tour && me.tours.enabled && (
+    <Button
+      variant="ghost"
+      size="sm"
+      icon={<CircleHelp />}
+      aria-label={words.takeTour}
+      title={words.takeTour}
+      onClick={() => askTour(tour.id)}
+    />
+  );
+  const shownActions =
+    tourButton || actions ? (
+      <>
+        {tourButton}
+        {actions}
+      </>
+    ) : null;
   return (
     <div className={side ? "page-head page-head-split" : "page-head"}>
       <div className="titles">
@@ -623,12 +658,13 @@ export function PageHead({
       </div>
       {side ? (
         <div className="page-head-side">
-          {actions && <div className="actions">{actions}</div>}
+          {shownActions && <div className="actions">{shownActions}</div>}
           {side}
         </div>
       ) : (
-        actions && <div className="actions">{actions}</div>
+        shownActions && <div className="actions">{shownActions}</div>
       )}
+      {tour && <Tour def={tour} />}
     </div>
   );
 }

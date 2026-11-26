@@ -59,6 +59,12 @@ export interface Envelope<T> {
   meta?: { total?: number; count?: number; limit?: number; offset?: number; [key: string]: unknown };
 }
 
+export interface ToursState {
+  seen: string[];
+  tips: boolean;
+  enabled: boolean;
+}
+
 export interface Session extends Profile {
   user: string;
   display_name: string;
@@ -73,6 +79,8 @@ export interface Session extends Profile {
   brand_color: string;
   /** the web app's language: the account's own choice, or the server's DEFAULT_LANGUAGE */
   language: "en" | "ar";
+  /** the guided tours: the ones this person has seen, whether they want tips, and the panel's switch (TOURS_ENABLED) */
+  tours: ToursState;
   /** a super admin must accept the Sudoo.sh Licence Agreement before anything else (/licence) */
   licence_required: boolean;
   /** the address this session belongs to: the panel's, or the client portal's (PORTAL_DOMAIN) */
@@ -1258,6 +1266,7 @@ export interface Account extends Profile {
   sign_in_methods: SignInMethods;
   /** the web app's language: in use, the person's own choice (null: the server's default) and that default */
   language: { value: "en" | "ar"; own_choice: "en" | "ar" | null; default: "en" | "ar" };
+  tours: ToursState;
 }
 
 /** The account's recovery codes: how many are left of how many made, and when */

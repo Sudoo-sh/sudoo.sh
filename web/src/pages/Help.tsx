@@ -2,10 +2,12 @@ import { BookOpen } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import { useDocPage, useDocs } from "@/api/queries";
-import { Page } from "@/components/Shell";
+import { Page, useMe } from "@/components/Shell";
 import { Empty, Skeleton } from "@/components/app/basics";
 import { useT } from "@/i18n";
 import words from "@/i18n/operations";
+import tourWords from "@/i18n/tour";
+import { TOUR_RESTART_EVENT } from "@/lib/tour";
 
 /** The documentation: the same Markdown files as in the repository's docs/, rendered by the backend. */
 export function HelpPage() {
@@ -16,6 +18,8 @@ export function HelpPage() {
   const { data: page, isPending, error } = useDocPage(path);
   const article = useRef<HTMLElement>(null);
   const t = useT(words).help;
+  const tour = useT(tourWords);
+  const tours = useMe().tours;
 
   // links inside the page stay in the app; anchors scroll
   useEffect(() => {
@@ -52,6 +56,25 @@ export function HelpPage() {
               ))}
             </div>
           ))}
+          {tours.enabled ? (
+            <button
+              type="button"
+              className="group"
+              title={tour.replayHint}
+              style={{
+                background: "none",
+                border: 0,
+                textAlign: "start",
+                cursor: "pointer",
+                textDecoration: "underline",
+              }}
+              onClick={() => window.dispatchEvent(new Event(TOUR_RESTART_EVENT))}
+            >
+              {tour.replay}
+            </button>
+          ) : (
+            <div className="group">{tour.off}</div>
+          )}
         </nav>
         {error ? (
           <div className="card">

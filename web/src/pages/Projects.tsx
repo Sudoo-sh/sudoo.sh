@@ -52,6 +52,7 @@ import buildWords from "@/i18n/builds";
 import words from "@/i18n/projects";
 import clientWords from "@/i18n/clients";
 import { repositoryShortName } from "@/lib/naming";
+import { PROJECTS_TOUR } from "@/lib/tour";
 import { RepositoryPicker } from "./NewInstance";
 
 const STAGES: Stage[] = ["production", "staging", "development"];
@@ -65,14 +66,22 @@ function useInstanceMap() {
 
 // ---------------------------------------------------------------- the list
 
-function ProjectCard({ project, instances }: { project: Project; instances: Map<string, Instance> }) {
+function ProjectCard({
+  project,
+  instances,
+  first,
+}: {
+  project: Project;
+  instances: Map<string, Instance>;
+  first?: boolean;
+}) {
   const t = useT(words).list;
   const members = project.instances.names.map((n) => instances.get(n)).filter((i): i is Instance => !!i);
   const running = members.filter((i) => i.status === "online").length;
   const asleep = members.filter((i) => ASLEEP.includes(i.status)).length;
   const working = members.filter((i) => WORKING.includes(i.status)).length;
   return (
-    <article className="card link project-card">
+    <article className="card link project-card" data-tour={first ? "projects-grid" : undefined}>
       <div className="pc-head">
         <span className="pc-icon">
           <FolderGit2 />
@@ -132,7 +141,7 @@ export function ProjectsPage() {
   );
   const standalone = (data?.standalone ?? []).map((n) => instances.get(n)).filter((i): i is Instance => !!i);
   const newProject = can("projects.manage") && (
-    <Button asChild variant="primary">
+    <Button asChild variant="primary" data-tour="projects-new">
       <Link to="/projects/new" viewTransition>
         <FolderPlus /> {t.newProject}
       </Link>
@@ -140,7 +149,7 @@ export function ProjectsPage() {
   );
   return (
     <Page>
-      <PageHead title={t.title} actions={newProject}>
+      <PageHead title={t.title} actions={newProject} tour={PROJECTS_TOUR}>
         {t.text}
       </PageHead>
       {(data?.projects.length ?? 0) > 6 && (
@@ -167,8 +176,8 @@ export function ProjectsPage() {
         </div>
       ) : shown.length ? (
         <div className="project-grid stagger">
-          {shown.map((project) => (
-            <ProjectCard key={project.id} project={project} instances={instances} />
+          {shown.map((project, index) => (
+            <ProjectCard key={project.id} project={project} instances={instances} first={index === 0} />
           ))}
         </div>
       ) : (

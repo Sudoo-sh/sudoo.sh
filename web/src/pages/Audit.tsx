@@ -18,6 +18,7 @@ import { useEffect, useId, useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
 import { useAudit, useAuditFacets } from "@/api/queries";
 import { Page, PageHead } from "@/components/Shell";
+import { AUDIT_TOUR } from "@/lib/tour";
 import { Tag, Button, Empty, Field, Segmented, Skeleton } from "@/components/app/basics";
 import { SelectBox } from "@/components/app/select";
 import { Menu, MenuItem } from "@/components/app/overlay";
@@ -126,10 +127,11 @@ export function AuditPage() {
     <Page>
       <PageHead
         title={t.title}
+        tour={AUDIT_TOUR}
         actions={
           <Menu
             trigger={(open) => (
-              <Button icon={<Download />} onClick={open}>
+              <Button icon={<Download />} onClick={open} data-tour="audit-export">
                 {t.export}
               </Button>
             )}
@@ -154,7 +156,7 @@ export function AuditPage() {
         {get("project") ? t.forProject(projectName) : t.text}
       </PageHead>
 
-      <section className="card rise">
+      <section className="card rise" data-tour="audit-filters">
         <div className="card-body stack">
           <div className="audit-filters">
             <Field label={t.filters} className="wide" htmlFor={searchId}>
@@ -282,7 +284,7 @@ export function AuditPage() {
             </TableHeader>
             <TableBody>
               {entries.map((e, i) => (
-                <TableRow key={`${e.ts}-${i}`}>
+                <TableRow key={`${e.ts}-${i}`} data-tour={i === 0 ? "audit-rows" : undefined}>
                   <TableCell className="small nowrap" title={dateTime(e.ts)}>
                     {ago(e.ts)}
                   </TableCell>

@@ -316,6 +316,54 @@ def language(account: dict[str, Any]) -> str:
     return own_language(account) or settings.default_language
 
 
+TOURS_FIELD = "tours"  # the account's guided-tour state: {"seen": [tour ids], "tips": bool}, or absent (nothing seen)
+TOUR_ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
+TOURS_SEEN_MAX = 50
+
+
+def tours(account: dict[str, Any]) -> dict[str, Any]:
+    """What the account has seen of the guided tours and whether it wants tips (on unless it turned them off)."""
+    raw = account.get(TOURS_FIELD)
+    raw = raw if isinstance(raw, dict) else {}
+    seen = raw.get("seen")
+    seen = [item for item in seen if isinstance(item, str) and TOUR_ID.match(item)] if isinstance(seen, list) else []
+    return {"seen": seen[:TOURS_SEEN_MAX], "tips": raw.get("tips") is not False}
+
+
+def tours_problem(value: Any) -> str | None:
+    """Why a tour change cannot be kept, or None. Keys (any of them): "mark" (tour names seen: added to the list),
+    "seen" (only [] : forget every tour seen) and "tips" (true or false)."""
+    if not isinstance(value, dict) or not value or set(value) - {"mark", "seen", "tips"}:
+        return 'tours must be an object with "mark", "seen" and/or "tips".'
+    if "tips" in value and not isinstance(value["tips"], bool):
+        return "tips must be true or false."
+    if "seen" in value and value["seen"] != []:
+        return 'seen can only be [] (show every tour again); use "mark" to add tours seen.'
+    if "mark" in value:
+        mark = value["mark"]
+        if not isinstance(mark, list) or len(mark) > TOURS_SEEN_MAX:
+            return f"mark must be a list of at most {TOURS_SEEN_MAX} tour names."
+        if not all(isinstance(i, str) and TOUR_ID.match(i) for i in mark):
+            return "tour names are lower case letters, digits and hyphens, up to 40."
+    return None
+
+
+def update_tours(username: str, change: dict[str, Any]) -> Document:
+    """Apply a checked tour change in one stored change (read and write together), touching nothing else of the
+    account. "mark" adds to the tours seen as stored now, so two browsers marking different tours at once keep both;
+    "seen": [] forgets them all (applied first, then any "mark"); "tips" sets the choice."""
+
+    def apply(user: Document | None) -> Document:
+        if user is None:
+            raise ValueError("No such account.")
+        now = tours(user)
+        seen = [] if "seen" in change else list(now["seen"])
+        seen += [name for name in change.get("mark", []) if name not in seen]
+        return {**user, TOURS_FIELD: {"seen": seen[:TOURS_SEEN_MAX], "tips": change.get("tips", now["tips"])}}
+
+    return storage().change(USERS, username, apply) or {}
+
+
 def display_name(username: str, account: dict[str, Any]) -> str:
     full = " ".join(part for part in (account.get("first_name"), account.get("last_name")) if part)
     return full or username

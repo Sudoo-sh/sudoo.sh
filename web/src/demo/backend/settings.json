@@ -1876,6 +1876,20 @@
     "description": "Language of the web app for accounts that have not chosen one: \"en\" or \"ar\"."
   },
   {
+    "key": "tours_enabled",
+    "env": "TOURS_ENABLED",
+    "value": true,
+    "env_value": true,
+    "changed_in_panel": false,
+    "editable": true,
+    "applies": "now",
+    "pending_restart": false,
+    "secret": false,
+    "type": "boolean",
+    "minimum": null,
+    "description": "Show the guided tours in the web app; off: no tour starts by itself or from Help, for everyone."
+  },
+  {
     "key": "licence_required_version",
     "env": "LICENCE_REQUIRED_VERSION",
     "value": "1.0",

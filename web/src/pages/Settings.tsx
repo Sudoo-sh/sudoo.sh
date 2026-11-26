@@ -74,7 +74,14 @@ const TABS: { id: TabId; groups: Group[] }[] = [
     groups: [
       {
         id: "contact",
-        keys: ["admin_contact_name", "admin_contact_email", "admin_contact_phone", "brand_color", "default_language"],
+        keys: [
+          "admin_contact_name",
+          "admin_contact_email",
+          "admin_contact_phone",
+          "brand_color",
+          "default_language",
+          "tours_enabled",
+        ],
       },
       { id: "help", keys: ["support_url", "hub_support_url", "docs_url", "plan_pricing_url", "plan_account_url"] },
     ],

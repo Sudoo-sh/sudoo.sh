@@ -478,3 +478,9 @@ body:has(.toast, [data-slot="dialog-overlay"], [data-slot="sheet-overlay"], [dat
   transform: translateY(8px) scale(0.96);
   pointer-events: none;
 }
+
+// the step of the first-visit tour points at this sidebar item (components/Tour.tsx)
+.nav-link[data-tour-current] {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}

@@ -708,8 +708,8 @@ to `/help/<path>`, the web app's Help pages.
 | `GET /session` | signed in | | 200, the signed-in account (below) |
 | `DELETE /session` | signed in | | **204**, signed out; the session ends on the server too, so a copy of its cookie stops working |
 | `PUT /session/password` | signed in | `{"current", "new"}` | **204**; other sessions of the account end, and a `password` restriction is lifted |
-| `GET /account` | signed in | | 200, own account: profile, role, second factors, whether one is required, `recovery_codes` (`{"left", "total", "created_at"}` or `null`), `recovery_codes_needed`, `sign_in_email` (`{"enabled", "own_choice", "default", "can_turn_off", "mail_ready"}`), `expiry_email` (`true`, `false` or `null`: the person's own choice for the e-mails about instances that expire), and `language` (`{"value", "own_choice", "default"}`: the web app's language, the person's own choice or `null`, and `DEFAULT_LANGUAGE`) |
-| `PATCH /account` | signed in | any of `first_name`, `last_name`, `email`, `phone`, `sign_in_email` (`true`, `false`, or `null` for the server's default), `expiry_email` (`true`, `false` or `null`), and `language` (`"en"`, `"ar"`, or `null` for the server's default) | 200, the account. `sign_in_email: false` is **403** when `SIGN_IN_EMAIL_OPT_OUT` is off. The e-mail address cannot change while it receives sign-in codes. An address another account uses is refused: 400 "Another account already uses this e-mail address." A new address ends the account's other sessions |
+| `GET /account` | signed in | | 200, own account: profile, role, second factors, whether one is required, `recovery_codes` (`{"left", "total", "created_at"}` or `null`), `recovery_codes_needed`, `sign_in_email` (`{"enabled", "own_choice", "default", "can_turn_off", "mail_ready"}`), `expiry_email` (`true`, `false` or `null`: the person's own choice for the e-mails about instances that expire), `language` (`{"value", "own_choice", "default"}`: the web app's language, the person's own choice or `null`, and `DEFAULT_LANGUAGE`) and `tours` (`{"seen", "tips", "enabled"}`: the guided tours this person has seen, whether they want tips, and `TOURS_ENABLED`) |
+| `PATCH /account` | signed in | any of `first_name`, `last_name`, `email`, `phone`, `sign_in_email` (`true`, `false`, or `null` for the server's default), `expiry_email` (`true`, `false` or `null`), `language` (`"en"`, `"ar"`, or `null` for the server's default), and `tours` (`{"mark": [tour names], "seen": [], "tips": true\|false}`, any key; `mark` adds to the tours seen as stored at that moment, so two browsers cannot drop each other's; `"seen": []` is the only form of `seen` and shows every tour again; 400 for anything else) | 200, the account. `sign_in_email: false` is **403** when `SIGN_IN_EMAIL_OPT_OUT` is off. The e-mail address cannot change while it receives sign-in codes. An address another account uses is refused: 400 "Another account already uses this e-mail address." A new address ends the account's other sessions |
 | `POST /account/second-factors/<name>` | signed in | `email`: `{"email"}`; `totp`: `{}`. To replace a factor that is already set up, or to add one when another is set up, add `"password"` | 200: a code was sent, or `{"secret", "otpauth_uri"}` for the app. 400 when the password is missing or wrong, or the e-mail address belongs to another account |
 | `PUT /account/second-factors/<name>` | signed in | `{"code"}` | 200, the factors; it is set up. Setting up `totp` on an account without recovery codes also returns them, once, in `meta.recovery_codes`. Replacing a factor, or a new e-mail address, ends the account's other sessions |
 | `DELETE /account/second-factors/<name>` | signed in | `{"password"}` | **204**; the account's other sessions end; removing `totp` removes the recovery codes |
@@ -730,7 +730,8 @@ to `/help/<path>`, the web app's Help pages.
     "must_set_up_second_factor": false,
     "recovery_codes_needed": false,
     "brand_color": "#714B67",
-    "language": "en"
+    "language": "en",
+    "tours": {"seen": ["panel-welcome"], "tips": true, "enabled": true}
   }
 }
 ```

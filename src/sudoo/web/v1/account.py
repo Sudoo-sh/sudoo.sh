@@ -5,7 +5,9 @@ GET    /api/v1/account                          the account, its e-mail, second 
                                                 and the e-mails about instances about to expire
 PATCH  /api/v1/account                          change the profile (names, e-mail, phone), {"sign_in_email":
                                                 true|false|null}, {"expiry_email": true|false|null} and {"language": "en"|"ar"|null} (null: the
-                                                server's default)
+                                                server's default) and {"tours": {"mark": [names], "seen": [], "tips":
+                                                true|false}} (any key: "mark" adds tours seen, "seen": [] shows every
+                                                tour again)
 POST   /api/v1/account/second-factors/<name>    start setting one up: e-mail {"email"}; app {} -> the secret;
                                                 replacing one already set up, or adding one next to another,
                                                 also takes {"password"}
@@ -89,6 +91,7 @@ def read() -> Response:
             "sign_in_email": sign_in_notice.preference(account),
             "expiry_email": expiry.own_choice(account),
             "sign_in_methods": sign_in_methods_resource(account),
+            "tours": tours_resource(account),
             "language": {
                 "value": accounts.language(account),
                 "own_choice": accounts.own_language(account),
@@ -96,6 +99,10 @@ def read() -> Response:
             },
         }
     )
+
+
+def tours_resource(account: dict[str, Any]) -> dict[str, Any]:
+    return {**accounts.tours(account), "enabled": settings.tours_enabled}
 
 
 def github_resource(account: dict[str, Any]) -> dict[str, Any] | None:
@@ -131,6 +138,8 @@ def change_profile() -> Response:
         _expiry_email(data["expiry_email"])
     if "language" in data:
         _language(data["language"])
+    if "tours" in data:
+        _tours(data["tours"])
     values = {key: check.text(data, key, max_length=120) for key in accounts.PROFILE_FIELDS if key in data}
     if not values:
         return read()
@@ -173,6 +182,15 @@ def _language(choice: Any) -> None:
         abort(400, "language must be one of " + ", ".join(accounts.LANGUAGES) + ", or null.")
     accounts.update(g.user["name"], **{accounts.LANGUAGE_FIELD: choice})
     log("language " + (f"set to {choice}" if choice else "back to the default"))
+
+
+def _tours(value: Any) -> None:
+    """The person's own tour state: tours seen to add ("mark"), forgetting all of them, and the tips choice."""
+    problem = accounts.tours_problem(value)
+    if problem:
+        abort(400, problem)
+    accounts.update_tours(g.user["name"], value)
+    log("tours " + ("shown again" if "seen" in value else "changed"))
 
 
 def account_factor_names() -> list[str]:

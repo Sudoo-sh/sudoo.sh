@@ -1,6 +1,8 @@
 import { useQueryClient } from "@tanstack/react-query";
 import {
   BellRing,
+  Compass,
+  RotateCcw,
   CircleCheck,
   Languages,
   KeyRound,
@@ -34,6 +36,7 @@ import { LOCALES, useT, type Locale } from "@/i18n";
 import accountWords from "@/i18n/account";
 import common from "@/i18n/common";
 import { useSaveLanguage } from "@/components/LanguageSwitch";
+import { useSaveTours } from "@/components/useTours";
 import { ago } from "@/lib/format";
 import type { Person } from "@/lib/password";
 
@@ -657,6 +660,63 @@ function SignInCard() {
   );
 }
 
+/** The guided tours: whether they start by themselves, and showing every one again. Kept on the account. */
+function ToursCard() {
+  const me = useMe();
+  const save = useSaveTours();
+  const toast = useToast();
+  const t = useT(accountWords).tours;
+  const [busy, setBusy] = useState(false);
+  const run = async (change: { mark?: string[]; seen?: []; tips?: boolean }, done?: () => void) => {
+    setBusy(true);
+    const saved = await save(change);
+    setBusy(false);
+    if (saved) done?.();
+    else toast("error", t.notSaved);
+  };
+  return (
+    <section className="card">
+      <div className="card-head">
+        <Compass size={18} />
+        <div className="spacer">
+          <h2>{t.title}</h2>
+          <div className="sub">{t.text}</div>
+        </div>
+      </div>
+      <div className="card-body stack">
+        {me.tours.enabled ? null : <Callout tone="info">{t.off}</Callout>}
+        <div className="row" style={{ alignItems: "flex-start" }}>
+          <span className="spacer">
+            <span className="t" style={{ fontWeight: 500 }}>
+              {t.tips}
+            </span>
+            <br />
+            <span className="small muted">{t.tipsText}</span>
+          </span>
+          <Switch checked={me.tours.tips} disabled={busy} onChange={(on: boolean) => void run({ tips: on })} />
+        </div>
+        <div className="row" style={{ alignItems: "flex-start" }}>
+          <span className="spacer">
+            <span className="t" style={{ fontWeight: 500 }}>
+              {t.restart}
+            </span>
+            <br />
+            <span className="small muted">{t.restartText}</span>
+          </span>
+          <Button
+            size="sm"
+            icon={<RotateCcw />}
+            loading={busy}
+            onClick={() => void run({ seen: [] }, () => toast("success", t.restarted, t.restartedText))}
+          >
+            {t.restart}
+          </Button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 /** The panel's language for this account, kept on the server so it follows the person to every browser. */
 function LanguageCard() {
   const { data: account } = useAccount();
@@ -701,6 +761,7 @@ export function AccountPage() {
       <PageHead title={<bdi>{me.display_name}</bdi>}>{all.roles[me.role] ?? me.role_label}</PageHead>
       <ProfileCard />
       <LanguageCard />
+      <ToursCard />
       <div className="grid-2 stagger" style={{ alignItems: "start" }}>
         <section className="card">
           <div className="card-head">

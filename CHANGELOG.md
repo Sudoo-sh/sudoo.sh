@@ -6,6 +6,36 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- A short first-visit tour of the panel's sidebar (Projects, New instance, Backups, Help), in English and Arabic. Each
+  step links to its manual page in this panel's Help. What a person has seen is kept on their account on the server
+  (`tours` in `GET /session` and `PATCH /account`), so it follows them to every browser. The Account page has a tips
+  switch and "Restart all tours"; Help has "Show the tour again" (on a narrow screen it explains why it cannot start).
+  The new `TOURS_ENABLED` setting (live) turns the tours off for everyone. Skip, Back and Esc work.
+- Page tours for Projects and Backups, in English and Arabic: each starts by itself only after the first-visit tour has
+  been seen, outlines the item it points at in plum, and never clicks anything. A "?" button (Take the tour) in the page
+  header plays it again and is hidden when `TOURS_ENABLED` is off; on a page with nothing to show it says so. Progress
+  is kept by tour id on the server, like the first-visit tour.
+- A page tour for the Audit log (filters, export, the rows), in English and Arabic, with the same "?" button. A tour's
+  pointer outline now also shows on buttons that hide their own outline.
+- Page tours for All instances (New instance, the first instance card) and Settings (the tabs, the first group of
+  settings), in English and Arabic. The Audit log tour now links to the audit log section of the User Manual. Only pages
+  the person can use have a tour.
+- Page tours for Plugins (the tabs, a plugin card) and Accounts (the invite button, the first account row), in English
+  and Arabic, with the same "?" button. Only people who can use the page get the tour.
+- Page tours for API tokens (the New token button, the first token), E-mail templates (the list, the text), GitHub
+  access (the App, the deploy keys) and Maintenance (the first planned change), in English and Arabic, with the same "?"
+  button. The Accounts tour no longer says a row can be opened to change it; it points at the row's menu.
+- A page tour for New instance (where the code comes from, the stage, the Create button), in English and Arabic, with
+  the same "?" button. It never presses Create.
+- A page tour for an instance's own page (its name and status, the more-actions menu, the tabs), in English and Arabic,
+  with the same "?" button in the header. It is not shown when the instance is embedded in another page.
+- All instances remembers the status filter and the stage you chose, in this browser, and shows them as you left them. A
+  value the page no longer offers is ignored, and a browser that refuses storage just starts from "All". The choice is
+  kept per browser, not per account, so people who share a browser share it; it is only one of a fixed set of words (for
+  example `paused`, `staging`), never a name or other personal data, and signing out does not clear it.
+
 ### Documentation
 
 - Step by step workflow guides in English and Arabic (`docs/manual/`), with screenshots from the demo.

@@ -280,3 +280,60 @@ def test_disabling_the_last_super_admin_that_signs_in_with_a_password_is_refused
     finally:
         for name, value in original.items():
             accounts.update(name, **{methods.FIELD: value})
+
+
+def test_the_service_refuses_the_changes_that_remove_the_last_password_super_admin(admin: Client, people: None) -> None:
+    """The guard is in accounts, not only in the routes: any caller gets it, under the same lock as the change."""
+    from sudoo.auth import methods
+
+    original = {name: (accounts.get(name) or {}).get(methods.FIELD) for name in ("admin1", "dis-b")}
+    try:
+        for name in original:
+            accounts.update(name, **{methods.FIELD: ["email_code"]})  # dis-a is the only password super admin
+        with pytest.raises(ValueError, match="keep signing in with a password"):
+            accounts.update_checked("dis-a", **{methods.FIELD: ["email_code"]})
+        with pytest.raises(ValueError, match="keep signing in with a password"):
+            accounts.update_checked("dis-a", role="admin")
+        with pytest.raises(ValueError, match="keep signing in with a password"):
+            accounts.disable("dis-a", "admin1", "left")
+        with pytest.raises(ValueError, match="keep signing in with a password"):
+            accounts.delete("dis-a")
+        assert methods.has_break_glass(accounts.get("dis-a") or {})
+    finally:
+        for name, value in original.items():
+            accounts.update(name, **{methods.FIELD: value})
+
+
+def test_two_changes_at_once_cannot_each_leave_the_other_super_admin_as_the_last(admin: Client, people: None) -> None:
+    """Both password super admins step to e-mail sign-in at the same moment (a third one has no password): exactly
+    one of the two changes may go through, whatever the order."""
+    import threading
+
+    from sudoo.auth import methods
+
+    original = {name: (accounts.get(name) or {}).get(methods.FIELD) for name in ("admin1", "dis-a", "dis-b")}
+    try:
+        accounts.update("admin1", **{methods.FIELD: ["email_code"]})
+        accounts.update("dis-b", **{methods.FIELD: ["email_code"]})  # dis-a is the only password super admin
+        accounts.update("dis-b", **{methods.FIELD: ["password"]})  # now dis-a and dis-b both are
+        results: list[str] = []
+        barrier = threading.Barrier(2)
+
+        def step_down(name: str) -> None:
+            barrier.wait()
+            try:
+                accounts.update_checked(name, **{methods.FIELD: ["email_code"]})
+                results.append("changed")
+            except ValueError:
+                results.append("refused")
+
+        threads = [threading.Thread(target=step_down, args=(name,)) for name in ("dis-a", "dis-b")]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+        assert sorted(results) == ["changed", "refused"]
+        assert sum(methods.has_break_glass(accounts.get(n) or {}) for n in ("admin1", "dis-a", "dis-b")) == 1
+    finally:
+        for name, value in original.items():
+            accounts.update(name, **{methods.FIELD: value})

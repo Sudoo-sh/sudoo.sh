@@ -453,6 +453,41 @@ def complete_setup(code: str, username: str, password: str, profile: dict[str, A
         _setup_file().unlink(missing_ok=True)
 
 
+def _way_in_problem(
+    users: Mapping[str, Mapping[str, Any]], username: str, values: Mapping[str, Any] | None
+) -> str | None:
+    """Why changing `username` (`values` applied; None: deleted) would leave the panel without a super admin that
+    signs in with a password, or None. Called with _LOCK held, on the accounts read under it."""
+    from sudoo.auth import methods  # late: the auth package imports this module
+
+    after = dict(users)
+    if values is None:
+        after.pop(username, None)
+    else:
+        merged = {**users[username], **values}
+        after[username] = {key: value for key, value in merged.items() if value is not None}
+    return methods.break_glass_problem(users, after)
+
+
+def update_checked(username: str, **values: Any) -> Document:
+    """update(), for a change of the role, the sign-in methods or the disabled state: refused (ValueError) when it
+    would remove the last active super admin or the last one that signs in with a password. The check and the change
+    happen under one lock, so two requests cannot each leave the other as the one that remains."""
+    with _LOCK:
+        users = all_users()
+        if username not in users:
+            raise ValueError("No such account.")
+        if users[username]["role"] == "super_admin" and values.get("role", "super_admin") != "super_admin":
+            others = [n for n, u in users.items() if u["role"] == "super_admin" and n != username]
+            active = [n for n in others if not is_disabled(users[n])]
+            if not others or (not is_disabled(users[username]) and not active):
+                raise ValueError("The last super admin must stay a super admin.")
+        problem = _way_in_problem(users, username, values)
+        if problem:
+            raise ValueError(problem)
+        return update(username, **values)
+
+
 def delete(username: str) -> None:
     """Delete an account; the last administrator cannot be deleted."""
     with _LOCK:
@@ -463,6 +498,9 @@ def delete(username: str) -> None:
         active = [name for name in supers if not is_disabled(users[name])]  # a disabled one cannot sign in
         if users[username]["role"] == "super_admin" and (len(supers) == 1 or active == [username]):
             raise ValueError("The last super admin cannot be deleted.")
+        problem = _way_in_problem(users, username, None)
+        if problem:
+            raise ValueError(problem)
         storage().delete(USERS, username)
 
 
@@ -516,6 +554,9 @@ def disable(username: str, by: str, reason: str) -> bool:
         active = [n for n, u in users.items() if u["role"] == "super_admin" and not is_disabled(u)]
         if account["role"] == "super_admin" and active == [username]:
             raise ValueError("The last active super admin cannot be disabled.")
+        problem = _way_in_problem(users, username, {"disabled": True})
+        if problem:
+            raise ValueError(problem)
         update(username, disabled=True, disabled_at=time.time(), disabled_by=by, disabled_reason=reason[:300])
         end_sessions(username)  # a new session version: every cookie of the account stops working
         return True

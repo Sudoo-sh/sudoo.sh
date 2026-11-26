@@ -248,7 +248,10 @@ def change_user(name: str) -> Response:
 
     watched = [p["id"] for p in projects.all_projects()] if "role" in values else []
     with notices.watch(watched, by=accounts.display_name(g.user["name"], accounts.get(g.user["name"]) or {})):
-        accounts.update(name, **{key: (value or None) for key, value in values.items()})
+        try:  # checked again under the accounts lock: two requests cannot both pass the checks above
+            accounts.update_checked(name, **{key: (value or None) for key, value in values.items()})
+        except ValueError as error:
+            abort(400, str(error))
         if own_limit != "unchanged":
             accounts.update(name, running_limit=own_limit)
     if "role" in values:

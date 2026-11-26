@@ -80,6 +80,10 @@ const en = {
     disabledBecause: (reason: string) => `Disabled: ${reason}`,
     disabled: (name: string) => `${ltr(name)} disabled`,
     enabled: (name: string) => `${ltr(name)} enabled`,
+    alreadyDisabled: (name: string) =>
+      `${ltr(name)} was already disabled. Nothing changed, and your reason was not kept.`,
+    alreadyEnabled: (name: string) =>
+      `${ltr(name)} was already enabled. Nothing changed, and your reason was not kept.`,
     notDisabled: "Not disabled",
     notEnabled: "Not enabled",
     noneDisabled: "No disabled accounts",
@@ -355,6 +359,8 @@ const ar: typeof en = {
     disabledBecause: (reason) => `معطّل: ${reason}`,
     disabled: (name) => `عُطّل ${ltr(name)}`,
     enabled: (name) => `فُعّل ${ltr(name)}`,
+    alreadyDisabled: (name) => `كان ${ltr(name)} معطّلًا بالفعل. لم يتغيّر شيء ولم يُحفظ السبب الذي كتبته.`,
+    alreadyEnabled: (name) => `كان ${ltr(name)} مفعّلًا بالفعل. لم يتغيّر شيء ولم يُحفظ السبب الذي كتبته.`,
     notDisabled: "لم يُعطَّل",
     notEnabled: "لم يُفعَّل",
     noneDisabled: "لا توجد حسابات معطّلة",

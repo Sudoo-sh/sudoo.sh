@@ -520,9 +520,10 @@ def disable(username: str, by: str, reason: str) -> bool:
         return True
 
 
-def enable(username: str, reason: str) -> bool:
-    """Enable a disabled account again (it signs in as before; its old sessions stay ended). False when it was not
-    disabled. A reason is required (the route writes it in the audit log, next to the reason it was disabled)."""
+def enable(username: str, reason: str) -> str | None:
+    """Enable a disabled account again (it signs in as before; its old sessions stay ended). Returns the reason it was
+    disabled for ("" when none was recorded), read under the same lock as the change, or None when it was not disabled.
+    A reason is required (the route writes it in the audit log, next to the reason it was disabled)."""
     if not reason.strip():
         raise ValueError("Say why this account is enabled again: the reason is written in the audit log.")
     with _LOCK:
@@ -530,9 +531,10 @@ def enable(username: str, reason: str) -> bool:
         if account is None:
             raise ValueError("No such account.")
         if not is_disabled(account):
-            return False
+            return None
+        was = str(account.get("disabled_reason") or "")
         update(username, disabled=None, disabled_at=None, disabled_by=None, disabled_reason=None)
-        return True
+        return was
 
 
 def record_sign_in(username: str) -> None:

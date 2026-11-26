@@ -41,6 +41,21 @@ describe("disabled accounts need a reason", () => {
     expect(back.data?.disabled_reason).toBeNull();
   });
 
+  test("a second disable or enable changes nothing and says so", async () => {
+    const users = await call("GET", "/users");
+    const target = (users.data as unknown as { name: string; role: string; disabled?: boolean }[]).find(
+      (u) => !u.disabled && u.name !== "sara" && u.role !== "super_admin",
+    );
+    const path = `/users/${target!.name}`;
+    expect((await call("POST", `${path}/disable`, { reason: "First" })).meta?.changed).toBe(true);
+    const second = await call("POST", `${path}/disable`, { reason: "Second" });
+    expect(second.status).toBe(200);
+    expect(second.meta?.changed).toBe(false);
+    expect(second.data?.disabled_reason).toBe("First");
+    expect((await call("POST", `${path}/enable`, { reason: "Back" })).meta?.changed).toBe(true);
+    expect((await call("POST", `${path}/enable`, { reason: "Again" })).meta?.changed).toBe(false);
+  });
+
   test("the request list reports how many wait for the e-mail confirmation", async () => {
     const list = await call("GET", "/access-requests");
     expect(typeof list.meta?.awaiting_confirmation).toBe("number");

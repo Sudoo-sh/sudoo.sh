@@ -2641,23 +2641,25 @@ route("POST", "/users/:name/disable", ({ params, body }) => {
   if (user.name === ME) throw new Problem(400, "You cannot disable your own account.");
   if (user.role === "super_admin" && superAdmins().filter((u) => !u.disabled).length === 1)
     throw new Problem(400, "The last active super admin cannot be disabled.");
+  if (user.disabled) return ok(user, { changed: false });
   user.disabled = true;
   user.disabled_at = iso(Date.now());
   user.disabled_by = ME;
   user.disabled_reason = reason;
   record(ME, "account disabled", { detail: `${user.name}: ${reason}` });
-  return ok(user);
+  return ok(user, { changed: true });
 });
 route("POST", "/users/:name/enable", ({ params, body }) => {
   need("accounts.manage");
   const reason = reasonOf(body);
   const user = userOf(params.name!);
+  if (!user.disabled) return ok(user, { changed: false });
   user.disabled = false;
   user.disabled_at = null;
   user.disabled_by = null;
   user.disabled_reason = null;
   record(ME, "account enabled", { detail: `${user.name}: ${reason}` });
-  return ok(user);
+  return ok(user, { changed: true });
 });
 
 const requests: AccountRequest[] = [

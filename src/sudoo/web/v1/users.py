@@ -315,7 +315,7 @@ def disable_user(name: str) -> Response:
         abort(400, str(error))
     if changed:
         log("account disabled", detail=f"{name}: {reason}")
-    return ok(user_resource(name, accounts.get(name) or {}))
+    return ok(user_resource(name, accounts.get(name) or {}), meta={"changed": changed})
 
 
 @blueprint.post("/users/<name>/enable")
@@ -325,14 +325,13 @@ def enable_user(name: str) -> Response:
     account = _account(name)
     _guard(roles.normalize(account["role"]))
     reason = check.text(check.body(), "reason", max_length=300).strip()
-    before = str(account.get("disabled_reason") or "")
     try:
-        changed = accounts.enable(name, reason)
+        was = accounts.enable(name, reason)  # the reason it was disabled for, read under the lock; None: it was not
     except ValueError as error:
         abort(400, str(error))
-    if changed:
-        log("account enabled", detail=f"{name}: {reason} (it was disabled because: {before or 'no reason recorded'})")
-    return ok(user_resource(name, accounts.get(name) or {}))
+    if was is not None:
+        log("account enabled", detail=f"{name}: {reason} (it was disabled because: {was or 'no reason recorded'})")
+    return ok(user_resource(name, accounts.get(name) or {}), meta={"changed": was is not None})
 
 
 @blueprint.delete("/users/<name>")

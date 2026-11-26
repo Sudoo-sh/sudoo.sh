@@ -215,3 +215,30 @@ def test_a_reason_longer_than_the_limit_is_refused(admin: Client, people: None) 
     client, headers = admin
     long = client.post("/api/v1/users/dis-dev/disable", json={"reason": "x" * 301}, headers=headers)
     assert long.status_code == 400 and not accounts.is_disabled(accounts.get("dis-dev"))
+
+
+def test_a_second_disable_or_enable_changes_nothing_and_says_so(admin: Client, people: None) -> None:
+    from sudoo.core import audit
+
+    client, headers = admin
+    first = client.post("/api/v1/users/dis-dev/disable", json={"reason": "first reason"}, headers=headers)
+    assert first.get_json()["meta"] == {"changed": True}
+    second = client.post("/api/v1/users/dis-dev/disable", json={"reason": "second reason"}, headers=headers)
+    assert second.status_code == 200 and second.get_json()["meta"] == {"changed": False}
+    assert second.get_json()["data"]["disabled_reason"] == "first reason"  # the first reason stays
+    back = client.post("/api/v1/users/dis-dev/enable", json={"reason": "back"}, headers=headers)
+    assert back.get_json()["meta"] == {"changed": True}
+    again = client.post("/api/v1/users/dis-dev/enable", json={"reason": "again"}, headers=headers)
+    assert again.status_code == 200 and again.get_json()["meta"] == {"changed": False}
+    details = " | ".join(str(e.get("detail")) for e in audit.latest(limit=30))
+    assert "second reason" not in details and "again" not in details.replace("back again", "")
+    assert "dis-dev: back (it was disabled because: first reason)" in details
+
+
+def test_enable_returns_the_reason_it_was_disabled_for_read_under_the_lock(admin: Client, people: None) -> None:
+    accounts.disable("dis-dev", "admin1", "left")
+    assert accounts.enable("dis-dev", "back") == "left"
+    assert accounts.enable("dis-dev", "again") is None
+    accounts.disable("dis-dev", "admin1", "x")
+    accounts.update("dis-dev", disabled_reason=None)
+    assert accounts.enable("dis-dev", "back") == ""

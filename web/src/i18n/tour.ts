@@ -33,6 +33,22 @@ const en = {
       title: "Backups of an instance",
       body: "Backups are grouped by instance, newest first, with the kind, the time taken and the size.",
     },
+    "instances-new": {
+      title: "New instance",
+      body: "Start a new Odoo instance here. You choose its version and options on the next page.",
+    },
+    "instances-card": {
+      title: "Your instances",
+      body: "Each card is one instance, with its state, version and address. Open it for its own page.",
+    },
+    "settings-tabs": {
+      title: "Settings tabs",
+      body: "Settings are grouped in tabs. Pick a tab to see its groups of settings.",
+    },
+    "settings-section": {
+      title: "A group of settings",
+      body: "Each group has a title and a short note on what it controls, then its settings one by one.",
+    },
     "audit-filters": {
       title: "Find an entry",
       body: "Search the log, or narrow it by who, what, which instance and when.",
@@ -105,6 +121,22 @@ const ar: typeof en = {
     "backups-list": {
       title: "النسخ الاحتياطية لبيئة",
       body: "تُجمَّع النسخ حسب البيئة، الأحدث أولًا، مع النوع ووقت الأخذ والحجم.",
+    },
+    "instances-new": {
+      title: "بيئة جديدة",
+      body: "ابدأ بيئة Odoo جديدة من هنا. تختار إصدارها وخياراتها في الصفحة التالية.",
+    },
+    "instances-card": {
+      title: "بيئاتك",
+      body: "كل بطاقة بيئة واحدة، مع حالتها وإصدارها وعنوانها. افتحها لترى صفحتها.",
+    },
+    "settings-tabs": {
+      title: "تبويبات الإعدادات",
+      body: "الإعدادات مجمَّعة في تبويبات. اختر تبويبًا لترى مجموعات إعداداته.",
+    },
+    "settings-section": {
+      title: "مجموعة إعدادات",
+      body: "لكل مجموعة عنوان وملاحظة قصيرة عمّا تتحكم به، ثم إعداداتها واحدًا واحدًا.",
     },
     "audit-filters": {
       title: "ابحث عن سجل",

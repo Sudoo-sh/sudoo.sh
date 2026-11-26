@@ -52,13 +52,29 @@ export const BACKUPS_TOUR: TourDef = {
 export const AUDIT_TOUR: TourDef = {
   id: "audit-page",
   steps: [
-    { id: "audit-filters", target: "audit-filters", doc: "manual/14-security-checklist.md" },
-    { id: "audit-export", target: "audit-export", doc: "manual/14-security-checklist.md" },
-    { id: "audit-rows", target: "audit-rows", doc: "manual/14-security-checklist.md" },
+    { id: "audit-filters", target: "audit-filters", doc: "USER_MANUAL.md#11-backups-and-audit-log" },
+    { id: "audit-export", target: "audit-export", doc: "USER_MANUAL.md#11-backups-and-audit-log" },
+    { id: "audit-rows", target: "audit-rows", doc: "USER_MANUAL.md#11-backups-and-audit-log" },
   ],
 };
 
-export const PAGE_TOURS: readonly TourDef[] = [PROJECTS_TOUR, BACKUPS_TOUR, AUDIT_TOUR];
+export const INSTANCES_TOUR: TourDef = {
+  id: "instances-page",
+  steps: [
+    { id: "instances-new", target: "instances-new", doc: "USER_MANUAL.md#5-creating-an-instance" },
+    { id: "instances-card", target: "instances-card", doc: "USER_MANUAL.md#3-the-instances-page" },
+  ],
+};
+
+export const SETTINGS_TOUR: TourDef = {
+  id: "settings-page",
+  steps: [
+    { id: "settings-tabs", target: "settings-tabs", doc: "USER_MANUAL.md#12-settings" },
+    { id: "settings-section", target: "settings-section", doc: "USER_MANUAL.md#12-settings" },
+  ],
+};
+
+export const PAGE_TOURS: readonly TourDef[] = [PROJECTS_TOUR, BACKUPS_TOUR, AUDIT_TOUR, INSTANCES_TOUR, SETTINGS_TOUR];
 
 /** Whether a tour may start by itself on its own: a page tour waits until the welcome tour has been seen. */
 export const mayAutoStartTour = (state: TourState, id: string) =>

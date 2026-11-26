@@ -455,6 +455,8 @@ def refusal(
     names = counted_names() if counted is None else counted
     verdict = slots.decide(names, admit, instance)
     if verdict is not None:
+        if verdict.kind == "stale":  # a failed publication is a transient fault: 503 through every caller, not a limit
+            raise slots.Unavailable(describe_refusal(verdict, admit))
         return describe_refusal(verdict, admit)
     slots.arm(admit, instance)  # the start that follows is judged again inside its own write (slots.record_hold)
     return None

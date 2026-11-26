@@ -9,7 +9,7 @@ from collections.abc import Iterator
 import pytest
 
 import docrun
-from sudoo.core import slots
+from sudoo.core import jobs, slots
 from sudoo.instances import capacity, metrics, store
 from sudoo.limits import queue
 from sudoo.storage import storage
@@ -59,7 +59,7 @@ def test_the_limit_is_judged_inside_the_write_against_the_document() -> None:
     docrun.run("a")
     a = admit(max_running=2)
     with slots.ADMISSION:
-        slots.arm(a, None)
+        slots.arm(a, "c")
         docrun.run("b")  # published by someone else after the check, before the hold
         with pytest.raises(slots.Refused):
             slots.record_hold("j1", "c", "u")
@@ -74,7 +74,7 @@ def test_a_start_with_room_records_its_hold_and_two_racing_starts_leave_one() ->
     def go(job: str, name: str) -> None:
         barrier.wait()
         with slots.ADMISSION:  # each passed a pre-check with the room it saw; the write judges the current record
-            slots.arm(admit(max_running=2), None)
+            slots.arm(admit(max_running=2), name)
             try:
                 slots.record_hold(job, name, "u")
                 results.append("held")
@@ -106,8 +106,14 @@ def test_a_failed_publication_refuses_new_non_production_starts_until_one_works(
     assert slots.PUBLISH.failed
     assert not capacity.preload("development", "u", True).fresh
     assert capacity.preload("production", "u", True).exempt  # production is not asked
-    text = capacity.refusal(stage="development", user=None, counted=set())
-    assert text and "no fresh view" in text
+    with pytest.raises(slots.Unavailable, match="no fresh view"):  # transient (503), not a limit (403)
+        capacity.refusal(stage="development", user=None, counted=set())
+    assert capacity.refusal(stage="production", user=None, counted=set()) is None  # production is unchanged
+    with slots.ADMISSION:  # and inside the write too, when the flag turned on after the check
+        slots.arm(admit(fresh=False, max_running=0), None)
+        with pytest.raises(slots.Unavailable) as caught:
+            slots.record_hold("jstale", "newname", "u")
+        assert not isinstance(caught.value, slots.Refused)
     slots.publish_observed(slots.next_seq() or 1, {"a": True}, {"a"})
     assert not slots.PUBLISH.failed and capacity.preload("development", "u", True).fresh
 
@@ -223,3 +229,104 @@ def test_a_check_armed_for_one_instance_is_not_used_for_another() -> None:
         slots.arm(admit(max_running=1), "b")
         slots.record_hold("j8", "c", "u")  # armed for b: this start of c is not judged by it
     assert "j8" in slots.snapshot().held
+
+
+def test_a_check_for_a_creation_is_not_used_by_a_start_of_an_instance_that_exists() -> None:
+    docrun.run("a")
+    with slots.ADMISSION:
+        slots.arm(admit(max_running=1), None)  # armed for a creation (no instance)
+        slots.record_hold("jx", "a", "u")  # "a" exists: not judged by it, and the arm is dropped
+        slots.record_hold("jy", "new", "u")  # the arm was consumed: this creation is not judged either
+    assert {"jx", "jy"} <= set(slots.snapshot().held)
+    with slots.ADMISSION:
+        slots.arm(admit(max_running=1), None)
+        with pytest.raises(slots.Refused):
+            slots.record_hold("jz", "brandnew", "u")  # a creation: judged against the doc
+
+
+def test_admit_start_arms_for_the_instance_that_starts(monkeypatch: pytest.MonkeyPatch) -> None:
+    from sudoo.web.v1 import instances as api
+
+    make("arm-a")
+    seen: list[str | None] = []
+    real = capacity.refusal
+
+    def spy(*args, **kwargs):  # type: ignore[no-untyped-def]
+        seen.append(kwargs.get("instance"))
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(capacity, "refusal", spy)
+    with slots.ADMISSION:
+        api.admit_start("arm-a", "t")
+        assert slots._ARMED.value is not None and slots._ARMED.value[1] == "arm-a"
+        slots._ARMED.value = None
+    assert seen == ["arm-a"]
+    import shutil
+
+    shutil.rmtree(store.folder("arm-a"), ignore_errors=True)
+
+
+def test_a_refused_creation_start_records_no_branch_stage(monkeypatch: pytest.MonkeyPatch) -> None:
+    from sudoo.instances import planning
+
+    recorded: list[str] = []
+    monkeypatch.setattr(planning, "record_stage", lambda plan, user: recorded.append(plan["name"]))
+    plan = {"name": "newone", "project": "p", "branch": "b", "stage": "development", "auto_update": False,
+            "auto_upgrade": False, "auto_pause": False, "delete_after_days": 0}  # fmt: skip
+    plan.update(dict.fromkeys(planning.SHOWN))
+    docrun.run("a")
+    with slots.ADMISSION:
+        slots.arm(admit(max_running=1), None)
+        with pytest.raises(slots.Refused):
+            planning.start(plan, "u")
+    assert recorded == [] and "newone" not in str(slots.snapshot().held)
+
+
+def test_a_job_whose_hold_cannot_be_dropped_publishes_its_end(monkeypatch: pytest.MonkeyPatch) -> None:
+    job = jobs.Job("abn", "t", "restart", "u")
+    seen: list[str] = []
+    monkeypatch.setattr(slots, "drop", lambda ids: False)
+    monkeypatch.setattr(jobs.Job, "changed", lambda self: seen.append(self.status))
+    jobs._abandon(job)
+    assert job.status == "failed" and seen == ["failed"]
+
+
+def test_a_queued_creation_is_judged_in_the_hold_of_the_real_planning_start_and_keeps_its_place(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sudoo.config import live
+    from sudoo.instances import operations, planning
+
+    plan = dict.fromkeys(planning.SHOWN)
+    plan.update({"name": "qnew", "project": None, "branch": None, "stage": "development", "auto_update": False,
+                 "auto_upgrade": False, "auto_pause": False, "delete_after_days": 0})  # fmt: skip
+    storage().put(queue.COLLECTION, "c1", {"id": "c1", "seq": 1, "kind": "create", "instance": "qnew", "user": "u",
+                                           "stage": "development", "plan": plan})  # fmt: skip
+    ran: list[str] = []
+    monkeypatch.setattr(operations, "create", lambda job, plan: ran.append(plan["name"]))
+    monkeypatch.setattr(queue, "_refused", lambda it: None)
+    monkeypatch.setattr(queue, "_ports", lambda: {})
+    live.change({"max_running_instances": 1})
+    state = {"fill": True}
+
+    def blocked(item, charged):  # type: ignore[no-untyped-def]
+        assert capacity.refusal(stage="development", user=None) is None  # the real check passes and arms
+        if state["fill"]:
+            docrun.passes_then_full()("x")  # another process fills the record before this start's write
+            slots._ARMED.value = (slots._ARMED.value[0], None)  # keep the armed check, for a creation
+        return None
+
+    monkeypatch.setattr(queue, "_blocked", blocked)
+    try:
+        assert queue.dispatch() == []
+        assert [i["id"] for i in queue.items()] == ["c1"] and ran == []
+        assert not any(h["instance"] == "qnew" for h in slots.snapshot().held.values())
+        state["fill"] = False
+        docrun.reset()
+        assert queue.dispatch() == ["qnew"]
+        assert any(h["instance"] == "qnew" for h in slots.snapshot().held.values())
+    finally:
+        live.change({"max_running_instances": None})
+        jobs._HELD.clear()
+        for key in list(storage().all(queue.COLLECTION)):
+            storage().delete(queue.COLLECTION, key)

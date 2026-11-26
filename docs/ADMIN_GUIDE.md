@@ -133,7 +133,7 @@ alone (the holds in it and the readings published into it, not this process's ow
 room cannot both pass. The count is limited to those published readings and holds: an instance started by
 something other than the panel is seen only after a monitor read of it is published, and a monitor that is dead or
 stuck in another process leaves its last reading in place. While this process cannot publish a reading, new
-non-production starts are refused (production is not) until a publication works. A queued start that is refused
+non-production starts are refused with 503, as a temporary fault and not as a limit (production is not), until a publication works. A queued start that is refused
 this way keeps its place in the line. Production instances count in that total but are never refused. To limit one person, set
 `MAX_RUNNING_NON_PRODUCTION_PER_USER` (the non-production instances they created that run or start at once; 0: no
 limit), or give one person another number on their page in **Accounts** (0 there: no limit for them). Both limits are

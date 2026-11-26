@@ -147,11 +147,16 @@ def arm(admit: Admit, instance: str | None) -> None:
 
 
 def _consume(instance: str) -> Admit | None:
+    """The check this thread armed, when it was made for exactly this start: armed for this instance, or armed for a
+    creation (no instance) and this name does not exist yet. Anything else is not used, and is dropped."""
     found = getattr(_ARMED, "value", None)
     _ARMED.value = None
-    if found is None or found[1] not in (None, instance):
+    if found is None:
         return None
-    return found[0]
+    admit, target = found
+    if target == instance or (target is None and instance not in admit.existing):
+        return admit
+    return None
 
 
 def _blank() -> dict[str, Any]:
@@ -306,6 +311,8 @@ def record_hold(job_id: str, instance: str, user: str) -> None:
 
     _change(add)
     if refusal and admit is not None:
+        if refusal[0].kind == "stale":  # a failed publication is a transient fault (503), not a limit
+            raise Unavailable(describe(refusal[0], admit) if describe else "No fresh view of what runs.")
         raise Refused(refusal[0], admit)
 
 

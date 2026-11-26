@@ -81,10 +81,10 @@ def start(plan: dict[str, Any], user: str, fn: Callable[..., object] | None = No
     details = {key: plan[key] for key in (*SHOWN, "auto_update", "auto_upgrade", "auto_pause", "delete_after_days")}
     if plan["project"] and plan["branch"]:
         details["build"] = "create"  # the first build of the branch's instance (projects/builds.py)
-    record_stage(plan, user)
-    return jobs.start(
-        plan["name"], "Create instance", "create", fn or operations.create, plan, *args, user=user, details=details
-    )
+    return jobs.start(  # the branch's stage is recorded once the slot is held: a refused start leaves nothing behind
+        plan["name"], "Create instance", "create", fn or operations.create, plan, *args, user=user, details=details,
+        prepare=lambda: record_stage(plan, user),
+    )  # fmt: skip
 
 
 def record_stage(plan: Mapping[str, Any], user: str) -> None:

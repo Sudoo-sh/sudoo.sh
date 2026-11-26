@@ -60,6 +60,7 @@ A production instance (instances/stages.py) asks for more: pausing, switching of
 
 from __future__ import annotations
 
+import contextlib
 import time
 from collections.abc import Callable, Mapping
 from typing import Any, NoReturn, cast
@@ -954,12 +955,14 @@ def _running(name: str) -> bool:
     return name in capacity.counted_names(strict=False)  # shown, not checked
 
 
-def _refuse_over_capacity(what: str, stage: str | None = None, user: str | None = None, *, queued: bool = True) -> bool:
+def _refuse_over_capacity(
+    what: str, stage: str | None = None, user: str | None = None, *, queued: bool = True, instance: str | None = None
+) -> bool:
     """403 when MAX_RUNNING_INSTANCES instances run already, or when `user` has the most non-production instances
     running they may (both off by default: the panel only warns). Never for a production instance (`stage`).
     With CAPACITY_QUEUE on, True instead of 403: the request waits (limits/queue.py); `queued` False: it cannot wait
     (the caller needs the answer now, such as an upgrade test), so it is refused as without the queue."""
-    refused = capacity.refusal(stage=stage, user=user)
+    refused = capacity.refusal(stage=stage, user=user, instance=instance)  # instance: the one that exists and starts
     if not refused:
         return False
     if queued and queue.enabled():
@@ -975,7 +978,7 @@ def admit_start(name: str, what: str) -> None:
     if _running(name):
         return
     env = store.read_env(name)
-    _refuse_over_capacity(what, stages.of(env), env.get("CREATED_BY") or None, queued=False)
+    _refuse_over_capacity(what, stages.of(env), env.get("CREATED_BY") or None, queued=False, instance=name)
 
 
 def _queued(item: Mapping[str, Any]) -> Response:
@@ -1096,7 +1099,8 @@ def change_resources(name: str) -> Response:
                 try:
                     resources.put_back(name, before)
                 except Exception as error:  # noqa: BLE001
-                    log("instance resources not restored", instance=name, ok=False, detail=str(error)[:300])
+                    with contextlib.suppress(Exception):  # the failure below is what the caller must see
+                        log("instance resources not restored", instance=name, ok=False, detail=str(error)[:300])
                     raise RuntimeError(
                         f"The new limits of {name} were saved but the change did not start, and the old limits "
                         "could not be put back. Check the instance's resources."

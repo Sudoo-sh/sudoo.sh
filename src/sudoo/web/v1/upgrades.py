@@ -145,8 +145,10 @@ def test(name: str) -> Response:
         refuse_unless("instances.restore", f"run the upgrade test of {name} again on {existing}", instance=existing)
         if jobs.busy(existing):
             abort(409, f"{existing} is busy; try again when its job has finished.")
-        job = jobs.start(existing, f"Run the Odoo {target} upgrade test again", "upgrade-test", upgrade_run.rerun,
-                         existing, name, code, user=g.user["name"])  # fmt: skip
+        with quotas.LOCK:  # the test instance is started again: its own owner and stage count
+            instances_api.admit_start(existing, f"upgrade test of {name} refused (running instances)")
+            job = jobs.start(existing, f"Run the Odoo {target} upgrade test again", "upgrade-test", upgrade_run.rerun,
+                             existing, name, code, user=g.user["name"], holds_slot=True)  # fmt: skip
         log("database upgrade test run again", instance=name, detail=f"to Odoo {target} on {existing}")
         return instances_api._accepted(job)
     with quotas.LOCK:
@@ -220,8 +222,10 @@ def promote(name: str) -> Response:
     code = _code(name, data)
     if jobs.busy(name):
         abort(409, f"{name} is busy; try again when its job has finished.")
-    job = jobs.start(name, f"Upgrade to Odoo {target}", "db-upgrade", upgrade_run.promote, name, code,
-                     user=g.user["name"])  # fmt: skip
+    with quotas.LOCK:
+        instances_api.admit_start(name, f"upgrade of {name} refused (running instances)")
+        job = jobs.start(name, f"Upgrade to Odoo {target}", "db-upgrade", upgrade_run.promote, name, code,
+                         user=g.user["name"], holds_slot=True)  # fmt: skip
     log("database upgrade of production started", instance=name, detail=f"to Odoo {target}")
     return instances_api._accepted(job)
 
@@ -253,8 +257,10 @@ def cancel(name: str) -> Response:
     _confirm_production(name, data, "cancel its upgrade (its data goes back to before the upgrade)")
     if jobs.busy(name):
         abort(409, f"{name} is busy; try again when its job has finished.")
-    job = jobs.start(name, "Cancel the Odoo upgrade", "db-upgrade", upgrade_run.cancel, name, "",
-                     user=g.user["name"])  # fmt: skip
+    with quotas.LOCK:
+        instances_api.admit_start(name, f"cancel of the upgrade of {name} refused (running instances)")
+        job = jobs.start(name, "Cancel the Odoo upgrade", "db-upgrade", upgrade_run.cancel, name, "",
+                         user=g.user["name"], holds_slot=True)  # fmt: skip
     log("database upgrade cancelled", instance=name)
     return instances_api._accepted(job)
 

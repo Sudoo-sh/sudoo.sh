@@ -299,6 +299,20 @@ def start_refusal(name: str) -> str | None:
     return refusal(stage=stages.of(env), user=env.get("CREATED_BY") or None)
 
 
+def _unsettled_note() -> str:
+    """Said with a running-limit refusal when an instance still counts only because the monitor has not measured it
+    since a job ended (the monitor is behind or stopped, or its engine did not answer): where to look."""
+    waiting = jobs.unsettled()
+    if not waiting:
+        return ""
+    return (
+        f" {_plural(len(waiting), 'instance still counts', 'instances still count')} as running because it has not "
+        "been measured since its job ended"
+        + (f" ({', '.join(waiting[:3])}{', ...' if len(waiting) > 3 else ''})" if waiting else "")
+        + ": the monitor is behind or cannot reach it."
+    )
+
+
 def refusal(
     reservation: tuple[int, int] | None = None,
     stage: str | None = None,
@@ -337,7 +351,7 @@ def refusal(
         if running >= limit:
             return (
                 f"This server runs at most {_plural(limit, 'instance', 'instances')} at once and "
-                f"{running} {'is' if running == 1 else 'are'} running or starting. Pause one first."
+                f"{running} {'is' if running == 1 else 'are'} running or starting. Pause one first." + _unsettled_note()
             )
     if user:
         own_limit = user_limit(user)
@@ -352,6 +366,6 @@ def refusal(
                     )
                 return (
                     f"You have {own} of your {counted} "
-                    "(not counting production) running or starting. Pause one of yours first."
+                    "(not counting production) running or starting. Pause one of yours first." + _unsettled_note()
                 )
     return None

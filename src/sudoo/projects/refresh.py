@@ -167,7 +167,16 @@ def run(project: Mapping[str, Any], user: str = "system") -> dict[str, Any]:
             with quotas.LOCK:  # a stopped staging instance ends up running: one more against the limits
                 refused = None if metrics.INSTANCES.get(name, {}).get("running") else capacity.start_refusal(name)
                 if not refused:
-                    jobs.start(name, ACTION, "restore", staging.rebuild, name, user=user, details={"build": "rebuild"})
+                    jobs.start(
+                        name,
+                        ACTION,
+                        "restore",
+                        staging.rebuild,
+                        name,
+                        user=user,
+                        details={"build": "rebuild"},
+                        holds_slot=True,
+                    )
             if refused:
                 mine_skipped.append({"instance": name, "reason": refused})
                 continue

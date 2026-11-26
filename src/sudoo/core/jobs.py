@@ -36,6 +36,7 @@ from sudoo.core.hints import friendly_hint
 from sudoo.core.shell import redact
 
 JOBS: OrderedDict[str, Job] = OrderedDict()
+_HELD: dict[str, Job] = {}  # jobs whose instance still counts as running (see starting())
 _JOBS_LOCK = threading.Lock()
 INSTANCE_LOCKS: defaultdict[str, threading.Lock] = defaultdict(threading.Lock)
 ACTIVE_JOB: dict[str, Job] = {}  # instance name -> the job currently running on it
@@ -90,6 +91,10 @@ class Job:
         self._failed_at: tuple[str | None, int, int] | None = None  # (step, log from, log to) of the failure
         self.started = time.time()
         self.finished: float | None = None
+        self.holds_slot = False  # counted as running while it runs and until its instance is observed after it ended
+        self.finished_mono: float | None = (
+            None  # time.monotonic() when it ended (compared with observed_at, metrics.py)
+        )
         self._progress_at = 0.0  # when the progress of a step was last published
         self.expected_steps: int | None = None  # set by operations that know how many steps they take
         self.details: dict[str, Any] = {}  # what the caller knows in advance (a creation's plan, without secrets)
@@ -338,15 +343,23 @@ def start(
     *args: Any,
     user: str = "system",
     details: dict[str, Any] | None = None,
+    holds_slot: bool | None = None,
 ) -> Job:
     """Run fn(job, *args) in the background for `instance` and return the Job.
+
+    `holds_slot`: the job stops or starts the instance, so the instance counts as running (capacity.py) while the job
+    runs and until the monitor has observed the instance after the job ended, whatever state it was in when the job
+    was asked for. The caller has passed the running-limit check under quotas.LOCK. Default: creations and wakes.
 
     `details` are facts known before the job runs, shown while it does: a creation's plan is what the instance
     looks like until its files exist (web/v1/resources.py)."""
     job = Job(instance, action, kind, user)
     job.details = dict(details or {})
+    job.holds_slot = (kind in ("create", "wake")) if holds_slot is None else holds_slot
     with _JOBS_LOCK:
         JOBS[job.id] = job
+        if job.holds_slot and not is_panel_job(instance):
+            _HELD[job.id] = job  # outside JOBS: the list's size limit never forgets a slot still held
         while len(JOBS) > _KEEP:
             JOBS.popitem(last=False)
     job.changed()
@@ -391,6 +404,7 @@ def _run(job: Job, fn: Callable[..., object], args: tuple[Any, ...]) -> None:
                                "repository": None}  # fmt: skip
         finally:
             job.finished = time.time()
+            job.finished_mono = time.monotonic()
             ACTIVE_JOB.pop(job.instance, None)
             _GENERATIONS[job.instance] += 1  # before the events below: clients that reload see the new state
             job.changed()
@@ -453,14 +467,46 @@ def pending_creations() -> list[tuple[str, str]]:
         ]
 
 
+def _holding(job: Job) -> bool:
+    """Whether the instance of this job still counts as running because of it: the job has not ended, or it ended and
+    the monitor has not observed the instance since (an observation that started before the job ended may show the
+    state from before it, so it releases nothing). An instance that does not exist any more is not held. An
+    instance the monitor cannot see now (a cluster that did not answer) stays held: unknown is not stopped."""
+    from sudoo.instances import metrics, store
+
+    if job.finished_mono is None:
+        return True
+    if job.instance not in store.names():
+        return False
+    observed = (metrics.INSTANCES.get(job.instance) or {}).get("observed_at")
+    return observed is None or observed <= job.finished_mono
+
+
 def starting() -> set[str]:
-    """Instances a queued or running job is creating or starting (they will run once it ends)."""
+    """Instances a job holds as running or starting: a job that holds a slot (creations, wakes and every job that
+    stops or starts an instance) while it runs and until the instance is observed after it ended, success or failure."""
     with _JOBS_LOCK:
-        return {
-            j.instance
-            for j in JOBS.values()
-            if j.kind in ("create", "wake") and j.status in ("queued", "running") and not is_panel_job(j.instance)
-        }
+        held = list(_HELD.values())
+    names: set[str] = set()
+    released: list[str] = []
+    for job in held:
+        if _holding(job):
+            names.add(job.instance)
+        else:
+            released.append(job.id)
+    if released:
+        with _JOBS_LOCK:
+            for job_id in released:
+                _HELD.pop(job_id, None)
+    return names
+
+
+def unsettled() -> list[str]:
+    """Instances of jobs that have ended but wait for a fresh observation of the instance (operators: the monitor is
+    behind, stopped or cannot see the instance)."""
+    with _JOBS_LOCK:
+        held = list(_HELD.values())
+    return sorted({job.instance for job in held if job.finished_mono is not None and _holding(job)})
 
 
 def busy(instance: str) -> bool:

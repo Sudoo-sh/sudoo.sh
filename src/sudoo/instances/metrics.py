@@ -122,6 +122,7 @@ class Usage:
     memory_limit_bytes: int
     started_at: float | None  # Unix time Odoo's container started, when running
     disk_bytes: int | None  # database and files, when known
+    observed_at: float | None = None  # time.monotonic() before the state was read; None: not observed this time
 
 
 def sample(server: dict[str, Any], usage: dict[str, Usage], panel: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -165,6 +166,9 @@ def sample(server: dict[str, Any], usage: dict[str, Usage], panel: dict[str, Any
             "response_ms_p95": _round(percentile(counted.durations_ms, 0.95)),
             "uptime_seconds": int(now - measured.started_at) if measured.running and measured.started_at else None,
             "disk_bytes": measured.disk_bytes,
+            # when the "running" above started to be read (monotonic, this process): the state is from then or later,
+            # never earlier. None: the engine could not be asked, "running" is False for lack of an answer, not known.
+            "observed_at": measured.observed_at,
         }
         INSTANCES[name] = figures
         _INSTANCE_HISTORY[name].append({"t": int(now), **{key: figures[key] for key in INSTANCE_SERIES}})

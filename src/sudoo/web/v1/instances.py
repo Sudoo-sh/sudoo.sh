@@ -969,6 +969,16 @@ def _refuse_over_capacity(what: str, stage: str | None = None, user: str | None 
     abort(403, refused)
 
 
+def admit_start(name: str, what: str) -> None:
+    """403 when `name` is stopped and starting it would pass a running limit (the instance's own owner and stage, read
+    from its .env; no queue: the caller needs the answer now). The caller holds quotas.LOCK from here until the
+    job is registered with holds_slot. A running instance is not asked: it holds its slot already."""
+    if _running(name):
+        return
+    env = store.read_env(name)
+    _refuse_over_capacity(what, stages.of(env), env.get("CREATED_BY") or None, queued=False)
+
+
 def _queued(item: Mapping[str, Any]) -> Response:
     """202 for a request that waits for capacity: the item (position, status), and where to follow it."""
     response = ok(queue.resource(item), status=202)
@@ -1013,7 +1023,8 @@ def run(name: str, action: str) -> Response:
                 )
                 log("Start (waiting for capacity)", instance=name)
                 return _queued(waiting)
-        job = jobs.start(name, title, kind, fn, *args, user=g.user["name"], details=build)
+        job = jobs.start(name, title, kind, fn, *args, user=g.user["name"], details=build,
+                         holds_slot=True if action in STARTING_ACTIONS else None)  # fmt: skip
     log(title, instance=name)
     return _accepted(job)
 
@@ -1066,8 +1077,9 @@ def change_resources(name: str) -> Response:
     previous = resources.overrides(name)
     resources.save_overrides(name, limits, g.user["name"])
     job = jobs.start(
-        name, "Apply resources", "restart", operations.apply_resources, name, previous, user=g.user["name"]
-    )
+        name, "Apply resources", "restart", operations.apply_resources, name, previous, user=g.user["name"],
+        holds_slot=True,
+    )  # fmt: skip
     log(
         "instance resources changed",
         instance=name,

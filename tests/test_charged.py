@@ -25,6 +25,7 @@ from sudoo.repos import github
 from sudoo.storage import storage
 
 SECRET = "hook-" + "k" * 30
+CREATED: list[str] = []  # the accounts a test made, removed again so later tests see the shared app as they found it
 
 
 @pytest.fixture
@@ -49,11 +50,15 @@ def clean() -> Iterator[None]:
     for key in list(storage().all(projects.COLLECTION)):
         projects.remove(key)
     live.change(dict.fromkeys(live.overrides()))
+    for name in CREATED:
+        storage().delete(accounts.USERS, name)  # not accounts.delete(): that refuses to remove the last super admin
+    CREATED.clear()
 
 
 def _account(role: str = "developer", github_id: int | None = None) -> str:
     name = f"c{time.time_ns() % 10**10}"
     accounts.create(name, role, "orchid-pebble-summit-73", must_change=False)
+    CREATED.append(name)
     if github_id is not None:
         github_auth.link(name, github_auth.GitHubUser(id=github_id, login=f"gh{github_id}"))
     return name
@@ -275,7 +280,7 @@ def test_an_unlinked_or_forged_sender_id_falls_back_to_the_creator(door: Any, st
 
 
 def test_a_disabled_or_deleted_creator_is_never_charged() -> None:
-    creator = _account("super_admin")
+    creator = _account("developer")  # a super admin could not be deleted below when no other one exists
     project = _project(creator)
     accounts.update(creator, disabled=True)
     assert charged.of(project, None) == ("system", "none")  # disabled: nobody

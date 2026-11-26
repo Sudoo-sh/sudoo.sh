@@ -1086,8 +1086,8 @@ def change_resources(name: str) -> Response:
         saved: list[bool] = []
 
         def save() -> None:  # after the slot is held, before the job exists: a refusal saves nothing
+            saved.append(True)  # before the write: a write that failed after it took effect is put back too
             resources.save_overrides(name, limits, g.user["name"])
-            saved.append(True)
 
         try:
             job = jobs.start(

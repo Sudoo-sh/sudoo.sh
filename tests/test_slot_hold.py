@@ -410,3 +410,25 @@ def test_a_failed_put_back_is_not_swallowed(admin: Client, monkeypatch: pytest.M
     answer = client.put("/api/v1/instances/hold-w4/resources", json={"limits": {"odoo_workers": 2}}, headers=headers)
     assert answer.status_code == 500
     assert resources.overrides("hold-w4") == {"odoo_workers": 2}  # the change stayed, and the failure was logged
+
+
+def test_a_save_that_raises_after_writing_is_put_back_and_the_hold_dropped(
+    admin: Client, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sudoo.instances import resources
+
+    client, headers = admin
+    make("hold-w5")
+    resources.save_overrides("hold-w5", {"odoo_workers": 1}, "admin1")
+    before = resources.stored("hold-w5")
+    real = resources.save_overrides
+
+    def writes_then_raises(name: str, limits: Any, user: str) -> None:
+        real(name, limits, user)
+        raise OSError("after the write")
+
+    monkeypatch.setattr(resources, "save_overrides", writes_then_raises)
+    answer = client.put("/api/v1/instances/hold-w5/resources", json={"limits": {"odoo_workers": 2}}, headers=headers)
+    assert answer.status_code == 500
+    assert resources.stored("hold-w5") == before and jobs._HELD == {}
+    assert not any(h["instance"] == "hold-w5" for h in slots.snapshot().held.values())

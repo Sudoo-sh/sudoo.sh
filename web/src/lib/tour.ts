@@ -49,7 +49,16 @@ export const BACKUPS_TOUR: TourDef = {
   ],
 };
 
-export const PAGE_TOURS: readonly TourDef[] = [PROJECTS_TOUR, BACKUPS_TOUR];
+export const AUDIT_TOUR: TourDef = {
+  id: "audit-page",
+  steps: [
+    { id: "audit-filters", target: "audit-filters", doc: "manual/14-security-checklist.md" },
+    { id: "audit-export", target: "audit-export", doc: "manual/14-security-checklist.md" },
+    { id: "audit-rows", target: "audit-rows", doc: "manual/14-security-checklist.md" },
+  ],
+};
+
+export const PAGE_TOURS: readonly TourDef[] = [PROJECTS_TOUR, BACKUPS_TOUR, AUDIT_TOUR];
 
 /** Whether a tour may start by itself on its own: a page tour waits until the welcome tour has been seen. */
 export const mayAutoStartTour = (state: TourState, id: string) =>

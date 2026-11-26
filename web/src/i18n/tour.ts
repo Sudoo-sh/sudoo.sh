@@ -33,6 +33,18 @@ const en = {
       title: "Backups of an instance",
       body: "Backups are grouped by instance, newest first, with the kind, the time taken and the size.",
     },
+    "audit-filters": {
+      title: "Find an entry",
+      body: "Search the log, or narrow it by who, what, which instance and when.",
+    },
+    "audit-export": {
+      title: "Export the log",
+      body: "Download what you see as a CSV or an Excel file. Opening this menu changes nothing.",
+    },
+    "audit-rows": {
+      title: "Who did what",
+      body: "Each row is one recorded action, newest first, with the person, the instance and the address.",
+    },
     "backups-actions": {
       title: "Download or delete",
       body: "Download a backup here. The bin deletes it for good, and asks you first. To restore one, open the instance's page.",
@@ -93,6 +105,18 @@ const ar: typeof en = {
     "backups-list": {
       title: "النسخ الاحتياطية لبيئة",
       body: "تُجمَّع النسخ حسب البيئة، الأحدث أولًا، مع النوع ووقت الأخذ والحجم.",
+    },
+    "audit-filters": {
+      title: "ابحث عن سجل",
+      body: "ابحث في السجل أو ضيّقه حسب الشخص والحدث والبيئة والوقت.",
+    },
+    "audit-export": {
+      title: "صدّر السجل",
+      body: "نزّل ما تراه بصيغة CSV أو Excel. فتح هذه القائمة لا يغيّر شيئًا.",
+    },
+    "audit-rows": {
+      title: "من فعل ماذا",
+      body: "كل صف إجراء مسجَّل، الأحدث أولًا، مع الشخص والبيئة والعنوان.",
     },
     "backups-actions": {
       title: "التنزيل أو الحذف",

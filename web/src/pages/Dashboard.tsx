@@ -15,7 +15,7 @@ import { useRemembered } from "@/lib/remembered";
 import { Page, PageHead, useCan } from "@/components/Shell";
 import { INSTANCES_TOUR } from "@/lib/tour";
 import { StatCard } from "@/components/StatCard";
-import { Button, Callout, Empty, Segmented, Skeleton } from "@/components/app/basics";
+import { Button, Callout, Empty, LoadFailed, Segmented, Skeleton } from "@/components/app/basics";
 import { Input } from "@/components/ui/input";
 import { SelectBox } from "@/components/app/select";
 import { useT } from "@/i18n";
@@ -233,7 +233,7 @@ export function DashboardPage() {
   const can = useCan();
   // The figures arrive several times a minute (and the instances on every change): the page draws each new set at
   // low priority, in slices the browser can interrupt, so typing in the search box or a click never waits for it.
-  const { data: liveInstances, isPending } = useInstances();
+  const { data: liveInstances, isPending, isError, error, refetch } = useInstances();
   const instances = useDeferredValue(liveInstances);
   const metrics = useDeferredValue(useMetrics().data);
   const history = useDeferredValue(useHistory().data);
@@ -310,7 +310,11 @@ export function DashboardPage() {
   const capacity = metrics?.capacity ?? null;
   const panelMemory = server?.panel_memory_bytes;
   const panelGb = panelMemory != null && panelMemory >= 1024 ** 3;
-  const freeDisk = server ? bytes(server.disk_total_bytes! - server.disk_used_bytes!) : null;
+  // only once both figures are measured: a server just started reports none yet ("Measuring", never "NaN B free")
+  const freeDisk =
+    server?.disk_total_bytes != null && server.disk_used_bytes != null
+      ? bytes(server.disk_total_bytes - server.disk_used_bytes)
+      : null;
 
   return (
     <Page>
@@ -356,7 +360,11 @@ export function DashboardPage() {
           value={server?.memory_percent}
           unit="%"
           trend={{ t: serverT, values: history?.server.memory_percent ?? [], max: 100 }}
-          detail={server ? st.of(bytes(server.memory_used_bytes), bytes(server.memory_total_bytes)) : st.measuring}
+          detail={
+            server?.memory_total_bytes != null
+              ? st.of(bytes(server.memory_used_bytes), bytes(server.memory_total_bytes))
+              : st.measuring
+          }
         />
         <StatCard
           label={st.disk}
@@ -569,6 +577,10 @@ export function DashboardPage() {
 
       {view === "deleted" ? (
         <DeletedList items={deletedList} query={query} />
+      ) : isError && !liveInstances ? (
+        <div className="card">
+          <LoadFailed error={error} onRetry={refetch} />
+        </div>
       ) : isPending ? (
         <div className="instance-grid">
           {[0, 1, 2].map((i) => (

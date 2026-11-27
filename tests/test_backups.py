@@ -742,3 +742,16 @@ def test_a_moved_instance_keeps_the_id_the_panel_planned_never_a_manifests() -> 
     assert operations.planned_instance_id({"instance_id": "a" * 32, "moved": True}) == "a" * 32
     assert operations.planned_instance_id({"moved": True, "from_backup": "x"}) is None  # a new one, not the manifest's
     assert operations.planned_instance_id({"instance_id": "../etc"}) is None
+
+
+def test_a_deletion_queued_behind_a_creation_that_failed_and_cleaned_up_is_done(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Delete asked for while the creation ran; the creation failed and removed everything: the deletion finds nothing
+    left and ends as done with a note, never as a failed backup that suggests the instance stayed."""
+    done = _failing_deletion(monkeypatch)  # a backup attempt would fail: it must not be tried
+    assert not store.folder("gone-already").exists()
+    job = jobs.Job("gone-already", "Delete instance", "delete", "admin1")
+    operations.delete(job, "gone-already")
+    assert not done
+    assert "already cleaned up" in job.notes[-1]["text"]

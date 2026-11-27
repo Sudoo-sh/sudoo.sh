@@ -372,3 +372,13 @@ def test_changing_the_sign_in_email_ends_other_sessions(app: Flask) -> None:
     assert other.get("/api/v1/session").status_code == 200  # a name changes nothing
     assert client.patch("/api/v1/account", json={"email": f"{name}@example.com"}, headers=headers).status_code == 200
     assert other.get("/api/v1/session").status_code == 401 and client.get("/api/v1/session").status_code == 200
+
+
+def test_a_name_problem_is_named_as_it_is() -> None:
+    """A short name with < or > is refused for those characters, not as "too long"; Arabic, emoji and quotes pass."""
+    assert (
+        accounts.profile_problem({"first_name": "<b>bold</b>"})
+        == "The first name may not contain < or > (or control characters)."
+    )
+    assert accounts.profile_problem({"last_name": "a" * 61}) == "The last name must be text of at most 60 characters."
+    assert accounts.profile_problem({"first_name": "مستشار اختبار", "last_name": "O'Brien 😀"}) is None

@@ -41,7 +41,7 @@ import { RepoGuard } from "@/components/RepoGuard";
 import { StagingRefresh } from "@/components/StagingRefresh";
 import { Page, PageHead, useCan, useSubCrumb } from "@/components/Shell";
 import { STAGE_ICON, STAGE_LABEL } from "@/components/StageTag";
-import { Button, Callout, Empty, Field, Skeleton, Status, Switch, Tag } from "@/components/app/basics";
+import { Button, Callout, Empty, Field, LoadFailed, Skeleton, Status, Switch, Tag } from "@/components/app/basics";
 import { Input } from "@/components/ui/input";
 import { SelectBox } from "@/components/app/select";
 import { Modal, useToast } from "@/components/app/overlay";
@@ -132,7 +132,7 @@ function ProjectCard({
 
 export function ProjectsPage() {
   const can = useCan();
-  const { data, isPending } = useProjects();
+  const { data, isPending, isError, error, refetch } = useProjects();
   const instances = useInstanceMap();
   const [query, setQuery] = useState("");
   const t = useT(words).list;
@@ -165,7 +165,11 @@ export function ProjectsPage() {
           </div>
         </div>
       )}
-      {isPending ? (
+      {isError && !data ? (
+        <div className="card">
+          <LoadFailed error={error} onRetry={refetch} />
+        </div>
+      ) : isPending ? (
         <div className="project-grid">
           {[0, 1, 2].map((i) => (
             <div key={i} className="card pad stack">

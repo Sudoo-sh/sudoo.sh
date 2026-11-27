@@ -19,7 +19,7 @@ import { useSearchParams } from "react-router";
 import { useAudit, useAuditFacets } from "@/api/queries";
 import { Page, PageHead } from "@/components/Shell";
 import { AUDIT_TOUR } from "@/lib/tour";
-import { Tag, Button, Empty, Field, Segmented, Skeleton } from "@/components/app/basics";
+import { Tag, Button, Empty, Field, LoadFailed, Segmented, Skeleton } from "@/components/app/basics";
 import { SelectBox } from "@/components/app/select";
 import { Menu, MenuItem } from "@/components/app/overlay";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -97,7 +97,7 @@ export function AuditPage() {
   listing.set("limit", size);
   listing.set("offset", String((page - 1) * Number(size)));
   listing.set("sort", sort);
-  const { data, isPending, isFetching } = useAudit(listing.toString());
+  const { data, isPending, isFetching, isError, error, refetch } = useAudit(listing.toString());
   const { data: facets } = useAuditFacets();
   const total = data?.total ?? 0;
   const entries = data?.entries ?? [];
@@ -265,7 +265,9 @@ export function AuditPage() {
       </section>
 
       <div className="card rise">
-        {isPending ? (
+        {isError && !data ? (
+          <LoadFailed error={error} onRetry={refetch} />
+        ) : isPending ? (
           <div className="card-body">
             <Skeleton height={300} />
           </div>

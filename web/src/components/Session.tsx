@@ -7,7 +7,7 @@ import { setCsrfToken } from "@/api/client";
 import { useSession } from "@/api/queries";
 import type { Permission, Session } from "@/api/types";
 import { applyBrandColor } from "@/lib/theme";
-import { Spinner } from "./app/basics";
+import { LoadFailed, Spinner } from "./app/basics";
 
 const SessionContext = createContext<Session | null>(null);
 export const useMe = () => useContext(SessionContext)!;
@@ -21,13 +21,20 @@ const RESTRICTED_PAGE = { password: "/change-password", second_factor: "/setup-s
 
 /** Pages that need a signed-in session; sends everyone else to the sign-in page. */
 export function RequireSession() {
-  const { data: session, isPending } = useSession();
+  const { data: session, isPending, isError, error, refetch } = useSession();
   const location = useLocation();
   useEffect(() => applyBrandColor(session?.brand_color), [session?.brand_color]);
   if (isPending)
     return (
       <div style={{ display: "grid", placeItems: "center", height: "100vh" }}>
         <Spinner />
+      </div>
+    );
+  // the panel did not answer (offline, or a server error): say so and offer a retry, instead of the sign-in page
+  if (isError && session === undefined)
+    return (
+      <div style={{ display: "grid", placeItems: "center", minHeight: "100vh", padding: 16 }}>
+        <LoadFailed error={error} onRetry={refetch} />
       </div>
     );
   if (!session)

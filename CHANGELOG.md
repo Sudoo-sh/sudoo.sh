@@ -6,6 +6,25 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Fixed
+
+- **A list that cannot be loaded says so**: when the panel cannot be reached or answers with an error, the instances,
+  projects, accounts, backups and audit log pages show "This could not be loaded" with **Try again**, instead of an
+  empty list ("No projects yet") that looked as if the data were gone. A failed session check no longer sends a
+  signed-in person to the sign-in page.
+- **One press, one request**: a double click on a button (for example **Create** on the new instance page or in a new
+  account) sends its request once; a button that shows it is busy can no longer be pressed meanwhile (before, a second
+  click on **Create** could start a second instance with a "-2" name).
+- **Phone width**: the segmented filters (instance views, account tabs) scroll inside their rail instead of widening the
+  whole page past the screen at 375 px.
+- **Avatars** keep an emoji or another character outside the Basic Multilingual Plane whole instead of showing a broken
+  character.
+- **Server figures before the first measurement** show "Measuring" instead of "NaN B free" and "— of —".
+- **Names with < or >** are refused with a message that says so, instead of "at most 60 characters"; the name fields
+  stop at 60 characters as the server does.
+- **A deletion asked for while the instance's creation was running** ends as done when that creation failed and was
+  cleaned up, instead of failing with a backup error that suggested the instance was still there.
+
 ## [3.6.0] - 2026-11-27
 
 ### Upgrade notes

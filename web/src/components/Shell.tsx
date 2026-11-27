@@ -38,6 +38,7 @@ import tourWords from "@/i18n/tour";
 import { askTour, type TourDef } from "@/lib/tour";
 import common from "@/i18n/common";
 import { ago, percent } from "@/lib/format";
+import { initials } from "@/lib/initials";
 import { NARROW, useMedia } from "@/lib/media";
 import { useDirection } from "@/components/ui/direction";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -221,7 +222,7 @@ function Sidebar() {
           align="left"
           trigger={(toggle) => (
             <button className="user-card" onClick={toggle}>
-              <span className="avatar">{(me.first_name?.[0] ?? me.user[0]) + (me.last_name?.[0] ?? "")}</span>
+              <span className="avatar">{initials(me.first_name || me.user, me.last_name)}</span>
               <span className="who">
                 <span className="name truncate">{me.display_name}</span>
                 <br />

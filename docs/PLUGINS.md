@@ -45,7 +45,9 @@ tunnel = "sudoo.exposure.cloudflare:CloudflareQuickTunnel"
 
 A setting names the plugin (`EXPOSURE=direct`). When the panel starts, `plugins.py` finds the class registered
 under that name, creates it **once** with the panel's settings (dependency injection: plugins never read the
-environment themselves), and every part of the panel uses that object.
+environment themselves), and every part of the panel uses that object. The one exception is a plugin written
+with the plugin SDK (a `SudooPlugin` subclass): it is created once with the `PluginContext` the SDK defines
+(`src/sudoo/plugin_context.py`, see [Plugins from the marketplace](#9-plugins-from-the-marketplace)).
 
 | Plugin type | Entry-point group | Setting | Interface | Built-in plugins |
 | :--- | :--- | :--- | :--- | :--- |
@@ -410,7 +412,7 @@ from the Sudoo.sh marketplace on the **Plugins** page. The page, buying, licence
 | Verify | SHA-256 as stated by the hub, the hub's Ed25519 signature over id, version and SHA-256, with a hub key the panel trusts (active, or retiring before its end) |
 | Check | `manifest.json` names the same plugin and version; `min_sudoo_version`, `max_sudoo_version`, `sdk_version` (the panel offers SDK 0.1.0) and `requires` fit; no Python dependencies, compiled files, links or unsafe paths |
 | Unpack | `/opt/odoo/manager/plugins/<id>/<version>/package/` (root only); the package file is deleted |
-| Register | The manifest's `entry_points` are written as a small `dist-info` folder next to the package, and both folders are added to the **end** of Python's path when the backend starts. `plugins.load(group, name, settings)` then finds the plugin exactly like a built-in one: an installed mailer named `sendgrid` is chosen with `MAILER=sendgrid` |
+| Register | The manifest's `entry_points` are written as a small `dist-info` folder next to the package, and both folders are added to the **end** of Python's path when the backend starts. `plugins.load(group, name, settings)` then finds the plugin exactly like a built-in one: an installed mailer named `sendgrid` is chosen with `MAILER=sendgrid`. A class written with the plugin SDK (a `SudooPlugin` subclass) is created with its `PluginContext` instead of the settings object (`src/sudoo/plugin_context.py`) |
 | Restart | The backend restarts by itself once no job runs; instances and links keep running |
 | Keep honest | Every file is hashed at install; the hashes are checked at each start and every 10 minutes. A changed plugin is not loaded |
 
@@ -428,6 +430,15 @@ Rules for a marketplace plugin, on top of [Rules for plugins](#7-rules-for-plugi
   installed packages provide is not loaded at all.
 * **Declare what you need.** The manifest's `permissions` are shown before installing and checked by the
   marketplace's reviewers.
+
+The `PluginContext` an SDK-built plugin is created with is built from the plugin's install record and its
+verified manifest (`src/sudoo/plugin_context.py`): its settings are the manifest's declared defaults until the
+panel grows a settings page for plugins; `storage`, `secrets` and `mail` are the panel's own, one namespace per
+plugin and present only when the matching permission was granted at install; `data_dir` is a folder only the
+plugin writes to, kept across updates and removed on uninstall. The core service layer (`context.services`,
+SDK ROADMAP section 11) does not exist in this panel version yet: every access answers a typed `ServiceError`
+501, so a plugin that needs services cannot run yet, while one that needs only its settings, logger, storage,
+secrets or mail works today.
 
 The plugin SDK (`sudoo-plugin-sdk`) builds, checks and packs plugins in this format.
 It is published on PyPI as [`sudoo-plugin-sdk`](https://pypi.org/project/sudoo-plugin-sdk/):

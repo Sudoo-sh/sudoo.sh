@@ -18,6 +18,8 @@ from __future__ import annotations
 from importlib.metadata import EntryPoint, entry_points
 from typing import Any
 
+from sudoo_plugin_sdk import SudooPlugin
+
 from sudoo.config import Settings
 
 EXPOSURE_GROUP = "sudoo.exposure"
@@ -68,5 +70,20 @@ def load(group: str, name: str, settings: Settings) -> Any:
 
             if not plugin_manager.entry_allowed(found[0], group):
                 raise PluginError(f'The plugin "{name}" for {group} was not installed by the panel; it is not loaded.')
-        return found[0].load()(settings)
+        return _create(found[0], settings)
     raise PluginError(f'No plugin "{name}" for {group}. Installed: {", ".join(available(group)) or "none"}.')
+
+
+def _create(entry: EntryPoint, settings: Settings) -> Any:
+    """Create the plugin class behind `entry`, once.
+
+    A class written with the plugin SDK (a `SudooPlugin` subclass) is created with its `PluginContext`
+    (plugin_context.py); every earlier plugin, built in or from the panel's own environment, receives the
+    panel's Settings, the contract this module documents and tests/test_plugins.py pins.
+    """
+    cls = entry.load()
+    if isinstance(cls, type) and issubclass(cls, SudooPlugin):
+        from sudoo import plugin_context
+
+        return cls(plugin_context.build(entry))
+    return cls(settings)

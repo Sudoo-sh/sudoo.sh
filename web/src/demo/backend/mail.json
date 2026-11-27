@@ -371,6 +371,84 @@
       }
     },
     {
+      "key": "access_request_confirm",
+      "name": "Access request: confirm your address",
+      "description": "Sent to a person who asks for an account from the sign-in page: the link confirms the address.",
+      "recipients": "The person who asked (the Request access page)",
+      "kicker": "Access request",
+      "preheader": "Confirm your e-mail address to finish your request",
+      "default": {
+        "subject": "Confirm your request for a Sudoo.sh account",
+        "title": "Confirm your e-mail address",
+        "body": "Hello {{ name }},\n\nSomeone asked for an account on this Sudoo.sh panel with this address. If it was you, confirm it; an administrator then decides.\n\n[Confirm my address]({{ link }})\n\nThe link works once and until {{ expires }}.\n\n> Not you? Ignore this e-mail: nothing happens unless you press the button."
+      },
+      "placeholders": [
+        {
+          "name": "name",
+          "description": "The person's first name, or their e-mail address",
+          "kind": "text"
+        },
+        {
+          "name": "expires",
+          "description": "When the link stops working",
+          "kind": "text"
+        },
+        {
+          "name": "link",
+          "description": "The link that confirms the address (works once)",
+          "kind": "link"
+        },
+        {
+          "name": "panel_link",
+          "description": "The address of the panel",
+          "kind": "link"
+        }
+      ],
+      "required": ["link"],
+      "samples": {
+        "name": "Huda",
+        "expires": "Friday 21 November 2026, 09:41 UTC",
+        "link": "https://panel.example.com/request-access#sample-link",
+        "panel_link": "https://panel.example.com"
+      }
+    },
+    {
+      "key": "access_request_admin",
+      "name": "Access request: waiting for approval",
+      "description": "Tells administrators that a person confirmed an access request and waits for a decision.",
+      "recipients": "Administrators with an e-mail address (Accounts, Pending approval)",
+      "kicker": "Access request",
+      "preheader": "{{ requester }} asked for an account",
+      "default": {
+        "subject": "{{ requester }} asked for a Sudoo.sh account",
+        "title": "An access request is waiting",
+        "body": "{{ requester }} confirmed their address and asked for an account.\n\n[Review the request]({{ link }})\n\nApproving sends them an invitation with the role you choose; rejecting keeps your reason in the list."
+      },
+      "placeholders": [
+        {
+          "name": "requester",
+          "description": "The person's name and address",
+          "kind": "text"
+        },
+        {
+          "name": "link",
+          "description": "The Accounts page, Pending approval",
+          "kind": "link"
+        },
+        {
+          "name": "panel_link",
+          "description": "The address of the panel",
+          "kind": "link"
+        }
+      ],
+      "required": ["link"],
+      "samples": {
+        "requester": "Huda Saleh (huda@example.com)",
+        "link": "https://panel.example.com/accounts",
+        "panel_link": "https://panel.example.com"
+      }
+    },
+    {
       "key": "alert",
       "name": "Alert",
       "description": "One alert as it happens: a failed job, an instance down, a full disk... and when it is over.",

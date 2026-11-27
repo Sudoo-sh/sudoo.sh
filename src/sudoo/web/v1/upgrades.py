@@ -145,8 +145,10 @@ def test(name: str) -> Response:
         refuse_unless("instances.restore", f"run the upgrade test of {name} again on {existing}", instance=existing)
         if jobs.busy(existing):
             abort(409, f"{existing} is busy; try again when its job has finished.")
-        job = jobs.start(existing, f"Run the Odoo {target} upgrade test again", "upgrade-test", upgrade_run.rerun,
-                         existing, name, code, user=g.user["name"])  # fmt: skip
+        with quotas.LOCK:  # the test instance is started again: its own owner and stage count
+            instances_api.admit_start(existing, f"upgrade test of {name} refused (running instances)")
+            job = jobs.start(existing, f"Run the Odoo {target} upgrade test again", "upgrade-test", upgrade_run.rerun,
+                             existing, name, code, user=g.user["name"], holds_slot=True)  # fmt: skip
         log("database upgrade test run again", instance=name, detail=f"to Odoo {target} on {existing}")
         return instances_api._accepted(job)
     with quotas.LOCK:
@@ -160,31 +162,39 @@ def _create_test(name: str, target: str, doc: dict[str, Any], code: Secret | Non
     project = projects.get(env.get("PROJECT", "")) if repo else None
     if project is not None:  # an instance of the upgrade branch: the caller's access in that branch
         instances_api._refuse_in_branch("instances.create", project, str(branch), f"test the upgrade of {name}")
-    instances_api._refuse_over_capacity("upgrade test refused (running instances)")
-    if settings.max_instances and len(store.names()) + len(jobs.being_created()) >= settings.max_instances:
-        abort(409, f"The server has its maximum of {settings.max_instances} instances; delete one first.")
-    try:
-        quotas.claim(g.user["name"])
-    except quotas.QuotaError as error:
-        g.retry_after = error.retry_after
-        abort(error.status, error.message)
-    lifetime = projects.lifetime_days(project, stages.STAGING) if project else settings.staging_delete_after_days
-    plan = planning.build(
-        repo=repo,
-        branch=str(branch or ""),
-        version=target,
-        edition=env.get("EDITION", "community"),
-        stage=stages.STAGING,
-        user=g.user["name"],
-        switches={"auto_update": bool(repo), "auto_upgrade": True, "auto_pause": True, "delete_after_days": lifetime},
-        custom_name=f"{name[:20]}-odoo{upgrades.major(target)}",
-        project=project["id"] if project else None,
-    )
-    plan["upgrade"] = {"source": name, "target": target, "method": upgrades.method_for(env), "code": code}
-    job = planning.start(plan, g.user["name"], upgrade_run.create_test)
-    upgrades.remember(name, g.user["name"], "test started", f"to Odoo {target} on {plan['name']}", state="testing",
-                      test_job=job.id, target=target)  # fmt: skip
-    log("database upgrade test started", instance=name, detail=f"to Odoo {target} on {plan['name']}")
+    with quotas.LOCK:  # from the limits until the test instance's job is registered: two tests cannot both pass
+        instances_api._refuse_over_capacity(
+            "upgrade test refused (running instances)", stages.STAGING, g.user["name"], queued=False
+        )  # the answer is needed now: an upgrade test does not wait in the capacity queue
+        if settings.max_instances and len(store.names()) + len(jobs.being_created()) >= settings.max_instances:
+            abort(409, f"The server has its maximum of {settings.max_instances} instances; delete one first.")
+        try:
+            quotas.claim(g.user["name"])
+        except quotas.QuotaError as error:
+            g.retry_after = error.retry_after
+            abort(error.status, error.message)
+        lifetime = projects.lifetime_days(project, stages.STAGING) if project else settings.staging_delete_after_days
+        plan = planning.build(
+            repo=repo,
+            branch=str(branch or ""),
+            version=target,
+            edition=env.get("EDITION", "community"),
+            stage=stages.STAGING,
+            user=g.user["name"],
+            switches={
+                "auto_update": bool(repo),
+                "auto_upgrade": True,
+                "auto_pause": True,
+                "delete_after_days": lifetime,
+            },
+            custom_name=f"{name[:20]}-odoo{upgrades.major(target)}",
+            project=project["id"] if project else None,
+        )
+        plan["upgrade"] = {"source": name, "target": target, "method": upgrades.method_for(env), "code": code}
+        job = planning.start(plan, g.user["name"], upgrade_run.create_test)
+        upgrades.remember(name, g.user["name"], "test started", f"to Odoo {target} on {plan['name']}", state="testing",
+                          test_job=job.id, target=target)  # fmt: skip
+        log("database upgrade test started", instance=name, detail=f"to Odoo {target} on {plan['name']}")
     return instances_api._accepted(job)
 
 
@@ -212,8 +222,10 @@ def promote(name: str) -> Response:
     code = _code(name, data)
     if jobs.busy(name):
         abort(409, f"{name} is busy; try again when its job has finished.")
-    job = jobs.start(name, f"Upgrade to Odoo {target}", "db-upgrade", upgrade_run.promote, name, code,
-                     user=g.user["name"])  # fmt: skip
+    with quotas.LOCK:
+        instances_api.admit_start(name, f"upgrade of {name} refused (running instances)")
+        job = jobs.start(name, f"Upgrade to Odoo {target}", "db-upgrade", upgrade_run.promote, name, code,
+                         user=g.user["name"], holds_slot=True)  # fmt: skip
     log("database upgrade of production started", instance=name, detail=f"to Odoo {target}")
     return instances_api._accepted(job)
 
@@ -245,8 +257,10 @@ def cancel(name: str) -> Response:
     _confirm_production(name, data, "cancel its upgrade (its data goes back to before the upgrade)")
     if jobs.busy(name):
         abort(409, f"{name} is busy; try again when its job has finished.")
-    job = jobs.start(name, "Cancel the Odoo upgrade", "db-upgrade", upgrade_run.cancel, name, "",
-                     user=g.user["name"])  # fmt: skip
+    with quotas.LOCK:
+        instances_api.admit_start(name, f"cancel of the upgrade of {name} refused (running instances)")
+        job = jobs.start(name, "Cancel the Odoo upgrade", "db-upgrade", upgrade_run.cancel, name, "",
+                         user=g.user["name"], holds_slot=True)  # fmt: skip
     log("database upgrade cancelled", instance=name)
     return instances_api._accepted(job)
 

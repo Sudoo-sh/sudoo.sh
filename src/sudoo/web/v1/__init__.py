@@ -19,6 +19,7 @@ role (roles.py), and the same permission checks apply.
     promotion.py   the pre-promotion checklist, comparing branches, the scheduled staging refresh, PR previews
     project_status.py  a project's Status tab (uptime, incidents) and its public status page
     repo_guard.py  a project's repository guard: CI checks through a pull request, their results, branch rules
+    explain.py         optional "Explain with AI" for a failed build (off by default, preview then confirm)
     notifications.py   a project's notification channels (Slack, Discord, Telegram, Teams, webhooks, e-mail)
     upgrades.py    database upgrades of instances to a newer Odoo version: pre-check, test, production, rollback
     clients.py     the client portal: a project's clients, access requests, emergency access (staff), and the
@@ -60,15 +61,18 @@ from sudoo.core import events as bus
 from sudoo.core import jobs
 
 from . import (
+    access_requests,
     access_rules,
     account,
     alerts,
     backups,
+    capacity_queue,
     caught_mail,
     clients,
     connect,
     docs,
     domains,
+    explain,
     github,
     help_panel,
     imports,
@@ -126,6 +130,7 @@ def register(app: Flask) -> None:
         logs,
         connect,
         access_rules,
+        access_requests,
         imports,
         profiler,
         projects,
@@ -134,6 +139,7 @@ def register(app: Flask) -> None:
         project_status,
         repo_guard,
         notifications,
+        explain,
         domains,
         caught_mail,
         settings,
@@ -146,6 +152,7 @@ def register(app: Flask) -> None:
         users,
         invitations,
         tokens,
+        capacity_queue,
         backups,
         plan,
         github,

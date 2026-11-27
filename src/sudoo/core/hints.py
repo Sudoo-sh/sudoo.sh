@@ -98,3 +98,14 @@ def specific_hint(log: str) -> str | None:
         if re.search(pattern, tail, re.IGNORECASE):
             return hint
     return None
+
+
+def has_panel_hint(log: str) -> bool:
+    """Whether a step wrote its own explanation into the log (panel_hint): it wins over every pattern."""
+    return bool(_PANEL_HINT_RE.search(log[-20000:]))
+
+
+def is_pattern_hint(text: str) -> bool:
+    """Whether `text` is one of the general pattern hints (or the fallback), as friendly_hint answers them. A rule of
+    core/failure_rules.py replaces such a sentence, so one failure never shows two different causes."""
+    return text in {hint for _pattern, hint in _HINTS} or text in (GENERAL_HINT, _APP_NOT_FOUND)

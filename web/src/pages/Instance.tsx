@@ -53,7 +53,15 @@ import {
   useInstancePermissions,
   useJobs,
 } from "@/api/queries";
-import type { Instance, InstanceBackup, Job, Permission, Stage } from "@/api/types";
+import {
+  isWaiting,
+  type Instance,
+  type InstanceBackup,
+  type Job,
+  type Permission,
+  type Stage,
+  type WaitingRequest,
+} from "@/api/types";
 import { BackupPicker } from "@/components/BackupPicker";
 import { LiveChart } from "@/components/charts/LiveChart";
 import { Monogram } from "@/components/InstanceCard";
@@ -98,11 +106,13 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { SelectBox } from "@/components/app/select";
+import { useConfirm } from "@/components/app/confirm";
 import { Menu, MenuItem, MenuSeparator, Modal, useToast } from "@/components/app/overlay";
 import { TabInk, useHero } from "@/components/app/motion";
 import { useT } from "@/i18n";
 import common from "@/i18n/common";
 import words from "@/i18n/instance";
+import queueWords from "@/i18n/capacity-queue";
 import toolWords from "@/i18n/tools";
 import engineWords from "@/i18n/kubernetes";
 import { jobTitle } from "@/i18n/jobs";
@@ -117,10 +127,16 @@ type Action = { action: string; body?: Record<string, unknown>; title: string };
 export function useRun(name: string, openJob: (id: string) => void) {
   const toast = useToast();
   const t = useT(words).run;
+  const q = useT(queueWords);
   return useCall(
     async ({ action, body, title }: Action) => {
       try {
-        const job = await api.post<Job>(`/instances/${name}/actions/${action}`, body ?? {});
+        const job = await api.post<Job | WaitingRequest>(`/instances/${name}/actions/${action}`, body ?? {});
+        if (isWaiting(job)) {
+          // over a running limit with CAPACITY_QUEUE on: the request waits in line instead of being refused
+          toast("success", q.queued(name, job.position), q.queuedText);
+          return job;
+        }
         toast("success", t.started(title), t.startedText);
         openJob(job.id);
         return job;
@@ -129,7 +145,7 @@ export function useRun(name: string, openJob: (id: string) => void) {
         throw error;
       }
     },
-    [keys.instance(name), keys.jobs(name)],
+    [keys.instance(name), keys.jobs(name), ["capacity-queue"]],
   );
 }
 
@@ -1350,8 +1366,10 @@ function CodeTab({
 }) {
   const all = useT(words);
   const t = all.code;
+  const [confirm, askDialog] = useConfirm();
   return (
     <div className="grid-2" style={{ alignItems: "start" }}>
+      {askDialog}
       <div className="card">
         <div className="card-head">
           <h2>{t.commits}</h2>
@@ -1402,8 +1420,9 @@ function CodeTab({
                         disabled={busy}
                         aria-label={t.remove}
                         onClick={() =>
-                          confirm(t.removeConfirm(s.path)) &&
-                          act("remove-submodule", all.jobs.removeSubmodule, { path: s.path })
+                          void confirm(t.removeConfirm(s.path), { action: t.remove, danger: true }).then((yes) => {
+                            if (yes) act("remove-submodule", all.jobs.removeSubmodule, { path: s.path });
+                          })
                         }
                       />
                     )}

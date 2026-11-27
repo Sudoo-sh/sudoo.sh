@@ -327,7 +327,9 @@ def test_settings_changed_since_are_not_drift() -> None:
 def test_drift_is_confirmed_reported_once_and_repaired(monkeypatch: pytest.MonkeyPatch) -> None:
     started: list[Any] = []
     mails: list[Any] = []
-    monkeypatch.setattr(jobs, "start", lambda instance, action, kind, fn, *args, user="": started.append((fn, args)))
+    monkeypatch.setattr(
+        jobs, "start", lambda instance, action, kind, fn, *args, user="", **kw: started.append((fn, args))
+    )
     monkeypatch.setattr(integrity, "_notify", lambda name, items: mails.append(items))
     found = [integrity.Finding("odoo", "odoo: memory limit: 1 instead of 2")]
     integrity.handle(NAME, found)

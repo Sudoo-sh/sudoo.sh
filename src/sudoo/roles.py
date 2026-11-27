@@ -64,6 +64,7 @@ PERMISSIONS: dict[str, str] = {
     "instances.update": "Get new code, restart, start, add submodules",
     "instances.operate": "Pause, switch off, upgrade, switch branch, back up, change automation",
     "instances.create": "Create instances",
+    "capacity.manage": "See every request waiting in the capacity queue, move one to the front and cancel any",
     "projects.manage": "Create and link projects (one GitHub repository each), change their settings and the stages "
     "of their branches",
     "projects.access": "Choose who may see and work in a project and its branches (grants, restricted projects and "

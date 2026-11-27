@@ -36,6 +36,7 @@ export type Permission =
   | "instances.database_shell"
   | "instances.profile"
   | "shells.supervise"
+  | "capacity.manage"
   | "servers.manage"
   | "instances.move"
   | "support_access.manage"
@@ -206,6 +207,20 @@ export interface Failure {
   details: string[];
   /** for kind "repository": the repository the panel could not read (owner/name) */
   repository: string | null;
+  /** the cause the panel recognised (core/failure_rules.py); missing for older entries and when nothing matched */
+  rule?: FailureRule;
+}
+
+/** A recognised cause of a failure: its id (the Arabic text is keyed by it), the English text and what the log named */
+export interface FailureRule {
+  id: string;
+  title: string;
+  explanation: string;
+  fix: string;
+  /** what the rule found in the log, already cleaned: module, file, line, package, port */
+  captured: Partial<Record<"module" | "file" | "line" | "package" | "port", string>>;
+  /** 1-based line of the shown error details where the match is (the details only, never the technical log) */
+  excerpt_line?: number;
 }
 
 /** An instance's job in progress: the reference with its steps so far */
@@ -1086,6 +1101,8 @@ export interface Capacity {
   warning_percent: number;
   hard_limit: number | null;
   blocked: boolean;
+  /** how many of the running instances are production ones (never refused by a limit) */
+  running_production?: number;
   memory: {
     total_bytes: number;
     reserve_bytes: number;
@@ -1239,6 +1256,12 @@ export interface Quota {
   max_instances_per_user: number | null;
   cooldown_minutes: number | null;
   next_creation_at: number | null;
+  /** running or starting now, in all, of them production, and the ones of the caller (not production) */
+  running?: number;
+  running_production?: number;
+  running_own?: number;
+  max_running?: number | null;
+  max_running_own?: number | null;
 }
 
 export interface Factor {
@@ -1360,7 +1383,12 @@ export interface User extends Profile {
   last_sign_in_at: string | null;
   password_changed_at: string | null;
   must_change_password: boolean;
+  /** the most non-production instances this person runs at once: null: the setting applies; 0: no limit */
+  running_limit?: number | null;
+  running_limit_default?: number | null;
   second_factors: string[];
+  /** REQUIRE_SECOND_FACTOR applies to this account */
+  second_factor_required?: boolean;
   sign_in_methods: SignInMethod[];
   /** false: the server's default (SIGN_IN_METHODS) applies */
   sign_in_methods_chosen: boolean;
@@ -1368,6 +1396,34 @@ export interface User extends Profile {
   /** the GitHub user name an administrator expects, linked at the first sign-in with GitHub */
   github_login: string | null;
   has_password: boolean;
+  /** Disabled: it cannot sign in, its sessions ended and the API tokens it owns stopped working; its data stays */
+  disabled?: boolean;
+  /** why an administrator disabled it (shown to the other administrators) */
+  disabled_reason?: string | null;
+  disabled_at?: string | null;
+  disabled_by?: string | null;
+}
+
+/** A person who asked for an account from the sign-in page and confirmed their address: GET /access-requests. */
+export interface AccountRequest {
+  id: string;
+  email: string;
+  first_name: string | null;
+  last_name: string | null;
+  status: "pending" | "approved" | "rejected";
+  reason?: string | null;
+  role?: Role | null;
+  decided_by?: string | null;
+  requested_at: string | null;
+  confirmed_at: string | null;
+  decided_at: string | null;
+}
+export interface AccountRequestPolicy {
+  /** the allowed e-mail domains (ACCESS_REQUEST_DOMAINS); empty: requests are off */
+  domains: string[];
+  enabled: boolean;
+  /** how many requests wait for the e-mail confirmation: a count only */
+  awaiting_confirmation?: number;
 }
 
 export interface DocsContents {
@@ -2462,3 +2518,23 @@ export interface DeletedInstance {
   deleted_by: string | null;
   expired: boolean;
 }
+
+/** A request that waits for room under a running-instances limit (CAPACITY_QUEUE, GET /capacity-queue). The answer of
+ *  a start or a creation that has to wait is this, not a job. */
+export interface WaitingRequest {
+  id: string;
+  kind: "create" | "start";
+  instance: string;
+  user: string;
+  charged: string | null;
+  stage: string | null;
+  position: number | null;
+  created_at: number;
+  status: string;
+}
+export const isWaiting = (answer: unknown): answer is WaitingRequest =>
+  typeof answer === "object" &&
+  answer !== null &&
+  "position" in answer &&
+  "kind" in answer &&
+  !("requested_by" in answer);

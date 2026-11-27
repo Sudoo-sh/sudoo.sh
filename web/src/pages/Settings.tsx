@@ -11,6 +11,7 @@ import {
   RotateCcw,
   Send,
   ServerCog,
+  Sparkles,
   Webhook,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
@@ -34,6 +35,8 @@ import { SelectBox } from "@/components/app/select";
 import { Modal, useToast } from "@/components/app/overlay";
 import { TabInk } from "@/components/app/motion";
 import { useLocale, useT } from "@/i18n";
+import explainI18n from "@/i18n/explain";
+import { ExplainSettingsFields } from "@/components/ExplainWithAi";
 import { bytes } from "@/lib/format";
 import common from "@/i18n/common";
 import words from "@/i18n/settings";
@@ -156,6 +159,9 @@ const TABS: { id: TabId; groups: Group[] }[] = [
           "capacity_instance_memory_mb",
           "capacity_warning_percent",
           "max_running_instances",
+          "max_running_non_production_per_user",
+          "slot_store_wait_seconds",
+          "capacity_queue",
         ],
       },
       {
@@ -319,7 +325,10 @@ const TABS: { id: TabId; groups: Group[] }[] = [
         ],
       },
       { id: "signInEmail", keys: ["sign_in_email", "sign_in_email_opt_out", "recovery_codes_count"] },
-      { id: "invitations", keys: ["invitation_hours", "invitation_password_fallback", "invitations_per_hour"] },
+      {
+        id: "invitations",
+        keys: ["invitation_hours", "invitation_password_fallback", "invitations_per_hour", "access_request_domains"],
+      },
       { id: "requests", keys: ["rate_limit_reads_per_minute", "rate_limit_changes_per_minute", "rate_limiter"] },
       {
         id: "webShell",
@@ -1027,6 +1036,7 @@ function ResourceSettings({
 export function SettingsPage() {
   const me = useMe();
   const can = useCan();
+  const explainWords = useT(explainI18n).settings;
   const { data: settings, isPending } = useSettings();
   const { data: alerts } = useAlerts(can("audit.view"));
   // the standing alert of the bell, shown here too: the page is where the password is changed
@@ -1329,6 +1339,9 @@ export function SettingsPage() {
             )}
             {tab === "advanced" && (
               <>
+                <Section title={explainWords.title} text={explainWords.text} icon={<Sparkles />}>
+                  <ExplainSettingsFields />
+                </Section>
                 {other.length > 0 && (
                   <Section title={t.other.title} text={t.other.text}>
                     {rows(other)}

@@ -96,9 +96,24 @@ def request_update(name: str, reason: str) -> None:
     special = automation.update_for(name)
     if special is not None:
         title, kind, fn, args = special
-        jobs.start(name, f"{title}: {reason}", kind, fn, *args, details=details)
-        return
-    jobs.start(name, f"Automatic update: {reason}", "update", operations.update_code, name, details=details)
+
+        def begin() -> jobs.Job:
+            return jobs.start(name, f"{title}: {reason}", kind, fn, *args, details=details, holds_slot=True)
+
+    else:
+
+        def begin() -> jobs.Job:
+            return jobs.start(
+                name, f"Automatic update: {reason}", "update", operations.update_code, name, details=details,
+                holds_slot=True,
+            )  # fmt: skip
+
+    from sudoo.core import audit
+    from sudoo.instances import capacity
+
+    job, why = capacity.start_admitted(name, begin)
+    if job is None:  # a running limit (or the slot record) refuses it: said so; the next push or poll tries again
+        audit.record("system", None, "automatic update skipped (running limit)", name, ok=False, detail=str(why)[:200])
 
 
 def start_all() -> None:

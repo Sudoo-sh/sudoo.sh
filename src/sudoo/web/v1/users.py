@@ -42,7 +42,7 @@ from typing import Any
 
 from flask import Blueprint, Response, abort, g, request
 
-from sudoo import accounts, invitations, roles, teams
+from sudoo import accounts, auth, invitations, roles, teams
 from sudoo.auth import github, github_access, methods
 from sudoo.config import settings
 from sudoo.core import audit
@@ -68,7 +68,14 @@ def user_resource(name: str, user: dict[str, Any]) -> dict[str, Any]:
         "last_sign_in_at": iso(user.get("last_login")),
         "password_changed_at": iso(user.get("password_changed")),
         "must_change_password": bool(user.get("must_change_password")),
+        "disabled": accounts.is_disabled(user),
+        "disabled_at": iso(user.get("disabled_at")),
+        "disabled_by": user.get("disabled_by"),
+        "disabled_reason": user.get("disabled_reason"),
+        "running_limit": user.get("running_limit"),
+        "running_limit_default": settings.max_running_non_production_per_user or None,
         "second_factors": [f["name"] for f in factors_of(user) if f["enrolled"]],
+        "second_factor_required": auth.must_use_second_factor(user),  # REQUIRE_SECOND_FACTOR applies to this account
         "sign_in_methods": methods.of(user),
         "sign_in_methods_chosen": methods.own_choice(user) is not None,
         "github": github_resource(user),
@@ -213,7 +220,8 @@ def change_user(name: str) -> Response:
             abort(409, "A client account stays a client, and staff never become clients: create another account.")
         if account["role"] == "super_admin" and role != "super_admin":
             others = [n for n, u in accounts.all_users().items() if u["role"] == "super_admin" and n != name]
-            if not others:
+            active = [n for n in others if not accounts.is_disabled(accounts.get(n))]  # a disabled one cannot sign in
+            if not others or (not accounts.is_disabled(account) and not active):
                 abort(400, "The last super admin must stay a super admin.")
         values["role"] = role
     if "sign_in_methods" in data:
@@ -228,16 +236,28 @@ def change_user(name: str) -> Response:
         if login and not github_app_login(login):
             abort(400, "github_login: a GitHub user name (letters, digits and single dashes, at most 39).")
         values[github.LOGIN_FIELD] = login
+    own_limit: int | None | str = "unchanged"
+    if "running_limit" in data:  # null: the setting applies; 0: no limit for this person
+        raw = data["running_limit"]
+        if raw is not None and (not isinstance(raw, int) or isinstance(raw, bool) or not 0 <= raw <= 1000):
+            abort(400, "running_limit: a whole number from 0 (no limit) to 1000, or null for the setting.")
+        own_limit = raw
     _refuse_without_break_glass(name, values)
     from sudoo import projects
     from sudoo.projects import notices
 
     watched = [p["id"] for p in projects.all_projects()] if "role" in values else []
     with notices.watch(watched, by=accounts.display_name(g.user["name"], accounts.get(g.user["name"]) or {})):
-        accounts.update(name, **{key: (value or None) for key, value in values.items()})
+        try:  # checked again under the accounts lock: two requests cannot both pass the checks above
+            accounts.update_checked(name, **{key: (value or None) for key, value in values.items()})
+        except ValueError as error:
+            abort(400, str(error))
+        if own_limit != "unchanged":
+            accounts.update(name, running_limit=own_limit)
     if "role" in values:
         accounts.end_sessions(name)  # the new permissions apply from the next sign-in
-    log("account changed", detail=f"{name}: {', '.join(sorted(values))}")
+    changed = sorted(values) + (["running_limit"] if own_limit != "unchanged" else [])
+    log("account changed", detail=f"{name}: {', '.join(changed)}")
     return ok(user_resource(name, accounts.get(name) or {}))
 
 
@@ -281,6 +301,46 @@ def unlink_github(name: str) -> Response:
     accounts.end_sessions(name)
     log("GitHub account unlinked", detail=f"{name}: {link.get('login')} (GitHub id {link['id']})")
     return no_content()
+
+
+@blueprint.post("/users/<name>/disable")
+@require("accounts.manage")
+def disable_user(name: str) -> Response:
+    """Disable an account (reversible): no sign-in, sessions and its API tokens' use end; data and roles stay."""
+    account = _account(name)
+    if name == g.user["name"]:
+        abort(400, "You cannot disable the account you are signed in with.")
+    _guard(roles.normalize(account["role"]))
+    reason = check.text(check.body(), "reason", max_length=accounts.REASON_MAX).strip()
+    _refuse_without_break_glass(name, {"disabled": True})  # the last super admin that signs in with a password stays
+    try:
+        changed = accounts.disable(name, g.user["name"], reason)
+    except ValueError as error:
+        log("refused: disable an account", ok=False, detail=f"{name}: {error}")
+        abort(400, str(error))
+    if changed:
+        log("account disabled", detail=f"{name}: {reason}", whole=True)  # reason: at most 300, kept whole
+    return ok(user_resource(name, accounts.get(name) or {}), meta={"changed": changed})
+
+
+@blueprint.post("/users/<name>/enable")
+@require("accounts.manage")
+def enable_user(name: str) -> Response:
+    """Enable a disabled account again."""
+    account = _account(name)
+    _guard(roles.normalize(account["role"]))
+    reason = check.text(check.body(), "reason", max_length=accounts.REASON_MAX).strip()
+    try:
+        was = accounts.enable(name, reason)  # the reason it was disabled for, read under the lock; None: it was not
+    except ValueError as error:
+        abort(400, str(error))
+    if was is not None:
+        log(
+            "account enabled",
+            detail=f"{name}: {reason} (it was disabled because: {was or 'no reason recorded'})",
+            whole=True,  # both reasons (each at most 300) are kept whole
+        )
+    return ok(user_resource(name, accounts.get(name) or {}), meta={"changed": was is not None})
 
 
 @blueprint.delete("/users/<name>")
@@ -349,7 +409,7 @@ def _sort() -> tuple[str, bool]:
     descending = raw.startswith("-")
     column = raw.lstrip("-")
     if column not in audit.SORTS:
-        abort(400, f"sort is one of {', '.join(audit.SORTS)}, with \"-\" first for descending.")
+        abort(400, f'sort is one of {", ".join(audit.SORTS)}, with "-" first for descending.')
     return column, descending
 
 

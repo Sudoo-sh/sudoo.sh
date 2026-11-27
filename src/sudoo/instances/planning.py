@@ -7,6 +7,7 @@ is the repository's first instance (projects/), and the branch's stage is record
 
 from __future__ import annotations
 
+import copy
 from collections.abc import Callable, Mapping
 from typing import Any
 
@@ -81,10 +82,32 @@ def start(plan: dict[str, Any], user: str, fn: Callable[..., object] | None = No
     details = {key: plan[key] for key in (*SHOWN, "auto_update", "auto_upgrade", "auto_pause", "delete_after_days")}
     if plan["project"] and plan["branch"]:
         details["build"] = "create"  # the first build of the branch's instance (projects/builds.py)
-    record_stage(plan, user)
-    return jobs.start(
-        plan["name"], "Create instance", "create", fn or operations.create, plan, *args, user=user, details=details
-    )
+    before: list[Any] = []
+
+    def prepare() -> None:
+        if plan["project"] and plan["branch"]:
+            from sudoo import projects
+
+            found = projects.get(plan["project"])
+            old = copy.deepcopy(((found or {}).get("branches") or {}).get(plan["branch"]) or {})
+            record_stage(plan, user)
+            after = ((projects.get(plan["project"]) or {}).get("branches") or {}).get(plan["branch"]) or {}
+            keys = {key: after[key] for key in ("stage", "changed_by") if after.get(key) != old.get(key)}
+            before.append((old, keys))
+            return
+        record_stage(plan, user)
+
+    try:
+        return jobs.start(  # the branch's stage is recorded once the slot is held: a refused start leaves nothing
+            plan["name"], "Create instance", "create", fn or operations.create, plan, *args, user=user, details=details,
+            prepare=prepare,
+        )  # fmt: skip
+    except BaseException:
+        if before and plan["project"] and plan["branch"]:  # recorded, and the job then could not begin: undo it
+            from sudoo import projects
+
+            projects.put_back_branch(plan["project"], plan["branch"], *before[0])
+        raise
 
 
 def record_stage(plan: Mapping[str, Any], user: str) -> None:

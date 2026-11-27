@@ -4,6 +4,7 @@
 
 import type {
   AccessLevel,
+  AccountRequest,
   Account,
   Backup,
   CatalogPlugin,
@@ -1087,6 +1088,15 @@ route("GET", "/instance-quota", () => {
     max_instances: null,
     own_instances: [...instances.values()].filter((i) => i.created_by === ME).length,
     max_instances_per_user: null,
+    running: [...instances.values()].filter((i) => !ASLEEP.includes(i.status) && i.status !== "creating").length,
+    running_production: [...instances.values()].filter(
+      (i) => !ASLEEP.includes(i.status) && i.status !== "creating" && i.stage === "production",
+    ).length,
+    running_own: [...instances.values()].filter(
+      (i) => i.created_by === ME && i.stage !== "production" && !ASLEEP.includes(i.status) && i.status !== "creating",
+    ).length,
+    max_running: Number(setting("max_running_instances")) || null,
+    max_running_own: Number(setting("max_running_non_production_per_user")) || null,
     cooldown_minutes: null,
     next_creation_at: null,
   });
@@ -1125,6 +1135,30 @@ function createInstance(
     ["production", "staging", "development"].includes(String(body.stage)) ? body.stage : "development"
   ) as Stage;
   const custom = String(body.name ?? "").trim();
+  if (stage !== "production") {
+    // MAX_RUNNING_INSTANCES and MAX_RUNNING_NON_PRODUCTION_PER_USER (production is never refused)
+    const runs = (i: Instance) => !ASLEEP.includes(i.status) && i.status !== "creating";
+    const total = [...instances.values()].filter(runs).length;
+    const limit = Number(setting("max_running_instances")) || 0;
+    if (limit && total >= limit && queueOn())
+      return queued("create", custom || `odoo-${version.replace(".0", "")}-${edition}-new`, stage);
+    if (limit && total >= limit)
+      throw new Problem(
+        403,
+        `This server runs at most ${limit} ${limit === 1 ? "instance" : "instances"} at once and ${total} ${total === 1 ? "is" : "are"} running or starting. Pause one first.`,
+      );
+    const own = Number(setting("max_running_non_production_per_user")) || 0;
+    const mine = [...instances.values()].filter(
+      (i) => runs(i) && i.created_by === ME && i.stage !== "production",
+    ).length;
+    if (own && mine >= own && queueOn())
+      return queued("create", custom || `odoo-${version.replace(".0", "")}-${edition}-new`, stage);
+    if (own && mine >= own)
+      throw new Problem(
+        403,
+        `You have ${mine} of your ${own} ${own === 1 ? "running instance" : "running instances"} (not counting production) running or starting. Pause one of yours first.`,
+      );
+  }
   if (custom && !/^[a-z][a-z0-9-]{1,39}$/.test(custom))
     throw new Problem(400, "A name has 2 to 40 lower-case letters, digits and dashes, and starts with a letter.");
   if (custom && instances.has(custom)) throw new Problem(409, `An instance named ${custom} exists already.`);
@@ -1732,9 +1766,91 @@ function deleteInstance(instance: Instance, body: Record<string, unknown>): Job 
   });
 }
 
-route("POST", "/instances/:name/actions/:action", ({ params, body }) =>
-  accepted(runAction(instanceOf(params.name!), params.action!, body)),
-);
+route("POST", "/instances/:name/actions/:action", ({ params, body }) => {
+  const instance = instanceOf(params.name!);
+  if (params.action === "start" && ASLEEP.includes(instance.status) && queueOn() && capacity().blocked) {
+    needOn(instance.name, "instances.update", `/api/v1/instances/${instance.name}/actions/start`);
+    return queued("start", instance.name, instance.stage);
+  }
+  return accepted(runAction(instance, params.action!, body));
+});
+
+// ---------------------------------------------------------------- capacity queue (CAPACITY_QUEUE)
+
+type Waiting = { id: string; kind: "create" | "start"; instance: string; user: string; stage: Stage; at: number };
+const waiting: Waiting[] = [];
+let queueSeeded = false;
+const queueOn = () => setting("capacity_queue") === true;
+const waitingView = (item: Waiting) => ({
+  id: item.id,
+  kind: item.kind,
+  instance: item.instance,
+  user: item.user,
+  charged: item.user,
+  stage: item.stage,
+  position: waiting.indexOf(item) + 1,
+  created_at: item.at,
+  status: `Waiting for capacity (position ${waiting.indexOf(item) + 1})`,
+});
+function queued(kind: "create" | "start", instance: string, stage: Stage): Answer {
+  const found = waiting.find((w) => w.instance === instance);
+  const item = found ?? {
+    id: `q${Date.now().toString(36)}${waiting.length}`,
+    kind,
+    instance,
+    user: ME,
+    stage,
+    at: Math.round(Date.now() / 1000),
+  };
+  if (!found) waiting.push(item);
+  return { status: 202, body: { data: waitingView(item) }, headers: { Location: `/api/v1/capacity-queue/${item.id}` } };
+}
+function seedQueue() {
+  // with the queue on, the demo shows what a busy panel looks like: two requests already in line
+  if (queueSeeded || !queueOn()) return;
+  queueSeeded = true;
+  const at = Math.round(Date.now() / 1000);
+  const asleep = [...instances.values()].filter((i) => ASLEEP.includes(i.status) && i.stage !== "production");
+  if (asleep[0])
+    waiting.push({
+      id: "qdemo1",
+      kind: "start",
+      instance: asleep[0].name,
+      user: ME,
+      stage: asleep[0].stage,
+      at: at - 240,
+    });
+  waiting.push({
+    id: "qdemo2",
+    kind: "create",
+    instance: "odoo-19-community-4f2a",
+    user: "ahmad",
+    stage: "development",
+    at: at - 90,
+  });
+}
+route("GET", "/capacity-queue", () => {
+  need("instances.view");
+  seedQueue();
+  const mine = can("capacity.manage") ? waiting : waiting.filter((w) => w.user === ME);
+  return ok(mine.map(waitingView));
+});
+route("DELETE", "/capacity-queue/:id", ({ params }) => {
+  const item = waiting.find((w) => w.id === params.id && (w.user === ME || can("capacity.manage")));
+  if (!item) throw new Problem(404, "Nothing with that id is waiting. It may have started or been cancelled.");
+  waiting.splice(waiting.indexOf(item), 1);
+  record(ME, "left the capacity queue", { instance: item.instance });
+  return none();
+});
+route("POST", "/capacity-queue/:id/front", ({ params }) => {
+  need("capacity.manage", "/capacity-queue");
+  const item = waiting.find((w) => w.id === params.id);
+  if (!item) throw new Problem(404, "Nothing with that id is waiting. It may have started or been cancelled.");
+  waiting.splice(waiting.indexOf(item), 1);
+  waiting.unshift(item);
+  record(ME, "moved to the front of the capacity queue", { instance: item.instance });
+  return ok(waitingView(item));
+});
 route("DELETE", "/instances/:name", ({ params, body }) => accepted(deleteInstance(instanceOf(params.name!), body)));
 
 // ---------------------------------------------------------------- custom domains
@@ -2267,7 +2383,10 @@ route("POST", "/alerts/test", ({ body }) => {
 route("GET", "/roles", () => ok({ roles: ROLES, permissions: PERMISSIONS }));
 route("GET", "/users", () => {
   need("accounts.manage", "/api/v1/users");
-  return ok(users);
+  const fallback = Number(setting("max_running_non_production_per_user")) || null;
+  const rule = String(setting("require_second_factor") ?? "admins");
+  const required = (u: User) => rule === "everyone" || (rule === "admins" && ["super_admin", "admin"].includes(u.role));
+  return ok(users.map((u) => ({ ...u, running_limit_default: fallback, second_factor_required: required(u) })));
 });
 const superAdmins = () => users.filter((u) => u.role === "super_admin");
 function userOf(name: string): User {
@@ -2336,6 +2455,12 @@ route("PATCH", "/users/:name", ({ params, body }) => {
   }
   for (const key of ["first_name", "last_name", "email", "phone"] as const)
     if (key in body) user[key] = String(body[key] ?? "") || null;
+  if ("running_limit" in body) {
+    const own = body.running_limit;
+    if (own !== null && (typeof own !== "number" || !Number.isInteger(own) || own < 0 || own > 1000))
+      throw new Problem(400, "running_limit: a whole number from 0 (no limit) to 1000, or null for the setting.");
+    user.running_limit = own as number | null;
+  }
   if ("sign_in_methods" in body) {
     const chosen = body.sign_in_methods as User["sign_in_methods"] | null;
     const next = chosen ?? ["password", "github"];
@@ -2500,6 +2625,109 @@ route("DELETE", "/invitations/:id", ({ params }) => {
   invitations.splice(invitations.indexOf(found), 1);
   record(ME, "invitation revoked", { detail: found.email });
   return none();
+});
+// ---------------------------------------------------------------- disabled accounts, access requests
+
+function reasonOf(body: Record<string, unknown>): string {
+  const reason = String(body.reason ?? "").trim();
+  if (!reason) throw new Problem(400, "Say why: a reason is needed.");
+  if (reason.length > 300) throw new Problem(400, "The reason is at most 300 characters.");
+  return reason;
+}
+route("POST", "/users/:name/disable", ({ params, body }) => {
+  need("accounts.manage");
+  const reason = reasonOf(body);
+  const user = userOf(params.name!);
+  if (user.name === ME) throw new Problem(400, "You cannot disable your own account.");
+  if (user.role === "super_admin" && superAdmins().filter((u) => !u.disabled).length === 1)
+    throw new Problem(400, "The last active super admin cannot be disabled.");
+  if (user.disabled) return ok(user, { changed: false });
+  user.disabled = true;
+  user.disabled_at = iso(Date.now());
+  user.disabled_by = ME;
+  user.disabled_reason = reason;
+  record(ME, "account disabled", { detail: `${user.name}: ${reason}` });
+  return ok(user, { changed: true });
+});
+route("POST", "/users/:name/enable", ({ params, body }) => {
+  need("accounts.manage");
+  const reason = reasonOf(body);
+  const user = userOf(params.name!);
+  if (!user.disabled) return ok(user, { changed: false });
+  user.disabled = false;
+  user.disabled_at = null;
+  user.disabled_by = null;
+  user.disabled_reason = null;
+  record(ME, "account enabled", { detail: `${user.name}: ${reason}` });
+  return ok(user, { changed: true });
+});
+
+const requests: AccountRequest[] = [
+  {
+    id: "rq1",
+    email: "rania.khalil@example.com",
+    first_name: "Rania",
+    last_name: "Khalil",
+    status: "pending",
+    requested_at: iso(Date.now() - 3 * HOUR),
+    confirmed_at: iso(Date.now() - 3 * HOUR + 4 * 60000),
+    decided_at: null,
+  },
+  {
+    id: "rq2",
+    email: "t.farouk@example.com",
+    first_name: null,
+    last_name: null,
+    status: "pending",
+    requested_at: iso(Date.now() - 26 * HOUR),
+    confirmed_at: iso(Date.now() - 26 * HOUR + 60000),
+    decided_at: null,
+  },
+  {
+    id: "rq3",
+    email: "visitor@example.com",
+    first_name: "Sami",
+    last_name: "Othman",
+    status: "rejected",
+    reason: "Not on the team",
+    decided_by: "omar",
+    requested_at: iso(Date.now() - 4 * DAY),
+    confirmed_at: iso(Date.now() - 4 * DAY + 60000),
+    decided_at: iso(Date.now() - 3 * DAY),
+  },
+];
+route("POST", "/access-requests", () => ok({ received: true }, undefined, 202)); // the same answer for every address
+route("POST", "/access-requests/confirm", () => ok({ received: true }));
+route("GET", "/access-requests", () => {
+  need("accounts.manage", "/api/v1/access-requests");
+  return ok(requests, { domains: ["example.com"], enabled: true, awaiting_confirmation: 2 });
+});
+function requestOf(id: string): AccountRequest {
+  const found = requests.find((r) => r.id === id);
+  if (!found) throw new Problem(404, "No such request.");
+  if (found.status !== "pending") throw new Problem(409, "This request was decided already.");
+  return found;
+}
+route("POST", "/access-requests/:id/approve", ({ params, body }) => {
+  need("accounts.manage");
+  const found = requestOf(params.id!);
+  const role = String(body.role ?? "") as User["role"];
+  if (!ROLES.some((r) => r.name === role)) throw new Problem(400, "Choose a role from the list.");
+  if (role === "super_admin" && session.role !== "super_admin")
+    throw new Problem(403, "Only a super admin can invite super admins.");
+  invitations.unshift(makeInvitation(found.email, role, found.first_name, found.last_name));
+  Object.assign(found, { status: "approved", role, decided_by: ME, decided_at: iso(Date.now()) });
+  record(ME, "access request approved", { detail: `${found.email} (${roleInfo(role).label})` });
+  return ok(found);
+});
+route("POST", "/access-requests/:id/reject", ({ params, body }) => {
+  need("accounts.manage");
+  const found = requestOf(params.id!);
+  const reason = String(body.reason ?? "").trim();
+  if (!reason) throw new Problem(400, "Say why: the reason stays in the list for the other administrators.");
+  Object.assign(found, { status: "rejected", reason, decided_by: ME, decided_at: iso(Date.now()) });
+  record(ME, "access request rejected", { detail: `${found.email}: ${reason}` });
+  return ok(found);
 });
 route("POST", "/invitation", ({ body }) => {
   const found = validInvitation(body.token);

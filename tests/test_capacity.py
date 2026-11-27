@@ -7,8 +7,9 @@ import time
 
 from flask.testing import FlaskClient
 
+import docrun  # noqa: E402
 from sudoo.config import live
-from sudoo.instances import capacity, metrics, monitor
+from sudoo.instances import capacity, metrics, monitor, store
 from sudoo.instances.capacity import MB, Measured, Rules, estimate
 
 Client = tuple[FlaskClient, dict[str, str]]
@@ -129,9 +130,14 @@ def test_capacity_endpoint_and_metrics_carry_the_estimate(admin: Client) -> None
     assert history["panel_memory_bytes"][-1] == 250 * MB
 
 
-def test_hard_limit_refuses_creation_and_start_only_when_set(admin: Client) -> None:
+def test_hard_limit_refuses_creation_and_start_only_when_set(admin: Client, monkeypatch) -> None:
     client, headers = admin
     _measure({"a": True, "b": True})
+    monkeypatch.setattr(
+        store, "names", lambda: ["a", "b"]
+    )  # the strict count is the shared record, of instances that exist
+    docrun.run("a")
+    docrun.run("b")
     assert capacity.refusal() is None  # off by default: only warned
     live.change({"max_running_instances": 2})
     try:
@@ -142,4 +148,5 @@ def test_hard_limit_refuses_creation_and_start_only_when_set(admin: Client) -> N
         assert answer.status_code == 403 and "at most 2 instances" in answer.get_json()["detail"]
     finally:
         live.change({"max_running_instances": None})
+        docrun.reset()
     assert capacity.refusal() is None

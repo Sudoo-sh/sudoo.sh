@@ -21,7 +21,16 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { api, errorText } from "@/api/client";
 import { keys, useCall, useCapacity, usePlan, useQuota, useSettings, useVersions } from "@/api/queries";
-import type { Engine, GitHubRepository, Job, RepoAccess, Stage } from "@/api/types";
+import {
+  isWaiting,
+  type Engine,
+  type GitHubRepository,
+  type Job,
+  type RepoAccess,
+  type Stage,
+  type WaitingRequest,
+} from "@/api/types";
+import queueWords from "@/i18n/capacity-queue";
 import { BackupPicker } from "@/components/BackupPicker";
 import { ModulePicker, useModuleChoice } from "@/components/ModulePicker";
 import { Page, PageHead, useCan } from "@/components/Shell";
@@ -147,6 +156,7 @@ export function NewInstancePage() {
   const e = useT(engineWords);
   const production = stage === "production";
   const t = useT(words);
+  const q = useT(queueWords);
 
   const [branches, setBranches] = useState<string[] | null>(null);
   const [access, setAccess] = useState<RepoAccess | null>(null);
@@ -275,7 +285,7 @@ export function NewInstancePage() {
 
   const create = useCall(
     () =>
-      api.post<Job>("/instances", {
+      api.post<Job | WaitingRequest>("/instances", {
         ...(plain ? {} : { repo: repo.trim(), branch: branch || "main" }),
         version,
         edition,
@@ -293,7 +303,7 @@ export function NewInstancePage() {
         ...(server ? { server } : {}),
         ...(engine !== "docker" ? { engine } : {}),
       }),
-    [keys.instances, ["quota"]],
+    [keys.instances, ["quota"], ["capacity-queue"]],
   );
 
   const waiting = quota?.next_creation_at && quota.next_creation_at * 1000 > Date.now();
@@ -313,6 +323,12 @@ export function NewInstancePage() {
   const submit = () =>
     create.mutate(undefined, {
       onSuccess: (job) => {
+        if (isWaiting(job)) {
+          // over a running limit with CAPACITY_QUEUE on: it waits in line (home page, "Waiting for capacity")
+          toast("success", q.queued(job.instance, job.position), q.queuedText);
+          navigate("/", { viewTransition: true });
+          return;
+        }
         toast("success", t.creating(job.instance), t.creatingText);
         navigate(`/i/${job.instance}/activity`, { viewTransition: true });
       },
@@ -730,6 +746,11 @@ export function NewInstancePage() {
             </div>
           </section>
           <CapacityNote />
+          {quota?.max_running_own ? (
+            <p className="xsmall faint" style={{ textAlign: "center" }}>
+              {t.running(quota.running_own ?? 0, quota.max_running_own)}
+            </p>
+          ) : null}
           {quota && (quota.max_instances || quota.max_instances_per_user) && (
             <p className="xsmall faint" style={{ textAlign: "center" }}>
               {quota.max_instances ? t.onServer(quota.instances, quota.max_instances) : ""}

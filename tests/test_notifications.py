@@ -353,3 +353,29 @@ def test_api_never_returns_a_secret(
     assert developer.get(base).status_code == 403
     assert client.delete(f"{base}/{channel}", headers=headers).status_code == 204
     assert client.get(f"{base}/{channel}x").status_code in (404, 405)
+
+
+def test_a_failed_build_notification_names_the_recognised_cause(
+    project: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sudoo.core import failure
+    from sudoo.projects import builds
+
+    log = "\n== Install requirements\nERROR: No matching distribution found for fancy-lib\n"
+    entry = {
+        "id": "c1",
+        "project": project["id"],
+        "branch": "main",
+        "instance": "i",
+        "type": "build",
+        "status": "failed",
+        "at": 1.0,
+        "result": "Step failed",
+        "failure": failure.describe("Install requirements", "Step failed", log),
+    }
+    monkeypatch.setattr(builds, "find", lambda entry_id, project_id=None: entry)
+    seen: list[dict[str, Any]] = []
+    monkeypatch.setattr(notifications, "emit", lambda event, project_id, **values: seen.append(values) or 1)
+    notifications.on_build("c1")
+    assert any("A Python package could not be found." in line for line in seen[0]["details"])
+    assert seen[0]["text"] == "Step failed"  # the result sentence is unchanged

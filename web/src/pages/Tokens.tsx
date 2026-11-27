@@ -6,6 +6,7 @@ import { Page, PageHead } from "@/components/Shell";
 import { Tag, Button, Callout, CopyField, Empty, Field, Segmented, Skeleton } from "@/components/app/basics";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
+import { useConfirm } from "@/components/app/confirm";
 import { Modal, useToast } from "@/components/app/overlay";
 import { ago } from "@/lib/format";
 import { TOKENS_TOUR } from "@/lib/tour";
@@ -42,9 +43,11 @@ export function TokensPage() {
   const revoke = useCall((id: string) => api.del(`/tokens/${id}`), [["tokens"]]);
   const t = useT(words).tokens;
   const c = useT(common).common;
+  const [confirm, askDialog] = useConfirm();
   const scopeLabel = (scope: string) => (t.scopes as Record<string, { label: string }>)[scope]?.label ?? scope;
   return (
     <Page>
+      {askDialog}
       <PageHead
         title={t.title}
         tour={TOKENS_TOUR}
@@ -112,8 +115,9 @@ export function TokensPage() {
                       variant="ghost"
                       icon={<Trash2 />}
                       onClick={() =>
-                        confirm(t.confirmRevoke(token.name)) &&
-                        revoke.mutate(token.id, { onSuccess: () => toast("success", t.revoked) })
+                        void confirm(t.confirmRevoke(token.name), { action: t.revoke, danger: true }).then((yes) => {
+                          if (yes) revoke.mutate(token.id, { onSuccess: () => toast("success", t.revoked) });
+                        })
                       }
                     >
                       {t.revoke}

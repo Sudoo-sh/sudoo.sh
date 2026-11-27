@@ -60,6 +60,7 @@ A production instance (instances/stages.py) asks for more: pausing, switching of
 
 from __future__ import annotations
 
+import contextlib
 import time
 from collections.abc import Callable, Mapping
 from typing import Any, NoReturn, cast
@@ -68,12 +69,11 @@ from flask import Blueprint, Response, abort, g, request
 
 from sudoo import addons, engines, entitlements, link_deadline, projects, roles
 from sudoo.config import settings
-from sudoo.core import events, jobs, vault
+from sudoo.core import events, jobs, slots, vault
 from sudoo.core.state import STATE
 from sudoo.instances import (
     backups,
     capacity,
-    metrics,
     naming,
     odoo,
     odoo_apps,
@@ -83,7 +83,7 @@ from sudoo.instances import (
     stages,
     store,
 )
-from sudoo.limits import quotas
+from sudoo.limits import queue, quotas
 from sudoo.mailcatcher import panel as mail_catcher
 from sudoo.premium import servers
 from sudoo.projects import access
@@ -121,6 +121,10 @@ ACTIONS = {
     "change-engine": ("Move to another engine", "move", "instances.move"),
 }
 
+
+STARTING_ACTIONS = frozenset({"start", "restart", "restore", "rollback", "upgrade", "change-engine"})
+"""Actions that always end with Odoo running (operations.wake, restart, _finish_restore, upgrade_modules): on an
+instance that is not running they count as one more running instance, like a start."""
 
 BUILD_ACTIONS = frozenset({"update", "update-submodules"})
 """Actions that build the instance from its branch's latest code: each is a build of the branch (projects/builds.py)."""
@@ -456,8 +460,9 @@ def _start_creation(
         abort(400, "The Kubernetes engine (beta) runs instances of the main server only.")
     if engine != engines.DOCKER and edition == "enterprise":
         abort(400, "Enterprise instances cannot run on the Kubernetes engine yet (beta).")
+    waits = False
     if server_id == servers.MAIN:  # another server's agent checks its own running instances
-        _refuse_over_capacity("instance creation refused (running instances)")
+        waits = _refuse_over_capacity("instance creation refused (running instances)", stage, g.user["name"])
     defaults = stages.defaults(stage)
     if stage == stages.PRODUCTION:
         refused = stages.production_refusal() or _project_production_refusal(project, repo, branch)
@@ -503,6 +508,10 @@ def _start_creation(
         plan_data["engine"] = engine
     if server_id != servers.MAIN:
         return _start_remote_creation(server_id, plan_data)
+    if waits:
+        waiting = queue.enqueue_create(plan_data, g.user["name"], g.user["name"], access.role_permissions(g.user))
+        log("Create instance (waiting for capacity)", instance=name, detail=f"Odoo {version} {edition}, {stage}")
+        return _queued(waiting)
     job = planning.start(plan_data, g.user["name"])
     log(
         "Create instance",
@@ -696,11 +705,13 @@ def _extended(name: str, before: Mapping[str, Any]) -> str | None:
     if not STATE.get(name).get("expired_at"):
         return None
     STATE.update(name, expired_at=None)
-    refused = capacity.refusal()
+    with quotas.LOCK:  # from the limit check until the start's job is registered, as in run()
+        refused = capacity.start_refusal(name)
+        if not refused:
+            jobs.start(name, "Start", "wake", operations.wake, name, user=g.user["name"])
     if refused:
         log(f"{name} extended but not restarted", ok=False, detail=refused)
         return f"The lifetime was extended, but {name} stays stopped. {refused}"
-    jobs.start(name, "Start", "wake", operations.wake, name, user=g.user["name"])
     log("started again after its lifetime was extended", instance=name)
     return None
 
@@ -941,15 +952,41 @@ def _refuse_joining_production(name: str, repo: str, branch: str) -> None:
 
 
 def _running(name: str) -> bool:
-    return bool(metrics.INSTANCES.get(name, {}).get("running"))
+    return name in capacity.counted_names(strict=False)  # shown, not checked
 
 
-def _refuse_over_capacity(what: str) -> None:
-    """403 when MAX_RUNNING_INSTANCES instances run already (off by default: the panel only warns)."""
-    refused = capacity.refusal()
-    if refused:
-        log(what, ok=False, detail=refused)
-        abort(403, refused)
+def _refuse_over_capacity(
+    what: str, stage: str | None = None, user: str | None = None, *, queued: bool = True, instance: str | None = None
+) -> bool:
+    """403 when MAX_RUNNING_INSTANCES instances run already, or when `user` has the most non-production instances
+    running they may (both off by default: the panel only warns). Never for a production instance (`stage`).
+    With CAPACITY_QUEUE on, True instead of 403: the request waits (limits/queue.py); `queued` False: it cannot wait
+    (the caller needs the answer now, such as an upgrade test), so it is refused as without the queue."""
+    refused = capacity.refusal(stage=stage, user=user, instance=instance)  # instance: the one that exists and starts
+    if not refused:
+        return False
+    if queued and queue.enabled():
+        return True
+    log(what, ok=False, detail=refused)
+    abort(403, refused)
+
+
+def admit_start(name: str, what: str) -> None:
+    """403 when `name` is stopped and starting it would pass a running limit (the instance's own owner and stage, read
+    from its .env; no queue: the caller needs the answer now). The caller holds quotas.LOCK from here until the
+    job is registered with holds_slot. A running instance is not asked: it holds its slot already."""
+    if _running(name):
+        return
+    env = store.read_env(name)
+    _refuse_over_capacity(what, stages.of(env), env.get("CREATED_BY") or None, queued=False, instance=name)
+
+
+def _queued(item: Mapping[str, Any]) -> Response:
+    """202 for a request that waits for capacity: the item (position, status), and where to follow it."""
+    response = ok(queue.resource(item), status=202)
+    response.headers["Location"] = f"{PREFIX}/capacity-queue/{item['id']}"
+    response.headers["Content-Location"] = f"{PREFIX}/instances/{item['instance']}"
+    return response
 
 
 def run(name: str, action: str) -> Response:
@@ -973,10 +1010,23 @@ def run(name: str, action: str) -> Response:
     if action in link_deadline.DEPLOY_ACTIONS:
         refuse_unlinked("updating and deploying instances", f"{action} on {name} refused (panel not linked)")
     fn, args = _job_for(action, name, check.body())
-    if action == "start" and not _running(name):
-        _refuse_over_capacity(f"start of {name} refused (running instances)")
     build = {"build": "manual"} if action in BUILD_ACTIONS else None  # a new build in the branch's history
-    job = jobs.start(name, title, kind, fn, *args, user=g.user["name"], details=build)
+    with quotas.LOCK:  # from the limit check until the start's job is registered (it counts as running from then on)
+        if action in STARTING_ACTIONS and not _running(name):
+            env = store.read_env(name)
+            if _refuse_over_capacity(
+                f"{action} of {name} refused (running instances)",
+                stages.of(env),
+                env.get("CREATED_BY") or None,
+                queued=action == "start",  # only a plain start can wait in line
+            ):
+                waiting = queue.enqueue_start(
+                    name, g.user["name"], env.get("CREATED_BY") or None, stages.of(env), access.role_permissions(g.user)
+                )
+                log("Start (waiting for capacity)", instance=name)
+                return _queued(waiting)
+        job = jobs.start(name, title, kind, fn, *args, user=g.user["name"], details=build,
+                         holds_slot=True if action in STARTING_ACTIONS else None)  # fmt: skip
     log(title, instance=name)
     return _accepted(job)
 
@@ -1026,11 +1076,40 @@ def change_resources(name: str) -> Response:
     if refused:
         log("instance resources refused", instance=name, ok=False, detail=refused)
         abort(409, refused)
-    previous = resources.overrides(name)
-    resources.save_overrides(name, limits, g.user["name"])
-    job = jobs.start(
-        name, "Apply resources", "restart", operations.apply_resources, name, previous, user=g.user["name"]
-    )
+    with quotas.LOCK:  # a stopped instance is started by the restart: the running limits, then the hold, as one step
+        if jobs.unfinished(name) or slots.held_by_a_job(name):  # a job (of any process) may read the limits halfway
+            busy = f"{name} is busy with another job. Try again when it has finished."
+            log("instance resources refused", instance=name, ok=False, detail=busy)
+            abort(409, busy)
+        refused = capacity.admission_refusal(name)
+        if refused:
+            log("instance resources refused", instance=name, ok=False, detail=refused)
+            abort(403, refused)
+        previous = resources.overrides(name)
+        before = resources.stored(name)
+        saved: list[bool] = []
+
+        def save() -> None:  # after the slot is held, before the job exists: a refusal saves nothing
+            saved.append(True)  # before the write: a write that failed after it took effect is put back too
+            resources.save_overrides(name, limits, g.user["name"])
+
+        try:
+            job = jobs.start(
+                name, "Apply resources", "restart", operations.apply_resources, name, previous,
+                user=g.user["name"], holds_slot=True, prepare=save,
+            )  # fmt: skip
+        except BaseException:
+            if saved:  # saved, and then the job could not begin: put the old limits back, or say they stayed
+                try:
+                    resources.put_back(name, before)
+                except Exception as error:  # noqa: BLE001
+                    with contextlib.suppress(Exception):  # the failure below is what the caller must see
+                        log("instance resources not restored", instance=name, ok=False, detail=str(error)[:300])
+                    raise RuntimeError(
+                        f"The new limits of {name} were saved but the change did not start, and the old limits "
+                        "could not be put back. Check the instance's resources."
+                    ) from error
+            raise
     log(
         "instance resources changed",
         instance=name,

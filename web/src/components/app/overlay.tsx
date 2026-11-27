@@ -232,7 +232,11 @@ export function Menu({
         onCloseAutoFocus={(event) => {
           // back to the button that opened it
           event.preventDefault();
-          anchor.current?.querySelector<HTMLElement>("button, a")?.focus({ preventScroll: true });
+          const button = anchor.current?.querySelector<HTMLElement>("button, a");
+          // unless a menu item opened a dialog (one this menu is not inside): the dialog has the focus then, and keeps it
+          const dialogs = [...document.querySelectorAll('[role="dialog"], [role="alertdialog"]')];
+          if (dialogs.some((dialog) => !dialog.contains(anchor.current))) return;
+          button?.focus({ preventScroll: true });
         }}
       >
         {children(close)}

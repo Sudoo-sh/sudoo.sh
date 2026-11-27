@@ -189,20 +189,24 @@ def test_records_are_only_ever_added(app: Flask, admin: Client, fresh: None, mon
     first, second = licence.history()
     assert (first["use"], second["use"]) == ("personal", "company")
     assert licence.latest() == second
-    # a record with the same id is refused, never replaced
-    monkeypatch.setattr(licence.time, "time", lambda: first["ts"])
-    monkeypatch.setattr(licence.secrets, "token_hex", lambda n: first["id"].rsplit("-", 1)[1])
-    with pytest.raises(licence.LicenceError):
-        licence.record(
-            user="x",
-            account={},
-            role="super_admin",
-            ip="1",
-            user_agent="",
-            use="personal",
-            on_behalf=False,
-            surface="panel",
-        )
+    # a record with the same id is refused, never replaced. licence.time and licence.secrets are the real time and
+    # secrets modules, so the patches are undone before the next request (sessions and rate limits read them too)
+    real_time, real_token_hex = licence.time.time, licence.secrets.token_hex
+    with monkeypatch.context() as patched:
+        patched.setattr(licence.time, "time", lambda: first["ts"])
+        patched.setattr(licence.secrets, "token_hex", lambda n: first["id"].rsplit("-", 1)[1])
+        with pytest.raises(licence.LicenceError):
+            licence.record(
+                user="x",
+                account={},
+                role="super_admin",
+                ip="1",
+                user_agent="",
+                use="personal",
+                on_behalf=False,
+                surface="panel",
+            )
+    assert (licence.time.time, licence.secrets.token_hex) == (real_time, real_token_hex)
     assert licence.history() == [first, second]
     audit = web.get("/api/v1/audit").get_json()["data"]
     assert any(item["event"] == "accepted the Sudoo.sh Licence Agreement" for item in audit)

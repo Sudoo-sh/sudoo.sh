@@ -616,3 +616,24 @@ def test_create_an_empty_repository(admin: Client, operator: Client, connected: 
     bad = {**body, "create": {"owner": "Acme", "name": "../x"}}
     assert client.post("/api/v1/projects", json=bad, headers=headers).status_code == 400
     projects.remove(made["id"])
+
+
+def test_app_webhook_create_passes_only_githubs_sender_id(
+    app_webhook: tuple[FlaskClient, list[Any]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A branch created on GitHub reaches the project's automation with the numeric id GitHub names as sender (never
+    a name or address from the payload), and an unsigned or wrongly signed delivery reaches nothing."""
+    from sudoo.projects import automation
+
+    client, _ = app_webhook
+    seen: list[Any] = []
+    monkeypatch.setattr(
+        automation, "branch_created", lambda repository, branch, user="system", github_id=None: seen.append(github_id)
+    )
+    created = {"ref": "feature", "ref_type": "branch", "repository": {"full_name": "acme/shop"},
+               "sender": {"id": 4301, "login": "x"}, "pusher_type": "user", "pusher": {"name": "someone"}}  # fmt: skip
+    assert _deliver(client, "create", created, secret="x" * 32).status_code == 401
+    assert client.post("/hooks/github-app", data=b"{}", headers={"X-GitHub-Event": "create"}).status_code == 401
+    assert seen == []
+    assert _deliver(client, "create", created).status_code == 200
+    assert seen == [4301]

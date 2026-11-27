@@ -43,6 +43,7 @@ domains and certificates, off-site copies of backups.
 31. [Production access rules (beta)](#31-production-access-rules-beta)
 32. [Maintenance windows](#32-maintenance-windows)
 33. [Kubernetes engine (beta)](#33-kubernetes-engine-beta)
+34. [AI explanation of failed builds (optional)](#34-ai-explanation-of-failed-builds-optional)
 
 ---
 
@@ -108,7 +109,49 @@ Odoo images (about 1.5 GB per version) take disk too.
 "This server can run about 9 instances at once; 9 are running. Starting another may slow every instance." They do
 not stop you. The dashboard warns when the server's memory use reaches `CAPACITY_WARNING_PERCENT` (85 %), or when
 more instances run than the estimate. To refuse creating and starting instances beyond a number, set
-`MAX_RUNNING_INSTANCES` (Settings, **Instances** tab, **Capacity**); a visitor opening a paused instance still starts it.
+`MAX_RUNNING_INSTANCES` (Settings, **Instances** tab, **Capacity**). A visitor opening a paused instance starts it only
+when both limits allow one more (the person's is the one of whoever created the instance); otherwise the visitor sees
+a "Not starting right now" page that refreshes by itself, and the instance starts when there is room or someone
+starts it from the panel (starting it by hand is refused the same way).
+A job that starts or stops an instance (creating, waking, restarting, updating, restoring, applying resources, a
+repair, an automatic update or rollback, maintenance) holds the instance's running slot while it runs and until the
+monitor has read the instance after the job ended, whether the job worked or failed. The holds are kept in the panel's
+storage, so a restart does not forget them and a second panel process on the same host counts them; the check and the
+hold happen under one lock shared by those processes. A start that cannot be recorded within
+`SLOT_STORE_WAIT_SECONDS` is refused (503), never started unrecorded. A hold of a process that died is ended when
+another process finds its lock free, and is released by the next reading of the instance. Starts nobody waits on
+(maintenance, automatic updates, repairs, the automatic upgrade rollback) are skipped at the limit, written to the audit
+log, and tried again at their next pass. Not covered: panel processes on different hosts sharing one database, and
+instances no job started that a cluster does not report. A check that cannot read the record of what runs refuses
+the start (the same 503), never counts from the panel's own memory. With a storage plugin that has no bounded write
+(`bounded_change`) every such start is refused until the storage is changed. A hold whose owner's lock file is missing
+or cannot be tried stays counted and is only said so in the unsettled note. A restart does not end it (a new process
+gets a new owner id and never recreates the old file); there is no operator step for it yet. A "running"
+reading published by a panel process that has stopped keeps counting until a live one publishes a newer reading.
+The limits are judged twice: before the start, and again inside the write that records its hold, on the shared record
+alone (the holds in it and the readings published into it, not this process's own memory), so two starts that both saw
+room cannot both pass. The count is limited to those published readings and holds: an instance started by
+something other than the panel is seen only after a monitor read of it is published, and a monitor that is dead or
+stuck in another process leaves its last reading in place. While this process cannot publish a reading, new
+non-production starts are refused with 503, as a temporary fault and not as a limit (production is not), until a publication works. A queued start that is refused
+this way keeps its place in the line. Production instances count in that total but are never refused. To limit one person, set
+`MAX_RUNNING_NON_PRODUCTION_PER_USER` (the non-production instances they created that run or start at once; 0: no
+limit), or give one person another number on their page in **Accounts** (0 there: no limit for them). Both limits are
+off by default, are checked in the API, and are changed in the audit log like every setting.
+
+**Capacity queue.** With `CAPACITY_QUEUE` on, a creation or a start that one of these two limits would refuse waits in
+line instead and starts by itself, in queue order, when there is room (checked every few seconds). The line is kept
+in storage, so a restart keeps it. If the person at the front is at their own limit, the next one that fits starts. A
+person leaves the line with `DELETE /capacity-queue/<id>`; `capacity.manage` (administrators) sees everyone's requests,
+cancels any and moves one to the front. Production is never queued, and a memory or disk refusal is not a capacity wait. Known limit: an item is taken out of
+the line just before its job is created, so a process crash in that moment loses the item (the person asks again); a
+restart otherwise keeps the line, and it does not promise to start each item exactly once across a crash.
+
+An instance the panel creates by itself (for a new branch, or a pull-request preview) counts against one person's
+limit, and always against the panel-wide limit. That person is the panel account linked to the GitHub account that
+GitHub's signed webhook names as the sender, when that account can reach the project; otherwise the person who
+created the project; otherwise nobody (only the panel-wide limit applies). Names and e-mail addresses typed in a
+commit are never used for this. The audit entry and the refusal text say whose limit was used.
 
 The figures cover the last hour and start again when the panel restarts, so right after a restart the panel counts
 the default until it has measured again.
@@ -1687,6 +1730,8 @@ overwrites a text you changed.
 | Sign-in code | Signing in with the e-mail code | The person signing in |
 | E-mail address confirmation | Setting up the e-mail code | The address being set up |
 | New sign-in | After every sign-in ([section 18](#18-sign-in-e-mails-and-recovery-codes)) | The account that signed in |
+| Access request: confirm your address | Someone asks for an account at `/request-access` (needs `ACCESS_REQUEST_DOMAINS`) | The person who asked |
+| Access request waiting | The person confirmed the address | Administrators with an e-mail address |
 | Invitation | **Invite** and **Send again** on the Accounts page: the link that accepts it (works once, `INVITATION_HOURS`) | The person invited |
 | Alert | An alert as it happens, and its recovery ([Alerts](#16-alerts)) | Alert recipients |
 | Daily summary of alerts | Once a day with `ALERT_DIGEST` | Alert recipients |
@@ -2383,7 +2428,7 @@ it took, the instance, the job (whose steps you can open) and a short result:
 * **success** when the job succeeded;
 * **warning** when the job succeeded but Odoo's log has `WARNING` or `ERROR` lines while loading the modules (the
   first ten are kept with the build), or the job left a warning, such as modules that could not be upgraded;
-* **failed** when the job failed, with **Why it failed** (the step, the reason and the error details, `core/failure.py`;
+* **failed** when the job failed, with **Why it failed** (the step, the reason, the error details and, when the panel recognises the cause, what it is and what to do about it, `core/failure.py`, `core/failure_rules.py`;
   for a repository the panel cannot read, the fix next to it); an update that was put back keeps the instance on its
   previous build, which stays live;
 * **dropped** when the instance moved on: a newer build of it succeeded, it follows another branch now, or it was
@@ -3325,3 +3370,40 @@ your cluster's certificate authority, so the new node refuses any other server. 
   ([Kubernetes engine, section 16](KUBERNETES_ENGINE.md#16-real-high-availability-later-phase)).
 * Remove k3s with `/usr/local/bin/k3s-uninstall.sh` once no instance runs on it (move them to Docker first): it
   deletes every Kubernetes instance's data.
+
+---
+
+## 34. AI explanation of failed builds (optional)
+
+Off by default. When an administrator turns it on, a person who may read a branch's logs can press **Explain with AI**
+on a failed build of a project that opted in. The panel shows the exact text it would send, and nothing leaves the
+server until that person confirms. The answer is plain text, labelled as written by a model, and is not stored; the
+panel runs nothing and changes nothing because of it.
+
+**Set up** (Settings, Advanced; needs `settings.manage`):
+
+1. Add the service's `host:port` to `EXPLAIN_ALLOWED_DESTINATIONS` in the server's settings. This list is separate
+   from the notification allowlist, and is empty by default. Only public addresses are accepted: servers on a private
+   network or the same machine are **not supported in this version** (a later mode would need its own review). The
+   panel's own address and cloud metadata or link-local addresses are always refused.
+2. In Settings enter the chat-completions URL (no query string, parameters or `#`: the address is shown as plain text
+   to administrators, so put the key in the key field only, and nothing secret in the path either: the panel does not treat the address as a secret), a model name and an API key (saved in the panel's vault, never shown
+   again), and switch it on.
+3. Turn it on for each project that should use it (a person with `projects.manage`, from a failed build's card).
+
+**What is sent.** A fixed instruction (English or Arabic), the recognised cause's title when there is one, and at
+most 40 lines (4000 characters) of the stored error details of that build, scrubbed again. Never the step's title,
+the branch, the instance name, the repository or the person's name. The scrubber hides the patterns it knows (private
+keys, bearer tokens, `key=value` secrets, URL credentials, JWTs, known key shapes, long random strings, e-mail and IP
+addresses, and some wrapped lines). It is best effort: **it cannot guarantee that no secret or personal text is left
+in**, which is why the person sees and confirms the text first. A hosted service receives it under its own terms;
+nothing is promised from the type of endpoint alone.
+
+**Limits.** Each person can have a few previews open at once (and the panel a fixed number in all, counted atomically). A preview works once and for five minutes, and is checked again at confirm (the person's rights, the
+project's opt-in, the settings, the build and the destination). One request is in flight at a time, and the hourly
+limits `EXPLAIN_USER_LIMIT_PER_HOUR` (10) and `EXPLAIN_PROJECT_LIMIT_PER_HOUR` (30) apply. They limit the number of
+requests, not what the service charges. The connection is verified TLS to the checked, pinned address; the whole
+exchange has a total deadline and an answer-size cap; errors never repeat the address, the key or the answer.
+
+The audit log records who asked, the project, the build, the host and the size, never the text, the answer or the key.
+A model can be wrong, and text in a log can try to mislead it: treat the answer as a hint.

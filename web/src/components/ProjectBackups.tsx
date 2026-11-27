@@ -16,6 +16,7 @@ import operations from "@/i18n/operations";
 import words from "@/i18n/projects";
 import { ago, bytes, count, dateTime } from "@/lib/format";
 import { Button, Callout, Empty, Skeleton, Tag } from "./app/basics";
+import { useConfirm } from "./app/confirm";
 import { Modal, useToast } from "./app/overlay";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
 import { JobDrawer } from "./JobDrawer";
@@ -107,9 +108,11 @@ function BranchBackups({
   const t = useT(words).backups;
   const remove = useCall((file: string) => api.del(`/backups/${encodeURIComponent(file)}`), [["backups"]]);
   const [restoring, setRestoring] = useState<{ backup: Backup; instance: Instance } | null>(null);
+  const [confirm, askDialog] = useConfirm();
   const several = branch.instances.length > 1;
   return (
     <section className="card" aria-label={branch.name}>
+      {askDialog}
       <div className="card-head">
         <GitBranch />
         <div className="spacer">
@@ -193,10 +196,12 @@ function BranchBackups({
                       icon={<Trash2 />}
                       aria-label={o.delete}
                       onClick={() =>
-                        confirm(o.confirmDelete(backup.file)) &&
-                        remove.mutate(backup.file, {
-                          onSuccess: () => toast("success", o.deleted),
-                          onError: (e) => toast("error", o.delete, errorText(e)),
+                        void confirm(o.confirmDelete(backup.file), { action: o.delete, danger: true }).then((yes) => {
+                          if (yes)
+                            remove.mutate(backup.file, {
+                              onSuccess: () => toast("success", o.deleted),
+                              onError: (e) => toast("error", o.delete, errorText(e)),
+                            });
                         })
                       }
                     />

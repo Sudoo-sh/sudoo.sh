@@ -8,6 +8,7 @@ import type {
   Backup,
   BackupKind,
   DeployKey,
+  Failure,
   GitHubAppState,
   InstalledPlugin,
   Instance,
@@ -72,6 +73,7 @@ const ALL: Permission[] = [
   "instances.database_shell",
   "instances.profile",
   "shells.supervise",
+  "capacity.manage",
   "servers.manage",
   "instances.move",
   "support_access.manage",
@@ -121,6 +123,7 @@ export const PERMISSIONS: Record<Permission, string> = {
   "instances.profile":
     "Record what an instance's Odoo workers spend their time on (code profiler), and read, download and delete its recordings",
   "shells.supervise": "See open and past shells, end them and play their recordings",
+  "capacity.manage": "See every request waiting in the capacity queue, move one to the front and cancel any",
   "servers.manage": "Add, approve, revoke and remove servers; change their name, region and room",
   "instances.move": "Move instances to another server",
   "support_access.manage": "Grant Sudoo.sh support temporary access to the panel, see it and withdraw it",
@@ -441,6 +444,10 @@ export const users: User[] = [
     github: null,
     github_login: null,
     has_password: false,
+    disabled: true,
+    disabled_at: iso(OPENED - 2 * DAY),
+    disabled_by: "omar",
+    disabled_reason: "Left the company; kept for the audit trail.",
   },
 ];
 
@@ -820,7 +827,9 @@ function pastJob(
   extra: Partial<Job> = {},
 ) {
   const started = OPENED - startedAgo;
-  const failedAt = extra.status === "failed" ? steps.length - 1 : -1;
+  // the failed step is the one the job's "Why it failed" names (a rolled-back update goes on after it), else the last
+  const named = steps.findIndex((title) => title === extra.failure?.step);
+  const failedAt = extra.status === "failed" ? (named >= 0 ? named : steps.length - 1) : -1;
   const job: Job = {
     id: hex(12),
     instance: instance.name,
@@ -993,6 +1002,27 @@ function seedBackups() {
 function seedFailure() {
   const instance = instances.get("nile-logistics-upgrade-18")!;
   const failedAt = OPENED - 3 * HOUR;
+  const error = `The update to 9b1e0c4 failed at upgrading modules; the instance was put back to ${instance.git.commit!.sha}. The module nile_wms has an error in its XML files: the field "batch_zone_id" in view stock.picking.form does not exist on Odoo 18.`;
+  // "Why it failed" of that job: what core/failure.py and core/failure_rules.py would send for such a log
+  const why: Failure = {
+    step: "Upgrading modules: nile_wms",
+    reason: error,
+    kind: "odoo",
+    details: [
+      "ERROR odoo.tools.convert: ParseError",
+      "odoo.tools.convert.ParseError: while parsing nile_wms/views/picking_views.xml:27, somewhere",
+      'Field "batch_zone_id" does not exist in model "stock.picking"',
+    ],
+    repository: null,
+    rule: {
+      id: "odoo_xml_parse_error",
+      title: "A module has an error in an XML file",
+      explanation: "Odoo stopped while reading a view or data file of a module. The file and line are shown.",
+      fix: "Open that file at that line and fix the XML (a field that does not exist, a bad inheritance, a missing tag).",
+      captured: { file: "nile_wms/views/picking_views.xml", line: "27" },
+      excerpt_line: 2,
+    },
+  };
   const job = pastJob(
     instance,
     "Get latest code",
@@ -1009,7 +1039,8 @@ function seedFailure() {
     "GitHub push",
     {
       status: "failed",
-      error: `The update to 9b1e0c4 failed at upgrading modules; the instance was put back to ${instance.git.commit!.sha}. The module nile_wms has an error in its XML files: the field "batch_zone_id" in view stock.picking.form does not exist on Odoo 18.`,
+      error,
+      failure: why,
     },
   );
   instance.update_failure = {

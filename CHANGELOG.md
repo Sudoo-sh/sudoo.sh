@@ -40,6 +40,58 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - Step by step workflow guides in English and Arabic (`docs/manual/`), with screenshots from the demo.
 - User manual: the first-run setup page has eight steps, not two; the certificate "Expires soon" window follows `ALERT_CERTIFICATE_DAYS`; production updates are always backed up first; maintenance backs up first only for Odoo image updates; the client portal is a Business plan feature.
+- **The panel's own question dialog:** `useConfirm()` (`web/src/components/app/confirm.tsx`) replaces the browser's
+  `confirm()` everywhere (deleting or disabling an account, revoking an invitation, token, backup or GitHub link,
+  removing a submodule, changing your own role). It is the panel's dialog, so it follows the theme and the language and
+  takes keyboard focus. A test (`web/src/no-native-dialogs.test.ts`) fails when a file in `web/src` calls the browser's
+  `confirm`, `alert` or `prompt`.
+- **Reason for disabling and enabling an account (Task 53, cross-cut 34):** both calls now need a short reason (up to 300
+  characters), kept in the audit log and shown as `disabled_reason`. The access-request list also reports how many
+  requests still wait for e-mail confirmation (`meta.awaiting_confirmation`, a count only).
+- **Optional AI explanation of failed builds (Task 18c):** off by default. With an administrator's settings (a
+  separate `EXPLAIN_ALLOWED_DESTINATIONS` list of public `host:port` entries, a model and a vaulted key) and a
+  per-project opt-in, a person who can read the branch's logs can press "Explain with AI" on a failed build, see the
+  exact scrubbed excerpt and fixed instruction that would be sent, and confirm (single use, five minutes, rechecked
+  at confirm). One request at a time, hourly per-person and per-project request limits (not a cost cap), a total
+  deadline and size cap, no redirects, the checked address pinned. The answer is plain text, labelled as model-written,
+  and not stored. Scrubbing is best effort and cannot guarantee that no secret is included; a model can be wrong or
+  misled by log text. Servers on a private network are not supported. The notification sender now shares one tested
+  exchange function with it.
+- **The failed-build commit status names the cause (Task 18b):** when a failed build's cause was recognised, the
+  commit status on GitHub reads "<step category>: <cause title>" (a fixed word such as Modules or Database, never the step's own title, which can hold names; cut at 140 characters) and still links to the
+  branch in the panel; otherwise it keeps the build's result text. It uses the Commit statuses permission the panel
+  already asks for; nothing new is requested from GitHub. Check-run annotations are not part of this change.
+- **Failed builds name a recognised cause (Task 18a):** `core/failure_rules.py` adds nine rules (module with unmet
+  dependencies, XML parse error, missing external id, Python syntax error, pip package not found, pip conflict,
+  missing Python library, port in use, access rights file) on top of the existing hints. "Why it failed" gets a
+  `rule` (id, title, explanation, fix and what the log named: module, file, line, package or port) when one
+  matches, shown as a card in English and Arabic with the matching line of the error details marked (its number is a
+  line of the shown excerpt, not of the file or the log); the e-mail to the person who pushed and the
+  build-failed notification (every channel) carry the title and fix (the e-mail in English only). Entries without a rule, and logs no rule matches, show exactly what they showed before.
+  Matching reads only the cleaned lines of the failed step, so what a rule captures was already masked. Nothing
+  leaves the server and nothing is sent to GitHub: the commit status and any AI step are later, separate changes.
+- **Second factor column and warning (Task 34d):** `GET /users` shows `second_factor_required` per account
+  (`REQUIRE_SECOND_FACTOR`, which already applies to super admins and administrators by default). The Accounts page marks an
+  active account that must have a second factor and has none ("Required, not set up") and says how many there are. The
+  setting's text now says it applies to super admins and administrators. The Second factor and Last sign-in columns and
+  invite/revoke in the lists were already there.
+
+- **Disabled accounts (Task 34c):** an administrator can disable an account (Accounts, the account's menu, **Disable**;
+  `POST /users/<name>/disable`, `POST /users/<name>/enable`, permission `accounts.manage`). A disabled account cannot sign
+  in (password, e-mail code or GitHub), its sessions end at once, and the API tokens it owns are refused. Its data, role
+  and projects stay, and **Enable** brings it back. Nobody disables their own account, and the last active super admin
+  cannot be disabled. A disabled account is also skipped when a waiting capacity request or a charged action would run
+  as it. Every change is in the audit log. The Accounts page now has tabs: Pending approval, Active, Invited, Disabled.
+- **Access requests (Task 34c):** with `ACCESS_REQUEST_DOMAINS` set (comma separated; empty, the default, is off), a person
+  with an address in those domains can ask for an account at `/request-access`. They confirm the address from an e-mailed
+  link, then the request waits under Accounts, Pending approval, and administrators with an e-mail address are told.
+  An administrator approves it with a role (the person receives a normal invitation and chooses their own password;
+  only a super admin approves super admin) or rejects it with a reason that stays in the list. The form answers the same
+  way for every address, so it does not reveal which domains are allowed or which accounts exist; no e-mail is sent for
+  a domain that is not allowed, an address that has an account, an invitation or an open request, or after 3 requests
+  for one address (10 for one client address) in an hour. New routes: `POST /access-requests`,
+  `POST /access-requests/confirm` (public), `GET /access-requests`, `POST /access-requests/<id>/approve`, `.../reject`
+  (`accounts.manage`).
 
 ## [3.5.0] - 2026-11-25
 
@@ -71,6 +123,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Running instances per person (Task 34a):** `MAX_RUNNING_NON_PRODUCTION_PER_USER` (0: off) limits the non-production
+  instances one person runs or starts at once; an administrator can set another number for a person (`running_limit`
+  on the account). Production instances are never refused by it or by `MAX_RUNNING_INSTANCES`, and the home page says
+  "including N production". `GET /instance-quota` reports the running figures and New instance shows "n of m".
+- **Capacity queue (Task 34b):** with `CAPACITY_QUEUE` on (off by default), a creation or start that a running-instances
+  limit would refuse waits in a line and starts by itself, in queue order, when there is room (answer 202 and
+  `/capacity-queue/<id>`). A person sees and cancels their own waiting requests; the new permission `capacity.manage`
+  (administrators) sees all, cancels any and moves one to the front. Production is never queued; memory and disk refusals
+  and upgrade tests are refused at once as before. A waiting item whose person is at their own limit does not hold up
+  the others. A request is checked again when it starts: a deleted or disabled account, or one whose rights no longer allow
+  it, is dropped. The home page has a "Waiting for capacity" card (your own requests, everyone's with `capacity.manage`)
+  with Cancel and Move to front.
 - **Home page: Expiring soon (Task 33, step 2):** three figures (expiring soon, stopped and waiting for deletion,
   failed), a card of the instances that end soonest with an Extend menu (the extensions the administrator offers, or
   any number of days; the API applies the same limits), a **With end date** filter on the instance list (nearest end first), and a Recent

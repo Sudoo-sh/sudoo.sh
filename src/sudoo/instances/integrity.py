@@ -811,9 +811,17 @@ def _maybe_repair(name: str, found: list[Finding], signature: tuple[str, ...]) -
     if attempted and attempted[0] == signature and time.time() - attempted[1] < _REPAIR_RETRY_SECONDS:
         return  # tried already for these very differences; again after a while, or when they change
     _ATTEMPTED[name] = (signature, time.time())
-    from sudoo.instances import operations
+    from sudoo.instances import capacity, operations
 
-    jobs.start(name, "Restore the panel's configuration", "repair", operations.repair, name, user="system")
+    job, why = capacity.start_admitted(
+        name,
+        lambda: jobs.start(name, "Restore the panel's configuration", "repair", operations.repair, name, user="system",
+                           holds_slot=True),
+    )  # fmt: skip
+    if (
+        job is None
+    ):  # a running limit (or the slot record) refuses it: said so, tried again when the differences change or after a while
+        audit.record("system", None, "repair skipped (running limit)", name, ok=False, detail=str(why)[:200])
 
 
 def _notify(name: str, items: list[str]) -> None:

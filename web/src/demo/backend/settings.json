@@ -1554,6 +1554,20 @@
     "description": "Invitations one administrator may send (new or again) per hour."
   },
   {
+    "key": "access_request_domains",
+    "env": "ACCESS_REQUEST_DOMAINS",
+    "value": "",
+    "env_value": "",
+    "changed_in_panel": false,
+    "editable": true,
+    "applies": "now",
+    "pending_restart": false,
+    "secret": false,
+    "type": "string",
+    "minimum": null,
+    "description": "E-mail domains (comma separated, such as example.com) whose people may ask for an account at /request-access: they confirm their address, then an administrator approves or rejects. Empty: off, and everyone is invited instead."
+  },
+  {
     "key": "recovery_codes_count",
     "env": "RECOVERY_CODES_COUNT",
     "value": 10,
@@ -2069,7 +2083,48 @@
     "secret": false,
     "type": "integer",
     "minimum": 0,
-    "description": "Instances running at once at most: creating or starting one more is refused; 0: never refused, only warned."
+    "description": "Instances running at once at most: creating or starting one more is refused; 0: never refused, only warned. Production instances are never refused by it."
+  },
+  {
+    "key": "max_running_non_production_per_user",
+    "env": "MAX_RUNNING_NON_PRODUCTION_PER_USER",
+    "value": 0,
+    "env_value": 0,
+    "changed_in_panel": false,
+    "editable": true,
+    "applies": "now",
+    "pending_restart": false,
+    "secret": false,
+    "type": "integer",
+    "minimum": 0,
+    "description": "Non-production instances one person may have running or starting at once (the ones they created); one more is refused. 0: no limit. An administrator can set another number for a person on their page. Production instances are never counted or refused."
+  },
+  {
+    "key": "slot_store_wait_seconds",
+    "env": "SLOT_STORE_WAIT_SECONDS",
+    "value": 5,
+    "env_value": 5,
+    "changed_in_panel": false,
+    "editable": true,
+    "applies": "now",
+    "pending_restart": false,
+    "secret": false,
+    "type": "integer",
+    "minimum": 1,
+    "description": "Seconds a start waits to check the running limit and record that it holds a slot, or a job waits to record that it ended, before the start is refused (try again) or the record is retried. Raise it only if the database is slow."
+  },
+  {
+    "key": "capacity_queue",
+    "env": "CAPACITY_QUEUE",
+    "value": false,
+    "env_value": false,
+    "changed_in_panel": false,
+    "editable": true,
+    "applies": "now",
+    "pending_restart": false,
+    "secret": false,
+    "type": "boolean",
+    "description": "When a running-instances limit is reached, a new non-production instance or a start waits in line and starts by itself when there is room, instead of being refused. Production is never queued."
   },
   {
     "key": "gateway_mode",

@@ -130,6 +130,7 @@ def user_of_session(
     sid = data.get("sid")
     valid = (
         account is not None
+        and not accounts.is_disabled(account)
         and (audience is None or str(data.get("aud") or PANEL) == audience)
         and data.get("version") == account["session_version"]
         and (not check_idle or now - data.get("seen", 0) <= settings.session_idle_minutes * 60)
@@ -167,6 +168,9 @@ def start_session(name: str, version: int, restricted: str | None = None) -> Non
     """A new session (a new cookie, so nothing from before signing in carries over). A restricted session opens
     only what its task needs (signin.restriction: choose a password, set up a second factor). It belongs to the
     address it started at (audience): the panel's or the client portal's, never both."""
+    if accounts.is_disabled(accounts.get(name)):  # every way of signing in ends here
+        audit.record(name, client_ip(), "sign-in refused (account disabled)", ok=False)
+        abort(403, "This account is disabled. Ask an administrator to enable it.")
     now = time.time()
     session.clear()
     session.permanent = True
@@ -203,6 +207,8 @@ PUBLIC_API = {
     ("POST", "/api/v1/session/github/callback"),
     ("POST", "/api/v1/invitation"),  # an invitee: who is invited, then accepting (web/v1/invitations.py)
     ("POST", "/api/v1/invitation/accept"),
+    ("POST", "/api/v1/access-requests"),  # a person asks for an account; the same answer for every address
+    ("POST", "/api/v1/access-requests/confirm"),  # and confirms their address from the e-mailed link
     ("GET", "/api/v1/licence/text"),  # the agreement this release bundles, shown at first-run setup
     ("POST", "/api/v1/servers/join"),  # a new server's agent with its join code (402 without several servers)
 }
@@ -445,6 +451,9 @@ def api_caller(headers: Headers, method: str, path_with_query: str, body: bytes,
         audit.record("api", ip, "API call refused", ok=False, detail=str(error))
         raise PermissionError(str(error), 401) from error
     name = f"api:{token['name']}" + (f" for {person}" if person else "")
+    if accounts.is_disabled(accounts.get(str(token.get("created_by") or ""))):  # its owner was disabled
+        audit.record(name, ip, "API call refused (the token's owner is disabled)", ok=False)
+        raise PermissionError("The account that owns this API token is disabled.", 403)
     scope = token["scope"]
     if scope == "read" and method not in SAFE_METHODS:
         audit.record(name, ip, "API change refused (read-only token)", ok=False)
@@ -607,6 +616,8 @@ def refuse_without_premium(package_id: str, what: str) -> None:
     raise PremiumRequired(refused)
 
 
-def log(event: str, instance: str | None = None, detail: str | None = None, ok: bool = True) -> None:
-    """Audit-log an event of the signed-in user."""
-    audit.record(g.user["name"], client_ip(), event, instance=instance, ok=ok, detail=detail)
+def log(
+    event: str, instance: str | None = None, detail: str | None = None, ok: bool = True, *, whole: bool = False
+) -> None:
+    """Audit-log an event of the signed-in user. `whole`: keep `detail` beyond 300 characters (audit.record)."""
+    audit.record(g.user["name"], client_ip(), event, instance=instance, ok=ok, detail=detail, whole=whole)

@@ -268,7 +268,9 @@ def started(monkeypatch: pytest.MonkeyPatch) -> list[tuple[Any, tuple[Any, ...]]
     calls: list[tuple[Any, tuple[Any, ...]]] = []
 
     def fake_start(instance: str, action: str, kind: str, fn: Any, *args: Any, user: str = "system",
-                   **_: Any) -> jobs.Job:  # fmt: skip
+                   prepare: Any = None, **_: Any) -> jobs.Job:  # fmt: skip
+        if prepare is not None:
+            prepare()  # what the real start does once the slot is held
         calls.append((fn, args))
         return jobs.Job(instance, action, kind, user)
 

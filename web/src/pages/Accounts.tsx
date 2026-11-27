@@ -4,6 +4,8 @@ import {
   MailPlus,
   MoreHorizontal,
   Pencil,
+  Power,
+  PowerOff,
   Send,
   ShieldOff,
   Sparkles,
@@ -12,11 +14,11 @@ import {
   Users,
   XCircle,
 } from "lucide-react";
-import { useState } from "react";
-import { api, errorText } from "@/api/client";
-import { useCall, useInvitations, useRoles, useUsers } from "@/api/queries";
+import { useEffect, useState } from "react";
+import { api, call, errorText } from "@/api/client";
+import { useAccessRequests, useCall, useInvitations, useRoles, useUsers } from "@/api/queries";
 import { Link } from "react-router";
-import type { Invitation, InvitationPolicy, Role, SignInMethod, User } from "@/api/types";
+import type { AccountRequest, Invitation, InvitationPolicy, Role, SignInMethod, User } from "@/api/types";
 import { GitHubMark } from "@/components/app/GitHubMark";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Page, PageHead, useMe } from "@/components/Shell";
@@ -25,6 +27,17 @@ import { PasswordFields, passwordReady } from "@/components/PasswordFields";
 import { Button, Callout, CopyField, Empty, Field, Segmented, Skeleton, Switch, Tag } from "@/components/app/basics";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
+import { SelectBox } from "@/components/app/select";
+import { SelectItem } from "@/components/ui/select";
+import {
+  ACCOUNT_TABS,
+  accountTab,
+  firstTab,
+  tabCounts,
+  withoutRequiredFactor,
+  type AccountTab,
+} from "@/lib/account-tabs";
+import { useConfirm } from "@/components/app/confirm";
 import { Menu, MenuItem, MenuSeparator, Modal, useToast } from "@/components/app/overlay";
 import { ago, fullDateTime } from "@/lib/format";
 import { generatePassword, type Person } from "@/lib/password";
@@ -205,6 +218,7 @@ function AccountForm({
 }) {
   const me = useMe();
   const toast = useToast();
+  const [confirm, dialog] = useConfirm();
   const { data } = useRoles();
   const [form, setForm] = useState<Form>(
     user
@@ -222,6 +236,7 @@ function AccountForm({
     user?.sign_in_methods_chosen ? user.sign_in_methods : null,
   );
   const [githubLogin, setGithubLogin] = useState(user?.github_login ?? "");
+  const [runLimit, setRunLimit] = useState(user?.running_limit == null ? "" : String(user.running_limit));
   const canInvite = !!policy?.mail_ready;
   const [mode, setMode] = useState<"invite" | "password">(
     canInvite || !policy?.password_allowed ? "invite" : "password",
@@ -239,9 +254,10 @@ function AccountForm({
   const ready =
     emailOk &&
     (methods === null || methods.length > 0) &&
+    /^\d{0,4}$/.test(runLimit.trim()) &&
     (!!user || (inviting ? canInvite : choiceReady(password, person)));
   const save = async () => {
-    if (self && form.role !== user!.role && !confirm(t.form.confirmOwnRole)) return;
+    if (self && form.role !== user!.role && !(await confirm(t.form.confirmOwnRole, { danger: true }))) return;
     setBusy(true);
     try {
       const body = { ...form, email: form.email.trim() };
@@ -251,6 +267,7 @@ function AccountForm({
           ...body,
           ...(changed !== undefined ? { sign_in_methods: changed } : {}),
           ...(user.github ? {} : { github_login: githubLogin.trim() }),
+          running_limit: runLimit.trim() === "" ? null : Number(runLimit),
         });
         toast("success", t.form.saved(user.name));
         onDone();
@@ -282,147 +299,166 @@ function AccountForm({
   const description = user ? <span className="mono">{user.name}</span> : inviting ? t.invite.text : t.form.newText;
   const submit = user ? all.common.save : inviting ? t.invite.send : all.common.create;
   return (
-    <Modal
-      wide
-      title={title}
-      description={description}
-      onClose={onClose}
-      footer={
-        <>
-          <Button onClick={onClose}>{all.common.cancel}</Button>
-          <Button
-            variant="primary"
-            icon={inviting ? <Send /> : undefined}
-            loading={busy}
-            disabled={!ready}
-            onClick={save}
-          >
-            {submit}
-          </Button>
-        </>
-      }
-    >
-      <div className="stack">
-        {!user && policy?.password_allowed && canInvite && (
-          <div className="field">
-            <span className="label">{t.invite.how}</span>
-            <Segmented<"invite" | "password">
-              value={mode}
-              onChange={setMode}
-              options={[
-                {
-                  value: "invite",
-                  label: (
-                    <>
-                      <MailPlus size={14} /> {t.invite.byEmail}
-                    </>
-                  ),
-                },
-                {
-                  value: "password",
-                  label: (
-                    <>
-                      <KeyRound size={14} /> {t.invite.byPassword}
-                    </>
-                  ),
-                },
-              ]}
-            />
-          </div>
-        )}
-        {!user && !canInvite && (
-          <Callout tone={policy?.password_allowed ? "info" : "warning"}>
-            {policy?.password_allowed ? t.invite.passwordNote : t.invite.noMail}{" "}
-            <Link to="/settings?tab=email" viewTransition>
-              {t.invite.setUpMail}
-            </Link>
-          </Callout>
-        )}
-        {!user && canInvite && mode === "password" && <Callout tone="info">{t.invite.passwordAlways}</Callout>}
-        <div className="form-grid">
-          <Field
-            label={t.form.email}
-            hint={
-              user
-                ? t.form.emailHintEdit
-                : inviting && policy
-                  ? t.invite.expiresIn(policy.invitation_hours)
-                  : t.form.emailHintNew
-            }
-            className={inviting ? "full" : undefined}
-          >
-            <Input
-              type="email"
-              dir="ltr"
-              autoComplete="off"
-              autoFocus={!user}
-              value={form.email}
-              onChange={set("email")}
-            />
-          </Field>
-          {!inviting && (
-            <Field label={t.form.phone} hint={t.form.optional}>
-              <Input type="tel" dir="ltr" value={form.phone} onChange={set("phone")} />
-            </Field>
-          )}
-          <Field label={t.form.firstName} hint={inviting ? t.invite.namesOptional : undefined}>
-            <Input autoFocus={!!user} value={form.first_name} onChange={set("first_name")} />
-          </Field>
-          <Field label={t.form.lastName} hint={inviting ? t.invite.namesOptional : undefined}>
-            <Input value={form.last_name} onChange={set("last_name")} />
-          </Field>
-        </div>
-        <div className="field">
-          <span className="label">{t.form.role}</span>
-          <div className="grid-2">
-            {roles.map((role) => (
-              <button
-                key={role.name}
-                type="button"
-                className="choice"
-                aria-pressed={form.role === role.name}
-                onClick={() => setForm({ ...form, role: role.name })}
-              >
-                <span>
-                  <span className="t">{all.roles[role.name] ?? role.label}</span>
-                  <br />
-                  <span className="d">{t.accounts.roleDescriptions[role.name] ?? role.description}</span>
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-        {(inviting || (user && !user.github)) && (
-          <Field label={t.signIn.githubLogin} hint={t.signIn.githubLoginHint}>
-            <div className="input-group">
-              <GitHubMark />
-              <Input
-                dir="ltr"
-                autoComplete="off"
-                spellCheck={false}
-                placeholder="octocat"
-                maxLength={40}
-                value={githubLogin}
-                onChange={(e) => setGithubLogin(e.target.value)}
+    <>
+      <Modal
+        wide
+        title={title}
+        description={description}
+        onClose={onClose}
+        footer={
+          <>
+            <Button onClick={onClose}>{all.common.cancel}</Button>
+            <Button
+              variant="primary"
+              icon={inviting ? <Send /> : undefined}
+              loading={busy}
+              disabled={!ready}
+              onClick={save}
+            >
+              {submit}
+            </Button>
+          </>
+        }
+      >
+        <div className="stack">
+          {!user && policy?.password_allowed && canInvite && (
+            <div className="field">
+              <span className="label">{t.invite.how}</span>
+              <Segmented<"invite" | "password">
+                value={mode}
+                onChange={setMode}
+                options={[
+                  {
+                    value: "invite",
+                    label: (
+                      <>
+                        <MailPlus size={14} /> {t.invite.byEmail}
+                      </>
+                    ),
+                  },
+                  {
+                    value: "password",
+                    label: (
+                      <>
+                        <KeyRound size={14} /> {t.invite.byPassword}
+                      </>
+                    ),
+                  },
+                ]}
               />
             </div>
-          </Field>
-        )}
-        {user && (
-          <SignInFields
-            methods={methods}
-            fallback={user.sign_in_methods_chosen ? ["password", "github"] : user.sign_in_methods}
-            onChange={setMethods}
-          />
-        )}
-        {!user && !inviting && (
-          <div className="field">
-            <span className="label">{t.form.password}</span>
-            <PasswordChoiceFields choice={password} onChange={setPassword} person={person} />
+          )}
+          {!user && !canInvite && (
+            <Callout tone={policy?.password_allowed ? "info" : "warning"}>
+              {policy?.password_allowed ? t.invite.passwordNote : t.invite.noMail}{" "}
+              <Link to="/settings?tab=email" viewTransition>
+                {t.invite.setUpMail}
+              </Link>
+            </Callout>
+          )}
+          {!user && canInvite && mode === "password" && <Callout tone="info">{t.invite.passwordAlways}</Callout>}
+          <div className="form-grid">
+            <Field
+              label={t.form.email}
+              hint={
+                user
+                  ? t.form.emailHintEdit
+                  : inviting && policy
+                    ? t.invite.expiresIn(policy.invitation_hours)
+                    : t.form.emailHintNew
+              }
+              className={inviting ? "full" : undefined}
+            >
+              <Input
+                type="email"
+                dir="ltr"
+                autoComplete="off"
+                autoFocus={!user}
+                value={form.email}
+                onChange={set("email")}
+              />
+            </Field>
+            {!inviting && (
+              <Field label={t.form.phone} hint={t.form.optional}>
+                <Input type="tel" dir="ltr" value={form.phone} onChange={set("phone")} />
+              </Field>
+            )}
+            <Field label={t.form.firstName} hint={inviting ? t.invite.namesOptional : undefined}>
+              <Input autoFocus={!!user} value={form.first_name} onChange={set("first_name")} />
+            </Field>
+            <Field label={t.form.lastName} hint={inviting ? t.invite.namesOptional : undefined}>
+              <Input value={form.last_name} onChange={set("last_name")} />
+            </Field>
           </div>
-        )}
-      </div>
-    </Modal>
+          <div className="field">
+            <span className="label">{t.form.role}</span>
+            <div className="grid-2">
+              {roles.map((role) => (
+                <button
+                  key={role.name}
+                  type="button"
+                  className="choice"
+                  aria-pressed={form.role === role.name}
+                  onClick={() => setForm({ ...form, role: role.name })}
+                >
+                  <span>
+                    <span className="t">{all.roles[role.name] ?? role.label}</span>
+                    <br />
+                    <span className="d">{t.accounts.roleDescriptions[role.name] ?? role.description}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+          {(inviting || (user && !user.github)) && (
+            <Field label={t.signIn.githubLogin} hint={t.signIn.githubLoginHint}>
+              <div className="input-group">
+                <GitHubMark />
+                <Input
+                  dir="ltr"
+                  autoComplete="off"
+                  spellCheck={false}
+                  placeholder="octocat"
+                  maxLength={40}
+                  value={githubLogin}
+                  onChange={(e) => setGithubLogin(e.target.value)}
+                />
+              </div>
+            </Field>
+          )}
+          {user && (
+            <Field
+              label={t.signIn.runLimit}
+              hint={t.signIn.runLimitHint(t.signIn.runLimitSetting(user.running_limit_default))}
+            >
+              <Input
+                dir="ltr"
+                inputMode="numeric"
+                autoComplete="off"
+                placeholder={t.signIn.runLimitSetting(user.running_limit_default)}
+                maxLength={4}
+                value={runLimit}
+                onChange={(e) => setRunLimit(e.target.value)}
+              />
+            </Field>
+          )}
+          {user && (
+            <SignInFields
+              methods={methods}
+              fallback={user.sign_in_methods_chosen ? ["password", "github"] : user.sign_in_methods}
+              onChange={setMethods}
+            />
+          )}
+          {!user && !inviting && (
+            <div className="field">
+              <span className="label">{t.form.password}</span>
+              <PasswordChoiceFields choice={password} onChange={setPassword} person={person} />
+            </div>
+          )}
+        </div>
+      </Modal>
+      {dialog}
+    </>
   );
 }
 
@@ -571,16 +607,209 @@ function InvitationRow({
   );
 }
 
+/** Disable or enable an account. Both ask for a reason, which the audit log keeps. */
+function SwitchAccount({
+  user,
+  busy,
+  onClose,
+  onSave,
+}: {
+  user: User;
+  busy: boolean;
+  onClose: () => void;
+  onSave: (reason: string) => void;
+}) {
+  const all = useT(common);
+  const a = useT(words).access;
+  const [reason, setReason] = useState("");
+  const enabling = !!user.disabled;
+  return (
+    <Modal
+      title={enabling ? a.enableTitle(user.display_name) : a.disableTitle(user.display_name)}
+      description={enabling ? a.enableText : a.disableText}
+      onClose={onClose}
+      footer={
+        <>
+          <Button onClick={onClose}>{all.common.cancel}</Button>
+          <Button
+            variant={enabling ? "primary" : "danger"}
+            loading={busy}
+            disabled={!reason.trim()}
+            onClick={() => onSave(reason.trim())}
+          >
+            {enabling ? a.enable : a.disable}
+          </Button>
+        </>
+      }
+    >
+      <Field label={a.reasonLabel} hint={a.reasonHint}>
+        <Input value={reason} maxLength={300} onChange={(e) => setReason(e.target.value)} autoFocus />
+      </Field>
+    </Modal>
+  );
+}
+
+function DecideRequest({
+  request: r,
+  how,
+  onClose,
+  onDone,
+}: {
+  request: AccountRequest;
+  how: "approve" | "reject";
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const me = useMe();
+  const toast = useToast();
+  const all = useT(common);
+  const a = useT(words).access;
+  const { data } = useRoles();
+  const roles = (data?.roles ?? []).filter((x) => x.name !== "super_admin" || me.role === "super_admin");
+  const [role, setRole] = useState("viewer");
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const approving = how === "approve";
+  const save = async () => {
+    setBusy(true);
+    try {
+      await api.post(`/access-requests/${r.id}/${how}`, approving ? { role } : { reason });
+      toast("success", approving ? a.approved(r.email) : a.rejected(r.email));
+      onDone();
+    } catch (error) {
+      toast("error", approving ? a.notApproved : a.notRejected, errorText(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal
+      title={approving ? a.approveTitle(r.email) : a.rejectTitle(r.email)}
+      description={approving ? a.approveText : a.rejectText}
+      onClose={onClose}
+      footer={
+        <>
+          <Button onClick={onClose}>{all.common.cancel}</Button>
+          <Button variant="primary" loading={busy} disabled={approving ? !role : !reason.trim()} onClick={save}>
+            {approving ? a.approveSend : a.rejectSend}
+          </Button>
+        </>
+      }
+    >
+      {approving ? (
+        <Field label={a.role}>
+          <SelectBox value={role} onValueChange={setRole} aria-label={a.role}>
+            {roles.map((x) => (
+              <SelectItem key={x.name} value={x.name}>
+                {all.roles[x.name] ?? x.label}
+              </SelectItem>
+            ))}
+          </SelectBox>
+        </Field>
+      ) : (
+        <Field label={a.reason}>
+          <Input value={reason} maxLength={300} onChange={(e) => setReason(e.target.value)} />
+        </Field>
+      )}
+    </Modal>
+  );
+}
+
+function RequestsTable({
+  requests,
+  onDecide,
+}: {
+  requests: AccountRequest[];
+  onDecide: (request: AccountRequest, how: "approve" | "reject") => void;
+}) {
+  const a = useT(words).access;
+  const state = (r: AccountRequest) =>
+    r.status === "pending" ? a.statePending : r.status === "approved" ? a.stateApproved : a.stateRejected;
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>{a.requestColumns.person}</TableHead>
+          <TableHead>{a.requestColumns.asked}</TableHead>
+          <TableHead>{a.requestColumns.state}</TableHead>
+          <TableHead />
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {requests.map((r) => {
+          const name = [r.first_name, r.last_name].filter(Boolean).join(" ");
+          return (
+            <TableRow key={r.id}>
+              <TableCell>
+                <div className="truncate">{name ? <bdi>{name}</bdi> : <bdi dir="ltr">{r.email}</bdi>}</div>
+                {name && (
+                  <div className="xsmall faint truncate">
+                    <bdi dir="ltr">{r.email}</bdi>
+                  </div>
+                )}
+              </TableCell>
+              <TableCell className="small muted">
+                <div>{a.submittedAgo(ago(r.requested_at))}</div>
+                <div className="xsmall faint">{a.confirmedAgo(ago(r.confirmed_at))}</div>
+              </TableCell>
+              <TableCell className="small">
+                <Tag tone={r.status === "pending" ? "caution" : r.status === "rejected" ? "negative" : undefined}>
+                  {state(r)}
+                </Tag>
+                {r.reason && <div className="xsmall faint">{r.reason}</div>}
+                {r.decided_by && <div className="xsmall faint">{a.decidedBy(r.decided_by)}</div>}
+              </TableCell>
+              <TableCell className="actions">
+                {r.status === "pending" && (
+                  <div className="row" style={{ gap: 8, justifyContent: "flex-end" }}>
+                    <Button size="sm" variant="primary" onClick={() => onDecide(r, "approve")}>
+                      {a.approve}
+                    </Button>
+                    <Button size="sm" onClick={() => onDecide(r, "reject")}>
+                      {a.reject}
+                    </Button>
+                  </div>
+                )}
+              </TableCell>
+            </TableRow>
+          );
+        })}
+      </TableBody>
+    </Table>
+  );
+}
+
 export function AccountsPage() {
   const me = useMe();
   const { data: users, isPending, refetch } = useUsers();
   const { data: invited, refetch: refetchInvitations } = useInvitations();
+  const { data: asked, refetch: refetchAsked } = useAccessRequests();
+  const [tab, setTab] = useState<AccountTab | null>(null);
+  const [deciding, setDeciding] = useState<{ request: AccountRequest; how: "approve" | "reject" } | null>(null);
+  const a = useT(words).access;
+  const counts = tabCounts(users ?? [], invited?.invitations ?? [], asked?.requests ?? []);
+  const loaded = users !== undefined && invited !== undefined && asked !== undefined;
+  // the first tab is Pending approval when someone waits; after that the choice is the person's
+  useEffect(() => {
+    if (loaded && tab === null) setTab(firstTab(counts));
+  }, [loaded, tab, counts]);
+  const current: AccountTab = tab ?? "active";
   const toast = useToast();
   const [editing, setEditing] = useState<User | "new" | null>(null);
   const [secret, setSecret] = useState<Made | null>(null);
   const [resetting, setResetting] = useState<User | null>(null);
+  const [switching, setSwitching] = useState<User | null>(null);
+  const [confirm, askDialog] = useConfirm();
   const refresh = [["users"]] as const;
   const resetFactors = useCall((user: string) => api.del(`/users/${user}/second-factors`), refresh);
+  const setDisabled = useCall(
+    (p: { user: string; disabled: boolean; reason: string }) =>
+      // meta.changed is false when somebody else had already done it: nothing was changed and no reason was kept
+      call<User>("POST", `/users/${p.user}/${p.disabled ? "disable" : "enable"}`, { reason: p.reason }).then(
+        (answer) => answer.meta?.changed !== false,
+      ),
+    refresh,
+  );
   const remove = useCall((user: string) => api.del(`/users/${user}`), refresh);
   const unlink = useCall((user: string) => api.del(`/users/${user}/github`), refresh);
   const s = useT(words).signIn;
@@ -605,11 +834,44 @@ export function AccountsPage() {
       >
         {t.lead}
       </PageHead>
+      {(() => {
+        const bare = withoutRequiredFactor(users ?? []);
+        return bare.length ? (
+          <div style={{ marginBottom: 12 }}>
+            <Callout tone="warning">{a.noSecondFactor(bare.length)}</Callout>
+          </div>
+        ) : null;
+      })()}
+      <div style={{ marginBottom: 12 }}>
+        <Segmented<AccountTab>
+          value={current}
+          onChange={setTab}
+          options={ACCOUNT_TABS.map((value) => ({
+            value,
+            label: `${a.tabs[value]} (${counts[value]})`,
+          }))}
+        />
+      </div>
       <div className="card">
-        {isPending ? (
+        {current === "pending" && !!asked?.policy.awaiting_confirmation && (
+          <div className="card-body small muted">{a.awaiting(asked.policy.awaiting_confirmation)}</div>
+        )}
+        {current === "pending" ? (
+          asked?.requests.length ? (
+            <RequestsTable requests={asked.requests} onDecide={(request, how) => setDeciding({ request, how })} />
+          ) : (
+            <Empty icon={<Users />} title={a.nonePending}>
+              {asked?.policy.enabled ? a.domains(asked.policy.domains.join(", ")) : a.off}
+            </Empty>
+          )
+        ) : isPending ? (
           <div className="card-body">
             <Skeleton height={160} />
           </div>
+        ) : current === "invited" && !invited?.invitations.length ? (
+          <Empty icon={<MailPlus />} title={a.noneInvited} />
+        ) : current === "disabled" && !counts.disabled ? (
+          <Empty icon={<PowerOff />} title={a.noneDisabled} />
         ) : !users?.length ? (
           <Empty icon={<Users />} title={t.none} />
         ) : (
@@ -624,8 +886,12 @@ export function AccountsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {users.map((u, index) => (
-                <TableRow key={u.name} data-tour={index === 0 ? "accounts-rows" : undefined}>
+              {(current === "invited" ? [] : users.filter((u) => accountTab(u) === current)).map((u, index) => (
+                <TableRow
+                  key={u.name}
+                  className={u.disabled ? "disabled-account" : undefined}
+                  data-tour={index === 0 ? "accounts-rows" : undefined}
+                >
                   <TableCell>
                     <div className="row" style={{ gap: 12 }}>
                       <span className="avatar">{(u.first_name?.[0] ?? u.name[0]) + (u.last_name?.[0] ?? "")}</span>
@@ -644,6 +910,14 @@ export function AccountsPage() {
                     <Tag tone={u.role === "super_admin" ? "accent" : undefined}>
                       {all.roles[u.role] ?? u.role_label}
                     </Tag>
+                    {u.disabled && (
+                      <span style={{ marginInlineStart: 6 }}>
+                        <Tag tone="negative">{a.disabledTag}</Tag>
+                      </span>
+                    )}
+                    {u.disabled && u.disabled_reason && (
+                      <div className="xsmall faint">{a.disabledBecause(u.disabled_reason)}</div>
+                    )}
                     {u.must_change_password && <span className="xsmall faint">{t.pendingPassword}</span>}
                     {u.github && (
                       <div className="xsmall faint row" style={{ gap: 4 }}>
@@ -654,6 +928,8 @@ export function AccountsPage() {
                   <TableCell className="small">
                     {u.second_factors.length ? (
                       u.second_factors.map((f) => t.factors[f] ?? f).join(t.separator)
+                    ) : u.second_factor_required && !u.disabled ? (
+                      <Tag tone="caution">{a.noSecondFactorTag}</Tag>
                     ) : (
                       <span className="faint">{t.noFactor}</span>
                     )}
@@ -706,6 +982,14 @@ export function AccountsPage() {
                                   </MenuItem>
                                 )}
                                 <MenuItem
+                                  onSelect={() => {
+                                    close();
+                                    setSwitching(u);
+                                  }}
+                                >
+                                  {u.disabled ? <Power /> : <PowerOff />} {u.disabled ? a.enable : a.disable}
+                                </MenuItem>
+                                <MenuItem
                                   disabled={!u.second_factors.length}
                                   onSelect={() => {
                                     close();
@@ -722,11 +1006,16 @@ export function AccountsPage() {
                                   danger
                                   onSelect={() => {
                                     close();
-                                    if (confirm(t.confirmDelete(u.display_name)))
-                                      remove.mutate(u.name, {
-                                        onSuccess: () => toast("success", t.deleted(u.name)),
-                                        onError: fail(t.notDeleted),
-                                      });
+                                    void confirm(t.confirmDelete(u.display_name), {
+                                      action: all.common.delete,
+                                      danger: true,
+                                    }).then((yes) => {
+                                      if (yes)
+                                        remove.mutate(u.name, {
+                                          onSuccess: () => toast("success", t.deleted(u.name)),
+                                          onError: fail(t.notDeleted),
+                                        });
+                                    });
                                   }}
                                 >
                                   <Trash2 /> {t.delete}
@@ -740,7 +1029,7 @@ export function AccountsPage() {
                   </TableCell>
                 </TableRow>
               ))}
-              {invited?.invitations.map((v) => (
+              {(current === "invited" ? (invited?.invitations ?? []) : []).map((v) => (
                 <InvitationRow
                   key={v.id}
                   invitation={v}
@@ -752,10 +1041,12 @@ export function AccountsPage() {
                     })
                   }
                   onRevoke={() =>
-                    confirm(i.confirmRevoke(v.email)) &&
-                    revoke.mutate(v.id, {
-                      onSuccess: () => toast("success", i.revoked(v.email)),
-                      onError: fail(i.notRevoked),
+                    void confirm(i.confirmRevoke(v.email), { action: i.revoke, danger: true }).then((yes) => {
+                      if (yes)
+                        revoke.mutate(v.id, {
+                          onSuccess: () => toast("success", i.revoked(v.email)),
+                          onError: fail(i.notRevoked),
+                        });
                     })
                   }
                 />
@@ -777,6 +1068,18 @@ export function AccountsPage() {
           }}
         />
       )}
+      {deciding && (
+        <DecideRequest
+          request={deciding.request}
+          how={deciding.how}
+          onClose={() => setDeciding(null)}
+          onDone={() => {
+            setDeciding(null);
+            asked && void refetchAsked();
+            refetchInvitations();
+          }}
+        />
+      )}
       {resetting && (
         <ResetPassword
           user={resetting}
@@ -786,6 +1089,32 @@ export function AccountsPage() {
             refetch();
             setSecret(made);
           }}
+        />
+      )}
+      {askDialog}
+      {switching && (
+        <SwitchAccount
+          user={switching}
+          busy={setDisabled.isPending}
+          onClose={() => setSwitching(null)}
+          onSave={(reason) =>
+            setDisabled.mutate(
+              { user: switching.name, disabled: !switching.disabled, reason },
+              {
+                onSuccess: (changed) => {
+                  if (changed)
+                    toast("success", switching.disabled ? a.enabled(switching.name) : a.disabled(switching.name));
+                  else
+                    toast(
+                      "info",
+                      switching.disabled ? a.alreadyEnabled(switching.name) : a.alreadyDisabled(switching.name),
+                    );
+                  setSwitching(null);
+                },
+                onError: fail(switching.disabled ? a.notEnabled : a.notDisabled),
+              },
+            )
+          }
         />
       )}
       {secret && (

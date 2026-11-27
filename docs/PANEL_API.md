@@ -83,8 +83,12 @@ source at [Sudoo-sh/sudoo-odoo](https://github.com/Sudoo-sh/sudoo-odoo)) needs. 
 | :--- | :--- |
 | `GET /versions` | The Odoo versions |
 | `GET /instances`, `GET /instances/<name>` | List and read instances |
-| `GET /instance-quota` | How many instances it may still create |
+| `GET /instance-quota` | How many instances it may still create, and the running figures: `running` (in all, production included), `running_production`, `max_running` (`MAX_RUNNING_INSTANCES`), `running_own` (the non-production instances the caller created that run or start) and `max_running_own` (`null` when off) |
 | `POST /instances` | Create an instance; `from_backup` is refused with 403 |
+| `GET /capacity-queue` | `instances.view` | | 200, the waiting requests (`id`, `kind` create or start, `instance`, `user`, `position`, `status`): your own, all with `capacity.manage` |
+| `GET /capacity-queue/<id>` | `instances.view` | | 200, one waiting request; 404 once it started or was cancelled (or is not yours) |
+| `DELETE /capacity-queue/<id>` | `instances.view` | | 204; your own request, or any with `capacity.manage`; 404 otherwise |
+| `POST /capacity-queue/<id>/front` | `capacity.manage` | | 200, the request first in line |
 | `POST /instances/<name>/actions/<action>` | Only `start`, `pause`, `restart` and `backup`; every other action (`update`, `upgrade`, `switch-branch`, `restore`, `rollback`, `repair`, ...) is refused with 403 |
 | `PATCH /instances/<name>` | Only `delete_after_days`, and only to make the lifetime end later (not `0`, "keep", unless the instance is kept already); anything else is refused with 403. It is also limited like a person without `instances.extend_unlimited` (see below) |
 | `DELETE /instances/<name>` | Delete an instance after a backup; `without_backup` is refused with 403 |
@@ -258,7 +262,7 @@ role is missing. "public" means no sign-in; "signed in" means any account or tok
 | `DELETE /projects/<id>/notifications/<channel>` | `projects.manage` in the project | | 204 |
 | `POST /projects/<id>/notifications/<channel>/test` | `projects.manage` in the project | | 200, `channel` and `delivery` (`ok`, `result`); sent at once, not retried |
 | `POST /projects/<id>/notifications/<channel>/signing-secret` | `projects.manage` in the project | | 200, the webhook channel with its new `signing_secret`, shown this once |
-| `POST /instances` | `instances.create` | as below | **202**, the job; `Content-Location` names the new instance |
+| `POST /instances` | `instances.create` | as below | **202**, the job; `Content-Location` names the new instance. With `CAPACITY_QUEUE` on and a running limit reached: **202**, the waiting request (`Location: /capacity-queue/<id>`) instead of 403 |
 | `PATCH /instances/<name>` | `instances.operate`; also `instances.delete` for a `delete_after_days` that ends the lifetime sooner (403 otherwise) | any of `auto_update`, `auto_upgrade`, `auto_pause` (true or false), `delete_after_days` (0 keeps it), `stage` ([Stages](#stages)) | 200, the instance. A later `delete_after_days` is an extension: without `instances.extend_unlimited` (Admin and super admin roles) it adds at most `EXPIRY_EXTEND_MAX_DAYS` days to the current end date, only `EXPIRY_EXTEND_MAX_COUNT` times (403 otherwise), never `0` (keep), and never to an instance stopped at the end of its lifetime. Extending one starts it again; when the server cannot run one more, it stays stopped and `meta.restart` says why |
 | `POST /instances/<name>/actions/<action>` | depends on the action (below) | `{}`, or the action's fields | **202**, the job |
 | `DELETE /instances/<name>` | `instances.delete`; with `without_backup` also `backups.manage` | `{"confirm": "<name>"}` (a production instance also `"confirm_stage": "production"`), and `"without_backup": true` to delete even when the backup fails (audit-logged) | **202**, the job; a backup is taken first, and without `without_backup` a failed backup stops the deletion |
@@ -484,7 +488,7 @@ the web app. `resolved_at` is set when the problem is over. Webhooks are named b
 | Method and path | Permission | Body | Answer |
 | :--- | :--- | :--- | :--- |
 | `GET /roles` | signed in | | 200, `{"roles": [{"name", "label", "description", "permissions"}], "permissions": {"<name>": "<what it allows>"}}` |
-| `GET /users` | `accounts.manage` | | 200, accounts (below) |
+| `GET /users` | `accounts.manage` | | 200, accounts (below), each with `second_factor_required` (`REQUIRE_SECOND_FACTOR` applies to it) |
 | `POST /users` | `accounts.manage` | Only when `INVITATION_PASSWORD_FALLBACK` allows it (by default while e-mail is not set up; otherwise invite). `{"email", "role"}` required; optional `first_name`, `last_name`, `phone`, `name` (made from the e-mail address when absent), `password` (generated when absent), `must_change_password` (default `true`) | **201**, the account with its `password`, shown once |
 | `GET /invitations` | `accounts.manage` | | 200, invitations (`id`, `email`, `first_name`, `last_name`, `role`, `invited_by`, `sent_count`, `expired`, `invited_at`, `sent_at`, `expires_at`); `meta`: `mail_ready`, `password_allowed` (`POST /users` is allowed: `INVITATION_PASSWORD_FALLBACK`), `invitation_hours` |
 | `POST /invitations` | `accounts.manage` | `{"email", "role"}` required; optional `first_name`, `last_name` | **201**, the invitation; the link is e-mailed (never returned). 400 when e-mail is not set up, 429 beyond `INVITATIONS_PER_HOUR` |
@@ -492,10 +496,17 @@ the web app. `resolved_at` is set when the problem is over. Webhooks are named b
 | `DELETE /invitations/<id>` | `accounts.manage` | | **204**: the link stops working |
 | `POST /invitation` | public | `{"token"}` (the part of the link after `#`) | 200, `{"email", "first_name", "last_name", "role", "role_label", "invited_by", "expires_at", "second_factor_required"}`; **410** for a used, replaced, revoked or expired link (counted like a wrong password) |
 | `POST /invitation/accept` | public | `{"token", "password", "first_name"}`; optional `last_name`, `phone` | **201**, signed in (as `GET /session`; `restricted: "second_factor"` when one is required); the link is used up |
-| `PATCH /users/<name>` | `accounts.manage` | any of `role`, `first_name`, `last_name`, `email`, `phone` (`""` clears one); also for your own account | 200, the account; a new role ends its sessions |
+| `PATCH /users/<name>` | `accounts.manage` | any of `role`, `first_name`, `last_name`, `email`, `phone` (`""` clears one), `running_limit` (the most non-production instances this person runs at once: a number 0 to 1000, 0 for no limit, `null` for `MAX_RUNNING_NON_PRODUCTION_PER_USER`; 400 otherwise); also for your own account | 200, the account; a new role ends its sessions |
 | `POST /users/<name>/password` | `accounts.manage` | `{}` to generate one, or `{"password", "must_change_password"}` | 200, `{"password"}`, shown once; the account's sessions end |
 | `DELETE /users/<name>/second-factors` | `accounts.manage` | | **204**: removes the account's second factors and recovery codes (a lost phone) and signs it out |
 | `DELETE /users/<name>` | `accounts.manage` | | **204** |
+| `POST /users/<name>/disable` | `accounts.manage` | `{"reason": "..."}` (required, up to 300 characters; 400 without it) | 200, `meta.changed` is false when it was already disabled (nothing changed, no reason kept); the account with `disabled`, `disabled_at`, `disabled_by`, `disabled_reason`: it cannot sign in, its sessions end and the API tokens it owns are refused (403). 400 for your own account and for the last active super admin; only a super admin changes a super admin |
+| `POST /users/<name>/enable` | `accounts.manage` | `{"reason": "..."}` (required, up to 300 characters; 400 without it) | 200, the account, enabled again; the audit log keeps both reasons. `meta.changed` is false when it was already enabled (nothing changed, no reason kept) |
+| `POST /access-requests` | public | `{"email", "first_name", "last_name"}` | **202**, always `{"received": true}`: the same for an allowed or other domain, a known address, a throttled one, or the feature off (`ACCESS_REQUEST_DOMAINS`). A confirmation link is e-mailed only when a request was made |
+| `POST /access-requests/confirm` | public | `{"token"}` | 200 and the request waits for an administrator; 400 for a wrong, used or old link (48 hours), counted against the caller's address like wrong passwords |
+| `GET /access-requests` | `accounts.manage` | | 200, confirmed requests newest first (`id`, `email`, `first_name`, `last_name`, `status` pending, approved or rejected, `reason`, `role`, `decided_by`, `requested_at`, `confirmed_at`, `decided_at`); `meta`: `domains`, `enabled`, `awaiting_confirmation` (how many requests have not been confirmed by e-mail yet: a count only, no names and no action) |
+| `POST /access-requests/<id>/approve` | `accounts.manage` | `{"role"}` | 200: an invitation with that role is e-mailed (same limits as `POST /invitations`; only a super admin approves `super_admin`). 409 when already decided |
+| `POST /access-requests/<id>/reject` | `accounts.manage` | `{"reason"}` | 200; the reason is required and stays in the list; the person is not e-mailed. 409 when already decided |
 | `GET /audit?limit=200&offset=0&sort=-ts&...` | `audit.view` | | 200, audit-log entries (`ts`, `user`, `ip`, `event`, `ok`, `instance`?, `detail`?, `project`?, `branch`?, `support`), `limit` (1 to 2000) from `offset`, sorted by `sort` (`ts`, `user`, `event`, `instance`, `ip` or `ok`; a leading `-` for descending, the default `-ts`). Filters: `user`, `event`, `instance`, `ip` (exact), `ok` (`allowed` or `refused`), `since` and `until` (ISO 8601 or Unix time; `until` excluded), `project` and `branch` (a branch needs its project), `q` (text in any field). `meta`: `total`, `limit`, `offset`. An entry names the project and branch of its instance, or of the project it changed; older entries are found by the instances the project and branch have now |
 | `GET /audit/facets` | `audit.view` | | 200, `users` and `events` found in the log, `projects` (`id`, `name`), `export_max_rows` (`AUDIT_EXPORT_MAX_ROWS`) |
 | `GET /audit/export?format=csv` | `audit.view` | | 200, the entries the same filters and `sort` choose, as a file: `format` `csv` (UTF-8 with a byte order mark; a cell that starts with `=`, `+`, `-` or `@` is prefixed with `'`) or `xlsx`. Columns: time (UTC), user, event, allowed, project, branch, instance, address, detail. At most a year (`since` defaults to a year before `until`; 400 for a longer range) and `AUDIT_EXPORT_MAX_ROWS` entries; headers `X-Total-Count` (matching) and `X-Exported-Count`. Each export is itself audit-logged (`audit log exported`) |
@@ -1404,6 +1415,7 @@ can check before it creates or starts one. How the figures are made, in plain la
 | `warning`, `message` | `true` when starting one more goes beyond `comfortable`, with the sentence the panel shows |
 | `overloaded`, `alert` | `true` when the server's memory use reached `warning_percent` (`CAPACITY_WARNING_PERCENT`) or more instances run than `comfortable`, with the dashboard's sentence |
 | `hard_limit`, `blocked` | `MAX_RUNNING_INSTANCES` (`null` when off), and whether creating or starting one more is refused now (403) |
+| `running_production` | How many of the running instances are production ones: they count in `running` but a limit never refuses them |
 | `memory` | `usable_bytes = total_bytes - reserve_bytes - panel_bytes`; `per_instance_bytes` is the measured peak of a running instance, averaged over `measured_instances`, or `CAPACITY_INSTANCE_MEMORY_MB` (`per_instance_source: "default"`) |
 | `processor` | The average share of the server's processor one running instance uses; `instances`: how many fit under `warning_percent` (`null` before one is measured) |
 | `disk` | Free disk, the average size of an instance (database and files) and how many more of that size fit |
@@ -1413,7 +1425,10 @@ can check before it creates or starts one. How the figures are made, in plain la
 
 The estimate is never a refusal unless `MAX_RUNNING_INSTANCES` is set: then `POST /instances` and the `start` action
 answer 403 with `detail` "This server runs at most 9 instances at once and 9 are running or starting. Pause one
-first." while that many run.
+first." while that many run. A production instance is never refused by it (it counts in the total). With
+`MAX_RUNNING_NON_PRODUCTION_PER_USER` (or the number on the person's account) the same two routes, and the upgrade
+test, answer 403 "You have 2 of your 2 running instances (not counting production) running or starting. Pause one of
+yours first." for the person who created the instance; both limits are off by default.
 
 ---
 

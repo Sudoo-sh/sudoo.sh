@@ -20,12 +20,13 @@ import pytest
 from flask import Flask
 from flask.testing import FlaskClient
 
+import docrun  # noqa: E402
 from sudoo import projects
 from sudoo.config import live, settings
 from sudoo.core import audit, jobs
 from sudoo.core.jobs import Job
 from sudoo.core.state import STATE
-from sudoo.instances import backups, monitor, operations, store
+from sudoo.instances import backups, metrics, monitor, operations, store
 from sudoo.limits import quotas
 from sudoo.projects import access, branches, builds, compare, previews, promotion, refresh, staging
 from sudoo.repos import github, github_app, mirror
@@ -431,6 +432,35 @@ def test_the_scheduled_refresh_rebuilds_staging_and_skips_what_it_must(started: 
     assert started == []
 
 
+def test_the_refresh_does_not_start_a_stopped_staging_instance_over_the_running_limit(started: list[Any]) -> None:
+    HEADS.update(main="a" * 40, qa="b" * 40)
+    pid = _project()
+    _instance("pm-main", "production", "main", pid)
+    _instance("pm-qa", "staging", "qa", pid)
+    _instance("pm-dev", "development", "feature", pid)
+    projects.record_branch(pid, "qa", stage="staging")
+    live.change({"max_running_instances": 1})
+    docrun.run("pm-dev", True)  # the one running instance the server may have
+    try:
+        refresh.save(pid, refresh.clean({"frequency": "daily", "time": "03:00", "branches": ["qa"]}), "admin1")
+        result = refresh.run(projects.get(pid) or {})
+        assert result["started"] == [] and started == []
+        assert [s["instance"] for s in result["skipped"]] == ["pm-qa"] and "at most 1 instance" in result["skipped"][0][
+            "reason"
+        ]
+        docrun.run("pm-dev", False)  # room again
+        result = refresh.run(projects.get(pid) or {})
+        assert result["started"] == ["pm-qa"] and [c[0] for c in started] == ["pm-qa"]
+        started.clear()
+        docrun.run("pm-dev", True)
+        docrun.run("pm-qa", True)  # a running staging instance is a restart: not refused
+        assert refresh.run(projects.get(pid) or {})["started"] == ["pm-qa"]
+    finally:
+        metrics.INSTANCES.pop("pm-dev", None)
+        metrics.INSTANCES.pop("pm-qa", None)
+        docrun.reset()
+
+
 def test_the_schedule_endpoints(admin: Client, viewer_client: Client, started: list[Any]) -> None:
     client, headers = admin
     HEADS.update(main="a" * 40, qa="b" * 40)
@@ -582,6 +612,28 @@ def test_previews_reuse_a_branchs_instance_and_keep_to_the_limit(
     assert record["status"] == "refused" and "No preview" in github_stand_in[-1][1][1]
     # closing the pull request of an existing instance never deletes it
     assert previews.closed(projects.get(pid) or {}, 1) == {"deleted": None} and started == []
+
+
+def test_a_pull_request_of_a_disabled_person_gets_no_preview(
+    github_stand_in: list[Any], planned: list[dict[str, Any]]
+) -> None:
+    from sudoo import accounts
+    from sudoo.auth import github as github_auth
+
+    HEADS.update(main="a" * 40)
+    pid = _project(pr_previews=True)
+    accounts.create("pm-sender", "developer", "tidal-amber-orchard-58", must_change=False)
+    github_auth.link("pm-sender", github_auth.GitHubUser(id=4301, login="pmsender"))
+    accounts.update("pm-sender", disabled=True)
+    try:
+        answer = previews.opened(projects.get(pid) or {}, _pull(5, "feature-5"), github_id=4301)
+        assert answer["preview"] is None and "disabled" in answer["reason"] and "pm-sender" not in answer["reason"]
+        assert planned == []
+        accounts.update("pm-sender", disabled=None)
+        assert previews.opened(projects.get(pid) or {}, _pull(6, "feature-6"), github_id=4301)["preview"]
+    finally:
+        accounts.update("pm-sender", disabled=None)
+        accounts.delete("pm-sender")
 
 
 def test_forks_get_no_preview_unless_the_project_allows_them(

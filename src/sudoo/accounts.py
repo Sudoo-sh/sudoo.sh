@@ -35,6 +35,7 @@ import secrets
 import threading
 import time
 from collections import deque
+from collections.abc import Mapping
 from typing import Any
 
 from sudoo.config import settings
@@ -107,6 +108,7 @@ _SCRYPT = {"n": 2**15, "r": 8, "p": 1}  # 32 MB of memory and about 0.1 s per ha
 _MAXMEM = 64 * 1024 * 1024
 _ALGORITHM = "scrypt-peppered"
 _LOCK = threading.Lock()
+REASON_MAX = 300  # characters of the reason an account is disabled or enabled for (kept whole)
 
 
 def session_secret() -> str:
@@ -452,6 +454,41 @@ def complete_setup(code: str, username: str, password: str, profile: dict[str, A
         _setup_file().unlink(missing_ok=True)
 
 
+def _way_in_problem(
+    users: Mapping[str, Mapping[str, Any]], username: str, values: Mapping[str, Any] | None
+) -> str | None:
+    """Why changing `username` (`values` applied; None: deleted) would leave the panel without a super admin that
+    signs in with a password, or None. Called with _LOCK held, on the accounts read under it."""
+    from sudoo.auth import methods  # late: the auth package imports this module
+
+    after = dict(users)
+    if values is None:
+        after.pop(username, None)
+    else:
+        merged = {**users[username], **values}
+        after[username] = {key: value for key, value in merged.items() if value is not None}
+    return methods.break_glass_problem(users, after)
+
+
+def update_checked(username: str, **values: Any) -> Document:
+    """update(), for a change of the role, the sign-in methods or the disabled state: refused (ValueError) when it
+    would remove the last active super admin or the last one that signs in with a password. The check and the change
+    happen under one lock, so two requests cannot each leave the other as the one that remains."""
+    with _LOCK:
+        users = all_users()
+        if username not in users:
+            raise ValueError("No such account.")
+        if users[username]["role"] == "super_admin" and values.get("role", "super_admin") != "super_admin":
+            others = [n for n, u in users.items() if u["role"] == "super_admin" and n != username]
+            active = [n for n in others if not is_disabled(users[n])]
+            if not others or (not is_disabled(users[username]) and not active):
+                raise ValueError("The last super admin must stay a super admin.")
+        problem = _way_in_problem(users, username, values)
+        if problem:
+            raise ValueError(problem)
+        return update(username, **values)
+
+
 def delete(username: str) -> None:
     """Delete an account; the last administrator cannot be deleted."""
     with _LOCK:
@@ -459,8 +496,12 @@ def delete(username: str) -> None:
         if username not in users:
             raise ValueError("No such account.")
         supers = [name for name, user in users.items() if user["role"] == "super_admin"]
-        if users[username]["role"] == "super_admin" and len(supers) == 1:
+        active = [name for name in supers if not is_disabled(users[name])]  # a disabled one cannot sign in
+        if users[username]["role"] == "super_admin" and (len(supers) == 1 or active == [username]):
             raise ValueError("The last super admin cannot be deleted.")
+        problem = _way_in_problem(users, username, None)
+        if problem:
+            raise ValueError(problem)
         storage().delete(USERS, username)
 
 
@@ -491,6 +532,54 @@ def end_sessions(username: str) -> int:
         return {**user, "session_version": new_session_version(user["session_version"])}
 
     return int((storage().change(USERS, username, bump) or {})["session_version"])
+
+
+def is_disabled(account: Mapping[str, Any] | None) -> bool:
+    return bool(account and account.get("disabled"))
+
+
+def disable(username: str, by: str, reason: str) -> bool:
+    """Disable an account: it cannot sign in, its sessions end now, and the API tokens it owns stop working. Its
+    data, its role and its project access stay, for when it is enabled again. False when it was disabled already.
+    The last active super admin cannot be disabled (the same guard as deleting it). The reason is required and kept."""
+    reason = reason.strip()
+    if not reason:
+        raise ValueError("Say why: the reason is kept for the other administrators.")
+    if len(reason) > REASON_MAX:  # the route's own limit: refused, never cut
+        raise ValueError(f"The reason is at most {REASON_MAX} characters.")
+    with _LOCK:
+        users = all_users()
+        account = users.get(username)
+        if account is None:
+            raise ValueError("No such account.")
+        if is_disabled(account):
+            return False
+        active = [n for n, u in users.items() if u["role"] == "super_admin" and not is_disabled(u)]
+        if account["role"] == "super_admin" and active == [username]:
+            raise ValueError("The last active super admin cannot be disabled.")
+        problem = _way_in_problem(users, username, {"disabled": True})
+        if problem:
+            raise ValueError(problem)
+        update(username, disabled=True, disabled_at=time.time(), disabled_by=by, disabled_reason=reason)
+        end_sessions(username)  # a new session version: every cookie of the account stops working
+        return True
+
+
+def enable(username: str, reason: str) -> str | None:
+    """Enable a disabled account again (it signs in as before; its old sessions stay ended). Returns the reason it was
+    disabled for ("" when none was recorded), read under the same lock as the change, or None when it was not disabled.
+    A reason is required (the route writes it in the audit log, next to the reason it was disabled)."""
+    if not reason.strip():
+        raise ValueError("Say why this account is enabled again: the reason is written in the audit log.")
+    with _LOCK:
+        account = get(username)
+        if account is None:
+            raise ValueError("No such account.")
+        if not is_disabled(account):
+            return None
+        was = str(account.get("disabled_reason") or "")
+        update(username, disabled=None, disabled_at=None, disabled_by=None, disabled_reason=None)
+        return was
 
 
 def record_sign_in(username: str) -> None:

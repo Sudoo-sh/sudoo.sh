@@ -372,3 +372,73 @@ def test_storage_alerts_at_the_warning_and_over_the_quota_production_every_day(
     storage().put(disk_use.COLLECTION, "pr-main", {"db": GB, "files": 0, "at": now})
     watch._check_storage("pr-main", now + 2 * watch.DAY)
     assert sent[3:] == ["pr-main is back under its storage quota"]
+
+
+def test_project_resources_apply_goes_through_the_real_hold_and_a_refusal_in_its_write_waits(
+    admin: Client, project: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Real jobs.start and record_hold (no starter stub): a refusal inside the hold's write leaves the instance
+    waiting, with no hold and no job; with room it starts and holds."""
+    import docrun
+    from sudoo.core import slots
+
+    client, headers = admin
+    ran: list[str] = []
+    monkeypatch.setattr(operations, "apply_resources", lambda job, name, *a, **k: ran.append(name))
+    url = f"/api/v1/projects/{project['id']}/resources"
+    monkeypatch.setattr(capacity, "admission_refusal", docrun.passes_then_full())
+    try:
+        data = client.put(url, json={"stage": "staging", "limits": {"odoo_workers": 1}}, headers=headers).get_json()[
+            "data"
+        ]
+        assert (
+            data["waiting"] == ["pr-qa"]
+            and data["jobs"] == []
+            and not any(h["instance"] == "pr-qa" for h in slots.snapshot().held.values())
+        )
+        monkeypatch.undo()
+        docrun.reset()
+        monkeypatch.setattr(operations, "apply_resources", lambda job, name, *a, **k: ran.append(name))
+        data = client.put(url, json={"stage": "staging", "limits": {"odoo_workers": 2}}, headers=headers).get_json()[
+            "data"
+        ]
+        assert [j["instance"] for j in data["jobs"]] == ["pr-qa"] and data["waiting"] == []
+        assert any(h["instance"] == "pr-qa" for h in slots.snapshot().held.values())
+    finally:
+        jobs._HELD.clear()
+        docrun.reset()
+
+
+def test_rebuild_goes_through_the_real_hold_and_a_refusal_in_its_write_is_a_403(
+    admin: Client, project: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import docrun
+    from sudoo.core import slots
+    from sudoo.projects import staging
+    from sudoo.web.v1 import instances as instances_api
+    from sudoo.web.v1 import projects as projects_api
+
+    client, headers = admin
+    monkeypatch.setattr(instances_api, "refuse_unlinked", lambda *a, **k: None)
+    monkeypatch.setattr(staging, "rebuild_refusal", lambda name: None)
+    monkeypatch.setattr(projects_api, "_refuse_locked_production", lambda *a, **k: None)
+    monkeypatch.setattr(staging, "rebuild", lambda job, name: None)
+    url = f"/api/v1/projects/{project['id']}/branches/qa/rebuild"
+    try:
+        check = docrun.passes_then_full()
+        monkeypatch.setattr(instances_api, "admit_start", lambda name, what: check(name))
+        answer = client.post(url, json={}, headers=headers)
+        assert answer.status_code == 403, answer.get_data(as_text=True)
+        assert not any(h["instance"] == "pr-qa" for h in slots.snapshot().held.values())
+        monkeypatch.undo()
+        docrun.reset()
+        monkeypatch.setattr(instances_api, "refuse_unlinked", lambda *a, **k: None)
+        monkeypatch.setattr(staging, "rebuild_refusal", lambda name: None)
+        monkeypatch.setattr(projects_api, "_refuse_locked_production", lambda *a, **k: None)
+        monkeypatch.setattr(staging, "rebuild", lambda job, name: None)
+        answer = client.post(url, json={}, headers=headers)
+        assert answer.status_code == 202, answer.get_data(as_text=True)
+        assert any(h["instance"] == "pr-qa" for h in slots.snapshot().held.values())
+    finally:
+        jobs._HELD.clear()
+        docrun.reset()

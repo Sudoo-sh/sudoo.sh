@@ -361,7 +361,9 @@ class Settings(BaseSettings):
         "email,totp", description='Second factors offered at sign-in, comma-separated: "email", "totp" or both.'
     )
     require_second_factor: Literal["none", "admins", "everyone"] = Field(
-        "admins", description='Who must use a second factor: "none", "admins" or "everyone".'
+        "admins",
+        description='Who must use a second factor: "none", "admins" (super admins and administrators) or "everyone". '
+        "An account in that group without one can only set one up after signing in.",
     )
     mailer: str = Field("smtp", description='How the panel sends e-mail: "smtp" or "none".')
     mail_from: str = Field("", description="Sender of the panel's e-mails, e.g. Sudoo.sh <no-reply@example.com>.")
@@ -380,6 +382,12 @@ class Settings(BaseSettings):
         "no_mail",
         description="When administrators may set a new account's password instead of inviting the person by e-mail: "
         '"no_mail" (only while e-mail is not set up), "always" or "never".',
+    )
+    access_request_domains: str = Field(
+        "",
+        description="E-mail domains (comma separated, such as example.com) whose people may ask for an account at "
+        "/request-access: they confirm their address, then an administrator approves or rejects. Empty: off, and "
+        "everyone is invited instead.",
     )
     invitations_per_hour: int = Field(
         20, ge=1, description="Invitations one administrator may send (new or again) per hour."
@@ -544,7 +552,28 @@ class Settings(BaseSettings):
         0,
         ge=0,
         description="Instances running at once at most: creating or starting one more is refused; 0: never refused, "
-        "only warned.",
+        "only warned. Production instances are never refused by it.",
+    )
+    slot_store_wait_seconds: int = Field(
+        5,
+        ge=1,
+        le=9,
+        description="Seconds a start waits to check the running limit and record that it holds a slot, or a job "
+        "waits to record that it ended, before the start is refused (try again) or the record is retried. Raise it "
+        "only if the database is slow.",
+    )
+    capacity_queue: bool = Field(
+        False,
+        description="When a running-instances limit is reached, a new non-production instance or a start waits in "
+        "line and starts by itself when there is room, instead of being refused. Production is never queued.",
+    )
+    max_running_non_production_per_user: int = Field(
+        0,
+        ge=0,
+        le=1000,
+        description="Non-production instances one person may have running or starting at once (the ones they "
+        "created); one more is refused. 0: no limit. An administrator can set another number for a person on "
+        "their page. Production instances are never counted or refused.",
     )
 
     # ------------------------------------------------------------------ resources (instances/resources.py)
@@ -1569,6 +1598,20 @@ class Settings(BaseSettings):
         "although they resolve to a private, local or link-local address.",
     )
 
+    explain_allowed_destinations: str = Field(
+        "",
+        description="'Explain with AI' (explain/): the exact host:port pairs a failed build's excerpt may be sent to, "
+        "comma-separated (api.example.com:443). Only public addresses are reachable; no wildcards, no networks. "
+        "Empty: the feature cannot send anything.",
+    )
+
+    explain_user_limit_per_hour: int = Field(
+        10, ge=1, le=1000, description="'Explain with AI': explanations one person may confirm per hour."
+    )
+    explain_project_limit_per_hour: int = Field(
+        30, ge=1, le=10000, description="'Explain with AI': explanations one project may have confirmed per hour."
+    )
+
     # ------------------------------------------------------------------ support access (support/, docs/ADMIN_GUIDE.md)
     support_access: bool = Field(
         True,
@@ -1965,6 +2008,21 @@ class Settings(BaseSettings):
                     raise ValueError(f"{part[:80]} is neither a host name nor a network") from None
         if len(found) > 50:
             raise ValueError("at most 50 hosts or networks")
+        return ",".join(dict.fromkeys(found))
+
+    @field_validator("explain_allowed_destinations")
+    @classmethod
+    def _explain_allowed_destinations(cls, value: str) -> str:
+        import re
+
+        found = [part.strip().lower() for part in value.split(",") if part.strip()]
+        for part in found:
+            if not re.fullmatch(r"[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?:[0-9]{1,5}", part) or not (
+                1 <= int(part.rsplit(":", 1)[1]) <= 65535
+            ):
+                raise ValueError(f"{part[:80]} is not an exact host:port (no wildcards, no networks)")
+        if len(found) > 10:
+            raise ValueError("at most 10 destinations")
         return ",".join(dict.fromkeys(found))
 
     @field_validator("alert_webhook_1_url", "alert_webhook_2_url", "alert_webhook_3_url")
@@ -2407,6 +2465,9 @@ EDITABLE = (
     "capacity_instance_memory_mb",
     "capacity_warning_percent",
     "max_running_instances",
+    "max_running_non_production_per_user",
+    "slot_store_wait_seconds",
+    "capacity_queue",
     "gateway_max_upload_mb",
     "gateway_idle_timeout_seconds",
     "gateway_websocket_max_message_mb",
@@ -2471,6 +2532,7 @@ EDITABLE = (
     "recovery_codes_count",
     "invitation_hours",
     "invitation_password_fallback",
+    "access_request_domains",
     "invitations_per_hour",
     "sign_in_email",
     "sign_in_email_opt_out",

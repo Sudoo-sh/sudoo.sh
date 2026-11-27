@@ -39,6 +39,7 @@ import { Button, Empty, Skeleton } from "@/components/app/basics";
 import { CommitHash } from "@/components/CommitHash";
 import { ConnectButton } from "@/components/ConnectAs";
 import { ChecksBadge } from "@/components/RepoGuard";
+import { ExplainWithAi } from "@/components/ExplainWithAi";
 import { WhyItFailed } from "@/components/WhyItFailed";
 import { intlTag, useLocale, useT } from "@/i18n";
 import words from "@/i18n/builds";
@@ -209,6 +210,7 @@ function Messages({ lines }: { lines: string[] }) {
 
 function BuildCard({ build, ctx, branch }: { build: Build; ctx: Context; branch: ProjectBranch }) {
   const t = useT(words);
+  const locale = useLocale();
   const instance = ctx.instances.get(build.instance);
   const live = ctx.live.has(build.id);
   const author = build.commit?.author || (build.by && build.by !== "system" ? build.by : t.history.system);
@@ -265,6 +267,9 @@ function BuildCard({ build, ctx, branch }: { build: Build; ctx: Context; branch:
       ) : (
         (build.status === "failed" || build.status === "warning") &&
         build.result && <p className={`bh-result ${build.status}`}>{build.result}</p>
+      )}
+      {build.status === "failed" && build.failure && (
+        <ExplainWithAi project={ctx.project} build={build.id} lang={locale === "ar" ? "ar" : "en"} />
       )}
       {build.status === "failed" && <Notified notified={build.notified} />}
       {build.tests && <TestsLine tests={build.tests} />}

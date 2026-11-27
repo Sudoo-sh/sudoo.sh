@@ -27,10 +27,11 @@ from flask import Blueprint, Response, abort, g, request
 
 from sudoo.core import jobs
 from sudoo.instances import imports, stages, store
+from sudoo.limits import quotas
 
 from .. import validation as check
 from ..security import log, require
-from .instances import _accepted, existing
+from .instances import _accepted, admit_start, existing
 from .responses import no_content, ok
 
 blueprint = Blueprint("imports", __name__)
@@ -111,17 +112,20 @@ def restore(name: str, upload_id: str) -> Response:
     except imports.ImportProblem as problem:
         log("database import refused", instance=name, ok=False, detail=str(problem))
         abort(400, str(problem))
-    job = jobs.start(
-        name,
-        "Import a database",
-        "restore",
-        imports.import_database,
-        name,
-        upload_id,
-        g.user["name"],
-        bool(neutralize),
-        user=g.user["name"],
-    )
+    with quotas.LOCK:  # from the limit check until the job is registered (it holds the instance's slot from then on)
+        admit_start(name, f"database import into {name} refused (running instances)")
+        job = jobs.start(
+            name,
+            "Import a database",
+            "restore",
+            imports.import_database,
+            name,
+            upload_id,
+            g.user["name"],
+            bool(neutralize),
+            user=g.user["name"],
+            holds_slot=True,
+        )
     log(
         "database import started" + (" (production)" if production else ""),
         instance=name,

@@ -64,6 +64,7 @@ def start() -> None:
         _watch_upgrades,
         _github_access,
         _access_reviews,
+        _capacity_queue,
     ):
         threading.Thread(target=loop, daemon=True, name=loop.__name__).start()
     alerts.start()
@@ -94,6 +95,13 @@ def start() -> None:
     triggers.start_all()
     threading.Thread(target=_adopt_instances, daemon=True, name="projects").start()
     threading.Thread(target=_check_project_branches, daemon=True, name="project-branches").start()
+
+
+def _capacity_queue() -> None:
+    """Every few seconds, when something waits for room: start what the limits now allow (limits/queue.py)."""
+    from sudoo.limits import queue
+
+    queue.run_forever()
 
 
 def _start_access_rules() -> None:

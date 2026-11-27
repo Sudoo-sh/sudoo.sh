@@ -667,6 +667,55 @@ MESSAGES: dict[str, Message] = {
             required=("link",),
         ),
         Message(
+            key="access_request_confirm",
+            name="Access request: confirm your address",
+            description="Sent to a person who asks for an account from the sign-in page: the link confirms the address.",
+            recipients="The person who asked (the Request access page)",
+            kicker="Access request",
+            preheader="Confirm your e-mail address to finish your request",
+            subject="Confirm your request for a Sudoo.sh account",
+            title="Confirm your e-mail address",
+            body=(
+                "Hello {{ name }},\n\n"
+                "Someone asked for an account on this Sudoo.sh panel with this address. If it was you, confirm it; an "
+                "administrator then decides.\n\n"
+                "[Confirm my address]({{ link }})\n\n"
+                "The link works once and until {{ expires }}.\n\n"
+                "> Not you? Ignore this e-mail: nothing happens unless you press the button."
+            ),
+            placeholders=(
+                Placeholder("name", "The person's first name, or their e-mail address", "Huda"),
+                Placeholder("expires", "When the link stops working", "Friday 21 November 2026, 09:41 UTC"),
+                Placeholder(
+                    "link",
+                    "The link that confirms the address (works once)",
+                    "https://panel.example.com/request-access#sample-link",
+                    LINK,
+                ),
+            ),
+            required=("link",),
+        ),
+        Message(
+            key="access_request_admin",
+            name="Access request: waiting for approval",
+            description="Tells administrators that a person confirmed an access request and waits for a decision.",
+            recipients="Administrators with an e-mail address (Accounts, Pending approval)",
+            kicker="Access request",
+            preheader="{{ requester }} asked for an account",
+            subject="{{ requester }} asked for a Sudoo.sh account",
+            title="An access request is waiting",
+            body=(
+                "{{ requester }} confirmed their address and asked for an account.\n\n"
+                "[Review the request]({{ link }})\n\n"
+                "Approving sends them an invitation with the role you choose; rejecting keeps your reason in the list."
+            ),
+            placeholders=(
+                Placeholder("requester", "The person's name and address", "Huda Saleh (huda@example.com)"),
+                Placeholder("link", "The Accounts page, Pending approval", "https://panel.example.com/accounts", LINK),
+            ),
+            required=("link",),
+        ),
+        Message(
             key="alert",
             name="Alert",
             description="One alert as it happens: a failed job, an instance down, a full disk... and when it is over.",

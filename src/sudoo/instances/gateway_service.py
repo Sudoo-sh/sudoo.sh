@@ -357,7 +357,7 @@ class ServiceHost:
                 answer.raise_for_status()
                 data = await answer.json()
             page, since = data["page"], float(data["since"])
-            if page not in ("waking", "busy", "upgrading", "off", "locked"):
+            if page not in ("waking", "busy", "upgrading", "off", "locked", "full"):
                 raise ValueError(page)
             progress = status_pages.clean_progress(data.get("progress"))
             self.waiting_since.pop(name, None)

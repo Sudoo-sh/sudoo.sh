@@ -31,12 +31,14 @@ from collections import OrderedDict, defaultdict
 from collections.abc import Callable
 from typing import Any
 
-from sudoo.core import events, failure
+from sudoo.core import events, failure, slots
 from sudoo.core.hints import friendly_hint
 from sudoo.core.shell import redact
 
 JOBS: OrderedDict[str, Job] = OrderedDict()
+_HELD: dict[str, Job] = {}  # jobs whose instance still counts as running (see starting())
 _JOBS_LOCK = threading.Lock()
+log = logging.getLogger("sudoo.jobs")
 INSTANCE_LOCKS: defaultdict[str, threading.Lock] = defaultdict(threading.Lock)
 ACTIVE_JOB: dict[str, Job] = {}  # instance name -> the job currently running on it
 _GENERATIONS: defaultdict[str, int] = defaultdict(int)  # instance name -> jobs started or ended on it
@@ -90,6 +92,9 @@ class Job:
         self._failed_at: tuple[str | None, int, int] | None = None  # (step, log from, log to) of the failure
         self.started = time.time()
         self.finished: float | None = None
+        self.holds_slot = False  # counted as running while it runs and until its instance is observed after it ended
+        self.finished_mono: float | None = None  # time.monotonic() when it ended (in this process only)
+        self.end_seq: int | None = None  # core/slots.py number of its end; None until recorded (the hold stays)
         self._progress_at = 0.0  # when the progress of a step was last published
         self.expected_steps: int | None = None  # set by operations that know how many steps they take
         self.details: dict[str, Any] = {}  # what the caller knows in advance (a creation's plan, without secrets)
@@ -338,22 +343,59 @@ def start(
     *args: Any,
     user: str = "system",
     details: dict[str, Any] | None = None,
+    holds_slot: bool | None = None,
+    prepare: Callable[[], None] | None = None,
 ) -> Job:
     """Run fn(job, *args) in the background for `instance` and return the Job.
+
+    `holds_slot`: the job stops or starts the instance, so the instance counts as running (capacity.py) while the job
+    runs and until the monitor has observed the instance after the job ended, whatever state it was in when the job
+    was asked for. The caller has passed the running-limit check under quotas.LOCK. Default: creations and wakes.
+
+    `prepare` runs once the slot is held and before the job's thread begins (what the job reads and must not see
+    before it is certain to run: nothing is saved when the hold is refused). When it raises, nothing starts.
 
     `details` are facts known before the job runs, shown while it does: a creation's plan is what the instance
     looks like until its files exist (web/v1/resources.py)."""
     job = Job(instance, action, kind, user)
     job.details = dict(details or {})
-    with _JOBS_LOCK:
-        JOBS[job.id] = job
-        while len(JOBS) > _KEEP:
-            JOBS.popitem(last=False)
-    job.changed()
-    if kind == "create" and not is_panel_job(instance):
-        events.publish("instance", instance)  # the new instance appears at once, as being created
-    threading.Thread(target=_run, args=(job, fn, args), daemon=True).start()
+    job.holds_slot = (kind in ("create", "wake")) if holds_slot is None else holds_slot
+    holds = job.holds_slot and not is_panel_job(instance)
+    if holds:
+        slots.record_hold(job.id, instance, user)  # before the job exists: Unavailable means nothing was started
+    try:
+        if prepare is not None:
+            prepare()
+        with _JOBS_LOCK:
+            JOBS[job.id] = job
+            if holds:
+                _HELD[job.id] = job  # outside JOBS: the list's size limit never forgets a slot still held
+            while len(JOBS) > _KEEP:
+                JOBS.popitem(last=False)
+        job.changed()
+        if kind == "create" and not is_panel_job(instance):
+            events.publish("instance", instance)  # the new instance appears at once, as being created
+        threading.Thread(target=_run, args=(job, fn, args), daemon=True).start()
+    except BaseException:
+        if holds:
+            _abandon(job)
+        raise
     return job
+
+
+def _abandon(job: Job) -> None:
+    """The job's hold was recorded but its thread never began: nothing ran, so the hold goes. When the record cannot
+    be removed the job counts as ended instead, and the usual rule (an observation after its end) releases it."""
+    if slots.drop([job.id]):
+        with _JOBS_LOCK:
+            _HELD.pop(job.id, None)
+            JOBS.pop(job.id, None)
+        return
+    job.status = "failed"
+    job.finished = time.time()
+    job.finished_mono = time.monotonic()
+    _publish_end(job)
+    job.changed()  # clients stop showing it as waiting to run
 
 
 def _run(job: Job, fn: Callable[..., object], args: tuple[Any, ...]) -> None:
@@ -391,6 +433,8 @@ def _run(job: Job, fn: Callable[..., object], args: tuple[Any, ...]) -> None:
                                "repository": None}  # fmt: skip
         finally:
             job.finished = time.time()
+            job.finished_mono = time.monotonic()
+            _publish_end(job)
             ACTIVE_JOB.pop(job.instance, None)
             _GENERATIONS[job.instance] += 1  # before the events below: clients that reload see the new state
             job.changed()
@@ -453,18 +497,114 @@ def pending_creations() -> list[tuple[str, str]]:
         ]
 
 
-def starting() -> set[str]:
-    """Instances a queued or running job is creating or starting (they will run once it ends)."""
+def _publish_end(job: Job) -> None:
+    """Record the end of a job that holds a slot (core/slots.py). When that fails the hold stays, here and for the
+    other processes, and the write is tried again at the next count (`starting`)."""
+    if job.id not in _HELD or job.end_seq is not None:
+        return
+    try:
+        job.end_seq = slots.record_end(job.id)
+    except slots.Unavailable as exc:
+        log.warning("job %s ended but its end could not be recorded yet (%s): its slot stays held", job.id, exc)
+
+
+def _holding(job: Job, present: set[str], observed: dict[str, int]) -> bool:
+    """Whether the instance of this job still counts as running because of it: the job has not ended, or its end is
+    not recorded yet, or it ended and no read of the instance that began after the end exists (a read that began
+    before the end may show the state from before it). An instance that does not exist any more is not held. An
+    instance the monitor cannot see (a cluster that did not answer) stays held: unknown is not stopped.
+    `observed`: the numbers this process's monitor took, and those other processes published."""
+    if job.finished_mono is None or job.end_seq is None:
+        return True
+    if job.instance not in present:  # `present`: the instances that exist, read once by the caller
+        return False
+    return observed.get(job.instance, 0) <= job.end_seq
+
+
+def _counted(
+    held: list[Job], strict: bool = False, snap: slots.Snapshot | None = None
+) -> tuple[set[str], set[str], list[str]]:
+    """(instances held, those held only for want of a read after the end, ids of released holds), from this process's
+    jobs and those the other processes recorded. The instances are read once per call (`snap`: the caller's read).
+    `strict`: a limit check is being made, so the shared record must be readable (slots.Unavailable otherwise): a
+    count made from this process alone is only for display."""
+    from sudoo.instances import metrics, store
+
+    if snap is None:
+        snap = slots.snapshot()
+    if snap is None and strict:
+        raise slots.Unavailable("The panel could not read which instances are running or starting.")
+    if not held and (snap is None or not snap.others):
+        return set(), set(), []
+    present = set(store.names())
+    observed = dict(metrics.OBSERVED)
+    if snap is not None:
+        for name, seen in snap.observed.items():
+            observed[name] = max(observed.get(name, 0), int(seen.get("seq", 0)))
+    names: set[str] = set()
+    waiting: set[str] = set()
+    released: list[str] = []
+    for job in held:
+        if job.finished_mono is not None and job.end_seq is None:
+            _publish_end(job)
+        if _holding(job, present, observed):
+            names.add(job.instance)
+            if job.finished_mono is not None:
+                waiting.add(job.instance)
+        else:
+            released.append(job.id)
+    if snap is not None:
+        for job_id, hold in snap.others.items():
+            if hold["instance"] not in present or snap.released(hold):
+                if hold.get("end_seq") is not None:
+                    released.append(job_id)
+                continue
+            names.add(hold["instance"])
+            if hold.get("end_seq") is not None or hold.get("owner") in snap.unknown_owners:
+                waiting.add(hold["instance"])
+    return names, waiting, released
+
+
+def _forget(released: list[str]) -> None:
+    if released:
+        with _JOBS_LOCK:
+            for job_id in released:
+                _HELD.pop(job_id, None)
+        slots.drop(released)
+
+
+def starting(strict: bool = False, snap: slots.Snapshot | None = None) -> set[str]:
+    """Instances a job holds as running or starting, in this process or another one: a job that holds a slot
+    (creations, wakes and every job that stops or starts an instance) while it runs and until the instance is
+    observed after it ended, success or failure. `strict`, `snap`: see _counted."""
     with _JOBS_LOCK:
-        return {
-            j.instance
-            for j in JOBS.values()
-            if j.kind in ("create", "wake") and j.status in ("queued", "running") and not is_panel_job(j.instance)
-        }
+        held = list(_HELD.values())
+    names, _, released = _counted(held, strict, snap)
+    _forget(released)
+    return names
+
+
+def unsettled() -> list[str]:
+    """Instances of jobs that have ended but wait for a read of the instance that began after the end (operators: the
+    monitor is behind, stopped or cannot see the instance), or whose owner's lock cannot be tried."""
+    with _JOBS_LOCK:
+        held = list(_HELD.values())
+    _, waiting, _ = _counted(held)
+    return sorted(waiting)
 
 
 def busy(instance: str) -> bool:
     return INSTANCE_LOCKS[instance].locked()
+
+
+def unfinished(instance: str) -> bool:
+    """A job of this panel process for `instance` that is queued or running, or that holds the instance's lock: it
+    may read the instance's settings while it runs. Jobs of another process are not seen."""
+    with _JOBS_LOCK:
+        live = [*JOBS.values(), *_HELD.values()]
+    return INSTANCE_LOCKS[instance].locked() or any(
+        j.instance == instance and j.status in ("queued", "running") for j in live
+    )
 
 
 def generation(instance: str) -> int:
@@ -478,3 +618,14 @@ def recent(instance: str | None = None, limit: int = 30) -> list[dict[str, Any]]
     with _JOBS_LOCK:
         jobs = [j for j in reversed(JOBS.values()) if instance is None or j.instance == instance]
     return [j.summary() for j in jobs[:limit]]
+
+
+def _forget_in_child() -> None:
+    """A forked child has none of the parent's threads: the parent's held jobs are not its own, and a lock copied
+    while another thread held it would never be released."""
+    global _JOBS_LOCK
+    _HELD.clear()
+    _JOBS_LOCK = threading.Lock()
+
+
+os.register_at_fork(after_in_child=_forget_in_child)

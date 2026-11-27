@@ -291,6 +291,7 @@ const en = {
     invitation_hours: "Invitation link works for, hours",
     invitation_password_fallback: "Setting a password instead of inviting",
     invitations_per_hour: "Invitations per administrator per hour",
+    access_request_domains: "Domains that may ask for an account",
     rate_limit_reads_per_minute: "Reading requests per minute",
     rate_limit_changes_per_minute: "Changing requests per minute",
     support_access: "Support access",
@@ -399,6 +400,9 @@ const en = {
     storage_warning_percent: "Near the quota from, %",
     alert_storage: "Storage near or over its quota",
     max_running_instances: "Running instances at most",
+    max_running_non_production_per_user: "Running instances per person at most (not production)",
+    slot_store_wait_seconds: "Seconds to wait when recording a starting instance",
+    capacity_queue: "Wait for capacity instead of being refused",
     gateway_max_upload_mb: "Largest upload, MB",
     gateway_idle_timeout_seconds: "Give up on a silent upload after, seconds",
     gateway_websocket_max_message_mb: "Largest WebSocket message, MB",
@@ -715,7 +719,8 @@ const en = {
     storage: 'Where the panel keeps its own data: "sqlite".',
     auth: 'How user names and passwords are checked: "local" (the panel\'s accounts).',
     second_factors: 'Second factors offered at sign-in, comma-separated: "email", "totp" or both.',
-    require_second_factor: 'Who must use a second factor: "none", "admins" or "everyone".',
+    require_second_factor:
+      'Who must use a second factor: "none", "admins" (super admins and administrators) or "everyone". An account in that group without one can only set one up after signing in.',
     mailer: 'How the panel sends e-mail: "smtp" or "none".',
     mail_from: "Sender of the panel's e-mails, e.g. Sudoo.sh <no-reply@example.com>.",
     smtp_host: "smtp: the mail server; empty: no e-mail (and no e-mail codes).",
@@ -729,6 +734,8 @@ const en = {
     invitation_password_fallback:
       'When administrators may set a new account\'s password instead of inviting the person by e-mail: "no_mail" (only while e-mail is not set up), "always" or "never".',
     invitations_per_hour: "Invitations one administrator may send (new or again) per hour.",
+    access_request_domains:
+      "E-mail domains, comma-separated (such as example.com), whose people may ask for an account at /request-access: they confirm their address, then an administrator approves or rejects. Empty: off.",
     sign_in_email: "E-mail people each time their account signs in (when e-mail is set up).",
     sign_in_email_opt_out: "People may turn the sign-in e-mail off for their own account.",
     sign_in_methods:
@@ -925,7 +932,13 @@ const en = {
     alert_storage:
       "Alert when an instance reaches storage_warning_percent of its storage quota, and when it is over it (production: every day).",
     max_running_instances:
-      "Instances running at once at most: creating or starting one more is refused; 0: never refused, only warned.",
+      "Instances running at once at most: creating or starting one more is refused; 0: never refused, only warned. Production instances are never refused by it.",
+    max_running_non_production_per_user:
+      "Non-production instances one person may have running or starting at once (the ones they created); one more is refused. 0: no limit. An administrator can set another number for a person on their page. Production instances are never counted or refused.",
+    slot_store_wait_seconds:
+      "Seconds a start waits to check the running limit and record that it holds a slot, or a job waits to record that it ended, before the start is refused (try again) or the record is retried. Raise it only if the database is slow.",
+    capacity_queue:
+      "When a running-instances limit is reached, a new non-production instance or a start waits in line and starts by itself when there is room, instead of being refused. Production is never queued.",
     gateway_mode:
       'Where the gateways run: "service" (their own container, sudoo-gateway: instances keep answering while the panel restarts; the panel serves them itself while that container is not running) or "embedded" (inside the panel process, as before 3.0).',
     gateway_takeover_seconds:
@@ -1574,6 +1587,7 @@ const ar: typeof en = {
     invitation_hours: "مدة عمل رابط الدعوة بالساعات",
     invitation_password_fallback: "تحديد كلمة مرور بدل الدعوة",
     invitations_per_hour: "الدعوات لكل مسؤول في الساعة",
+    access_request_domains: "النطاقات التي يحق لها طلب حساب",
     rate_limit_reads_per_minute: "طلبات القراءة في الدقيقة",
     rate_limit_changes_per_minute: "طلبات التغيير في الدقيقة",
     support_access: "وصول الدعم",
@@ -1682,6 +1696,9 @@ const ar: typeof en = {
     storage_warning_percent: "قريبة من الحصة ابتداءً من، %",
     alert_storage: "تخزين قريب من حصته أو متجاوز لها",
     max_running_instances: "أقصى عدد للبيئات العاملة",
+    max_running_non_production_per_user: "أقصى عدد للبيئات العاملة لكل شخص (دون الإنتاج)",
+    slot_store_wait_seconds: "ثواني الانتظار عند تسجيل بيئة قيد التشغيل",
+    capacity_queue: "الانتظار عند امتلاء السعة بدل الرفض",
     gateway_max_upload_mb: "أكبر رفع، MB",
     gateway_idle_timeout_seconds: "التخلي عن رفع صامت بعد، بالثواني",
     gateway_websocket_max_message_mb: "أكبر رسالة WebSocket، MB",
@@ -1989,7 +2006,8 @@ const ar: typeof en = {
     storage: 'مكان حفظ اللوحة لبياناتها: "sqlite".',
     auth: 'طريقة التحقق من أسماء المستخدمين وكلمات المرور: "local" ‏(حسابات اللوحة).',
     second_factors: 'عوامل التحقق الثانية المعروضة عند تسجيل الدخول، مفصولة بفواصل: "email" أو "totp" أو كلاهما.',
-    require_second_factor: 'من يجب أن يستخدم عامل تحقق ثانيًا: "none" أو "admins" أو "everyone".',
+    require_second_factor:
+      'من يجب أن يستخدم عامل تحقق ثانيًا: "none" أو "admins" (المسؤولون الأعلون والمسؤولون) أو "everyone". من في هذه المجموعة ولا يملك عاملًا لا يستطيع سوى إعداده بعد تسجيل الدخول.',
     mailer: 'طريقة إرسال اللوحة للبريد: "smtp" أو "none".',
     mail_from: "مرسل رسائل اللوحة، مثل Sudoo.sh <no-reply@example.com>.",
     smtp_host: "smtp: خادم البريد؛ فارغ: لا بريد (ولا رموز بالبريد).",
@@ -2003,6 +2021,8 @@ const ar: typeof en = {
     invitation_password_fallback:
       'متى يمكن للمسؤولين تحديد كلمة مرور حساب جديد بدل دعوة الشخص بالبريد: "no_mail" (فقط ما دام البريد غير مُعدّ) أو "always" أو "never".',
     invitations_per_hour: "الدعوات التي يمكن لمسؤول واحد إرسالها (جديدة أو مكررة) في الساعة.",
+    access_request_domains:
+      "نطاقات البريد، مفصولة بفواصل (مثل example.com)، التي يحق لأصحابها طلب حساب في /request-access: يؤكدون عنوانهم ثم يوافق مسؤول أو يرفض. فارغ: متوقف.",
     sign_in_email: "راسل الناس كلما سجّل أحد الدخول إلى حسابهم (حين يكون البريد معدًّا).",
     sign_in_email_opt_out: "يمكن للناس إيقاف بريد تسجيل الدخول لحساباتهم.",
     sign_in_methods:
@@ -2194,7 +2214,13 @@ const ar: typeof en = {
     storage_warning_percent: "النسبة من الحصة التي تُعرض البيئة ابتداءً منها قريبةً من الامتلاء ويُنبَّه عنها.",
     alert_storage: "نبّه حين تبلغ البيئة storage_warning_percent من حصة تخزينها، وحين تتجاوزها (الإنتاج: كل يوم).",
     max_running_instances:
-      "أقصى عدد للبيئات العاملة في وقت واحد: يُرفض إنشاء بيئة أخرى أو تشغيلها؛ 0: لا رفض أبدًا، تنبيه فقط.",
+      "أقصى عدد للبيئات العاملة في وقت واحد: يُرفض إنشاء بيئة أخرى أو تشغيلها؛ 0: لا رفض أبدًا، تنبيه فقط. لا ترفض بيئات الإنتاج بهذا الحد أبدًا.",
+    max_running_non_production_per_user:
+      "عدد البيئات غير الإنتاجية التي يجوز لشخص واحد تشغيلها أو بدؤها في وقت واحد (التي أنشأها)؛ تُرفض الزيادة. 0: بلا حد. يستطيع المسؤول تحديد رقم آخر لشخص في صفحته. لا تُحسب بيئات الإنتاج ولا تُرفض أبدًا.",
+    slot_store_wait_seconds:
+      "الثواني التي ينتظرها تشغيل بيئة ليتحقق من حد البيئات العاملة ويسجّل أنه يحجز موضعًا، أو تنتظرها مهمة لتسجّل أنها انتهت، قبل أن يُرفض التشغيل (حاول مجددًا) أو يُعاد التسجيل. ارفعها فقط إذا كانت قاعدة البيانات بطيئة.",
+    capacity_queue:
+      "عند بلوغ حد البيئات العاملة تنتظر البيئة غير الإنتاجية الجديدة أو تشغيلها في طابور وتبدأ تلقائيًا عند توفر مكان بدل أن تُرفض. لا يدخل الإنتاج الطابور أبدًا.",
     gateway_mode:
       'مكان عمل البوابات: "service" ‏(حاويتها الخاصة sudoo-gateway: تبقى البيئات تجيب أثناء إعادة تشغيل اللوحة؛ وتخدمها اللوحة بنفسها ما دامت تلك الحاوية لا تعمل) أو "embedded" ‏(داخل عملية اللوحة، كما قبل 3.0).',
     gateway_takeover_seconds:

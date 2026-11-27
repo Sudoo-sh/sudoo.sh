@@ -4,6 +4,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "./client";
 import type {
+  WaitingRequest,
   DeletedInstance,
   AuditFacets,
   ProfileDetail,
@@ -12,6 +13,8 @@ import type {
   LicenceText,
   ShellOptions,
   ShellSession,
+  AccountRequest,
+  AccountRequestPolicy,
   Invitation,
   InvitationPolicy,
   Alert,
@@ -288,6 +291,12 @@ export const useServer = () => useQuery({ queryKey: ["server"], queryFn: () => a
 export const useSettings = () => useQuery({ queryKey: keys.settings, queryFn: () => api.get<Setting[]>("/settings") });
 export const useVersions = () =>
   useQuery({ queryKey: ["versions"], queryFn: () => api.get<Version[]>("/versions"), staleTime: 600_000 });
+export const useCapacityQueue = () =>
+  useQuery({
+    queryKey: ["capacity-queue"],
+    queryFn: () => api.get<WaitingRequest[]>("/capacity-queue"),
+    refetchInterval: 5000,
+  });
 export const useQuota = () => useQuery({ queryKey: ["quota"], queryFn: () => api.get<Quota>("/instance-quota") });
 export const useAccount = () => useQuery({ queryKey: keys.account, queryFn: () => api.get<Account>("/account") });
 export const useRoles = () =>
@@ -382,6 +391,15 @@ export const useInvitations = () =>
     queryFn: async () => {
       const page = await api.page<Invitation[]>("/invitations");
       return { invitations: page.data, policy: page.meta as unknown as InvitationPolicy };
+    },
+  });
+/** Access requests (confirmed by e-mail, waiting for or past a decision) and whether the feature is on. */
+export const useAccessRequests = () =>
+  useQuery({
+    queryKey: ["access-requests"],
+    queryFn: async () => {
+      const page = await api.page<AccountRequest[]>("/access-requests");
+      return { requests: page.data, policy: page.meta as unknown as AccountRequestPolicy };
     },
   });
 /** What the caller may open in the instance's Shell tab, and why not (web shell). */

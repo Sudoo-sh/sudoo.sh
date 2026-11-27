@@ -14,10 +14,13 @@ Rules, checked before every request (not only when the address is saved):
 
 from __future__ import annotations
 
+import contextlib
 import http.client
 import ipaddress
 import socket
 import ssl
+import threading
+import time
 from dataclasses import dataclass
 from urllib.parse import urlsplit
 
@@ -62,12 +65,27 @@ def _allowed() -> tuple[set[str], list[ipaddress.IPv4Network | ipaddress.IPv6Net
     return hosts, networks
 
 
-def public(ip: IPAddress) -> bool:
-    """Whether `ip` is an address on the public internet (an IPv4 address inside IPv6 is judged as IPv4)."""
+_NAT64 = ipaddress.ip_network("64:ff9b::/96")
+_COMPATIBLE = ipaddress.ip_network("::/96")
+
+
+def embedded(ip: IPAddress) -> IPAddress:
+    """The IPv4 address inside an IPv6 one (mapped, 6to4, Teredo, NAT64 64:ff9b::/96, the old IPv4-compatible ::/96),
+    else `ip` itself: such an address reaches the IPv4 one, so it is judged as that."""
     if isinstance(ip, ipaddress.IPv6Address):
         inner = ip.ipv4_mapped or ip.sixtofour or (ip.teredo[1] if ip.teredo else None)
+        if inner is None and (ip in _NAT64 or (ip in _COMPATIBLE and int(ip) > 1)):
+            inner = ipaddress.IPv4Address(int(ip) & 0xFFFFFFFF)
         if inner is not None:
-            return public(inner)
+            return inner
+    return ip
+
+
+def public(ip: IPAddress) -> bool:
+    """Whether `ip` is an address on the public internet (an IPv4 address inside IPv6 is judged as IPv4)."""
+    inner = embedded(ip)
+    if inner is not ip:
+        return public(inner)
     return bool(ip.is_global) and not ip.is_multicast and not ip.is_reserved and not ip.is_unspecified
 
 
@@ -132,28 +150,89 @@ class _PinnedHTTPS(http.client.HTTPSConnection):
 _CONTEXT = ssl.create_default_context()
 
 
-def post(url: str, body: bytes, headers: dict[str, str], timeout: float) -> int:
-    """POST `body` to `url` under the rules above; the HTTP status (2xx). Raises Refused or DeliveryError, never
-    with the address in the message."""
-    target = resolve(url)
+def exchange(target: Target, method: str, body: bytes, headers: dict[str, str], timeout: float,
+             max_answer: int, strict_size: bool = False) -> tuple[int, bytes]:  # fmt: skip
+    """One request to a checked `target` (the connection goes to its checked address, the certificate is checked for
+    its host name): (status, answer up to `max_answer` bytes). `timeout` bounds the whole exchange, connecting, headers
+    and body included: a timer closes the connection when it ends, and every read gets only the time left. With
+    `strict_size` an answer over `max_answer` is a DeliveryError instead of being cut. Raises DeliveryError, never
+    with the address, a header or the answer in the message."""
+    deadline = time.monotonic() + timeout
     connection = _PinnedHTTPS(target, timeout, _CONTEXT)
+
+    expired = threading.Event()
+
+    def stop() -> None:
+        expired.set()
+        sock = getattr(connection, "sock", None)
+        if sock is not None:
+            with contextlib.suppress(OSError):
+                sock.shutdown(socket.SHUT_RDWR)
+        connection.close()
+
+    def left() -> float:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError
+        sock = getattr(connection, "sock", None)
+        if sock is not None:
+            sock.settimeout(remaining)
+        return remaining
+
+    timer = threading.Timer(timeout, stop)
+    timer.daemon = True
+    timer.start()
     try:
-        connection.request("POST", target.path, body=body, headers={**headers, "Content-Length": str(len(body))})
+        connection.timeout = left()
+        connection.connect()
+        left()
+        connection.request(method, target.path, body=body, headers={**headers, "Content-Length": str(len(body))})
+        left()
         answer = connection.getresponse()
-        answer.read(MAX_ANSWER)
         status = int(answer.status)
+        chunks: list[bytes] = []
+        size = 0
+        while size <= max_answer:
+            left()
+            chunk = answer.read(min(4096, max_answer + 1 - size))
+            if not chunk:
+                break
+            size += len(chunk)
+            chunks.append(chunk)
+        if expired.is_set():  # the timer closed the connection: what was read is not the whole answer
+            raise TimeoutError
     except ssl.SSLError:
         raise DeliveryError("its certificate could not be checked", retry=False) from None
     except TimeoutError:
-        raise DeliveryError(f"no answer within {timeout:g} seconds") from None
+        raise DeliveryError(f"no complete answer within {timeout:g} seconds") from None
     except (OSError, http.client.HTTPException) as error:
+        if time.monotonic() >= deadline:
+            raise DeliveryError(f"no complete answer within {timeout:g} seconds") from None
         raise DeliveryError(f"could not be reached ({type(error).__name__})") from None
     finally:
+        timer.cancel()
         connection.close()
+    data = b"".join(chunks)
+    if len(data) > max_answer:
+        if strict_size:
+            raise DeliveryError("the answer was too large", retry=False)
+        data = data[:max_answer]
+    return status, data
+
+
+def check_status(status: int) -> None:
+    """Raise DeliveryError unless `status` is a 2xx answer (a redirect is never followed)."""
     if 300 <= status < 400:
         raise DeliveryError(f"answered with a redirect (HTTP {status}), which is not followed", False, status)
     if status == 429 or status >= 500:
         raise DeliveryError(f"answered HTTP {status}", True, status)
     if not 200 <= status < 300:
         raise DeliveryError(f"answered HTTP {status}", False, status)
+
+
+def post(url: str, body: bytes, headers: dict[str, str], timeout: float) -> int:
+    """POST `body` to `url` under the rules above; the HTTP status (2xx). Raises Refused or DeliveryError, never
+    with the address in the message."""
+    status, _ = exchange(resolve(url), "POST", body, headers, timeout, MAX_ANSWER)
+    check_status(status)
     return status

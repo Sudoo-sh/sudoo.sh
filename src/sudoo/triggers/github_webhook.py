@@ -71,7 +71,7 @@ class GitHubWebhook:
         """Update the instances that follow the pushed repository and branch. A push that creates or deletes a
         branch tells its project (projects/automation.py: a development instance for a new branch, archiving for a
         deleted one); a deleted branch has no code to update."""
-        from sudoo.projects import automation  # late: projects/ imports the instances package
+        from sudoo.projects import automation, charged  # late: projects/ imports the instances package
 
         repository = str((payload.get("repository") or {}).get("full_name", "")).lower()
         ref = str(payload.get("ref", ""))
@@ -80,7 +80,8 @@ class GitHubWebhook:
             return jsonify(ok=True, instances=[])  # a tag
         if payload.get("deleted"):
             return jsonify(ok=True, instances=[], branch_deleted=automation.branch_deleted(repository, branch))
-        created = automation.branch_created(repository, branch) if payload.get("created") else None
+        sender = charged.sender_id(payload)  # GitHub's own statement of who pushed, not a name typed in a commit
+        created = automation.branch_created(repository, branch, github_id=sender) if payload.get("created") else None
         updated = self.instances_following(repository, branch)
         assert self._request_update is not None
         from sudoo import triggers  # late: the package imports this module

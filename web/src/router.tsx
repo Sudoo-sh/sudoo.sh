@@ -36,6 +36,14 @@ export const router = createBrowserRouter([
   // where GitHub sends the browser back after "Continue with GitHub" or linking a GitHub account (auth/github.py)
   { path: "/login/github", element: <GitHubReturnPage /> },
   {
+    path: "/request-access",
+    lazy: page(
+      () => import("./pages/RequestAccess"),
+      (m) => m.RequestAccessPage,
+    ),
+    hydrateFallbackElement: loading,
+  },
+  {
     path: "/invite",
     lazy: page(
       () => import("./pages/Invite"),

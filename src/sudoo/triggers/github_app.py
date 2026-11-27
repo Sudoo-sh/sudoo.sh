@@ -57,7 +57,7 @@ class GitHubAppWebhook(GitHubWebhook):
         if event == "push":
             return self.push(payload)
         if event in ("create", "delete") and payload.get("ref_type") == "branch":
-            from sudoo.projects import automation  # late: projects/ imports the instances package
+            from sudoo.projects import automation, charged  # late: projects/ imports the instances package
 
             repository = str((payload.get("repository") or {}).get("full_name", "")).lower()
             branch = str(payload.get("ref", ""))
@@ -65,7 +65,11 @@ class GitHubAppWebhook(GitHubWebhook):
             for name in following:
                 STATE.update(name, branch_missing=event == "delete")
             if event == "create":
-                return jsonify(ok=True, instances=following, created=automation.branch_created(repository, branch))
+                return jsonify(
+                    ok=True,
+                    instances=following,
+                    created=automation.branch_created(repository, branch, github_id=charged.sender_id(payload)),
+                )
             return jsonify(ok=True, instances=following, branch_deleted=automation.branch_deleted(repository, branch))
         if event == "pull_request":
             from sudoo.projects import previews  # late: projects/ imports the instances package

@@ -559,7 +559,22 @@ const TABS: { id: TabId; groups: Group[] }[] = [
       },
     ],
   },
-  { id: "advanced", groups: [{ id: "monitoring", keys: ["metrics_interval_seconds", "cloudflared_image"] }] },
+  {
+    id: "advanced",
+    groups: [
+      { id: "monitoring", keys: ["metrics_interval_seconds", "cloudflared_image"] },
+      {
+        id: "stayingUp",
+        keys: [
+          "plugin_failure_limit",
+          "background_restart_seconds",
+          "background_restart_max_seconds",
+          "background_queue_max",
+          "job_command_max_hours",
+        ],
+      },
+    ],
+  },
   { id: "about", groups: [] },
 ];
 const STAGES: Stage[] = ["production", "staging", "development"];

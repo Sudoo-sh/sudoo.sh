@@ -407,8 +407,15 @@ class Queue:
         self._busy = 0
 
     def add(self, delivery: Delivery) -> None:
+        """Queue a delivery; when BACKGROUND_QUEUE_MAX wait already (a webhook down for long), the one due last
+        is dropped and logged, so the queue never fills the memory."""
         with self._wake:
             heapq.heappush(self._heap, (delivery.due, next(self._counter), delivery))
+            while len(self._heap) > settings.background_queue_max:
+                dropped = max(self._heap)
+                self._heap.remove(dropped)
+                heapq.heapify(self._heap)
+                print(f"notification {dropped[2].channel}: dropped, too many deliveries waiting", flush=True)
             self._wake.notify()
             if self._thread is None:
                 self._thread = threading.Thread(target=self._work_forever, daemon=True, name="notifications")

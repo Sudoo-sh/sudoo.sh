@@ -94,6 +94,7 @@ def create_key(address: str) -> tuple[str, str]:
             subprocess.run(
                 ["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-C", f"sudoo-panel {rid}", "-f", str(plain)],
                 check=True,
+                timeout=60,
             )
             vault.write_private(key_file(rid, ".key"), vault.encrypt(plain.read_bytes(), key_label(rid)))
             key_file(rid, ".pub").write_text(plain.with_suffix(".pub").read_text())

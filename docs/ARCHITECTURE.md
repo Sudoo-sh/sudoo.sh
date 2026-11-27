@@ -502,10 +502,24 @@ Each decision lists what was chosen, why, what it costs, and the alternatives th
 ### Typed settings, locked dependencies, enforced checks
 - **Chosen:** settings in one typed class (pydantic-settings); dependencies locked with uv (`uv.lock`); black, ruff,
   mypy and the tests run on every commit (pre-commit) and on every pull request (CI).
-- **Why:** a wrong setting stops the panel at start-up with its name instead of failing later; every installation
+- **Why:** a wrong setting is named at start-up (it takes its default, and the administrators see which) instead
+  of failing later; every installation
   gets the same library versions; style and type mistakes are caught before review.
 - **Considered:** the operating system's Python packages (versions differ between servers); pip with requirements
   files (no lock of indirect dependencies).
+
+### Staying up when something fails
+- **Chosen:** nothing that fails inside the panel takes it down (`core/resilience.py`, `plugin_guard.py`). Each
+  plugin load and each call into a plugin from outside the panel is guarded, with the group's built-in default as
+  the fallback and an automatic switch-off after repeated failures; each start-up step is guarded; each background
+  loop runs under a supervisor that starts it again with a growing pause; one handler answers any exception in a
+  request with a clean error and a request id; the web app has an error screen instead of a blank page; settings
+  with wrong values take their defaults. What went wrong is listed for the administrators (banner,
+  `GET /api/v1/health`) and `/healthz` says `degraded`. Docker restarts the process if it ever exits.
+- **Why:** one faulty plugin, an unreachable dependency at boot or a bug in one loop used to stop the panel or a
+  whole feature; the people who can fix it need the panel up to see what is wrong.
+- **Considered:** restarting the process on any error (loses the in-memory state and loops on a persistent fault);
+  failing hard on a wrong setting (safe, but leaves nobody a way in).
 
 ### Small, current dependencies
 - **Chosen:** Python with Flask (API) and aiohttp (gateway and live events, for streaming); SQLite from Python's

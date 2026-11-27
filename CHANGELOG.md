@@ -6,6 +6,49 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Upgrade notes
+
+- **A wrong value in `.env` no longer stops the panel**: the setting takes its default and administrators see a
+  banner naming it (never its value). Scripts that relied on the container failing to start must read
+  `GET /api/v1/health` or `/healthz` (`degraded`) instead.
+- **A plugin that cannot be loaded no longer stops the panel**: the built-in default of its group is used, and the
+  plugin is shown as failed. A plugin that fails `PLUGIN_FAILURE_LIMIT` times in a row (5) is switched off until an
+  administrator switches it on again.
+- **`/healthz` tells more**: `ok`, `degraded` (the panel works around a problem), or `unavailable` with HTTP 503 when
+  the panel's own storage cannot be read; Docker then marks `sudoo-panel` unhealthy.
+
+### Added
+
+- **The panel stays up when something fails** (docs/ADMIN_GUIDE.md, "When something fails"): every plugin load and
+  every call into a plugin from outside the panel is guarded; a failing plugin is shown with its error (without
+  secrets), written to the audit log, and replaced by its group's built-in default (the panel's own sign-in and
+  storage, the default mailer, rate limiter and exposure), or just that feature is turned off (an Enterprise add-on
+  source, one update trigger). A second factor whose plugin failed is still asked for, so nobody gets in without it.
+- **Banner "Something is wrong with the panel"** for administrators (EN and AR), with **Switch on again** for
+  plugins switched off after failing, and `GET /api/v1/health`, `POST /api/v1/health/plugins/<group>/<name>/enable`.
+- **Error screen in the web app** (EN and AR) instead of a blank page when a page fails to draw.
+- **Settings** `PLUGIN_FAILURE_LIMIT` (5), `BACKGROUND_RESTART_SECONDS` (5), `BACKGROUND_RESTART_MAX_SECONDS` (300),
+  `BACKGROUND_QUEUE_MAX` (10000) and `JOB_COMMAND_MAX_HOURS` (24), changeable on the Settings page (Advanced).
+
+### Changed
+
+- **Start-up never fails on one part**: each start-up step (exposure, session key, update-trigger webhooks, the
+  premium packages, background work, live events) is guarded; Docker, the database, the mail server or the hub being
+  down at start only delays the work that needs them.
+- **Background loops run under supervision**: one that raises is started again after a pause that doubles up to
+  `BACKGROUND_RESTART_MAX_SECONDS`; the others never notice. A failing settings listener no longer breaks saving
+  settings.
+- **Bounded**: a job's command without its own time limit stops after `JOB_COMMAND_MAX_HOURS`; alerts and
+  notifications waiting for delivery are capped by `BACKGROUND_QUEUE_MAX`; the list of problems is capped.
+- **Unexpected errors in a request** answer with a `request_id` outside the API too, and the server's log carries it.
+
+### Fixed
+
+- **Plugins built with the plugin SDK load**: they are created with the `PluginContext` the SDK defines (settings
+  from the manifest, storage, secrets and mail by permission, a data folder) and their `on_enable` hook runs, instead
+  of failing with "'Settings' object has no attribute 'settings'". Built-in and earlier plugins still get the settings.
+  The panel also starts when the SDK itself cannot be imported.
+
 ## [3.6.0] - 2026-11-27
 
 ### Upgrade notes

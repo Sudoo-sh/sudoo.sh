@@ -4,6 +4,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "./client";
 import type {
+  PanelHealth,
   WaitingRequest,
   DeletedInstance,
   AuditFacets,
@@ -97,6 +98,7 @@ export const keys = {
   mailTemplates: ["mail-templates"] as const,
   plugins: ["plugins"] as const,
   pluginNotices: ["plugins", "notices"] as const,
+  health: ["health"] as const,
   marketplace: ["marketplace"] as const,
   catalog: (query: string) => ["marketplace", "catalog", query] as const,
   purchases: ["marketplace", "checkout-sessions"] as const,
@@ -449,6 +451,15 @@ export const usePluginNotices = (enabled: boolean) =>
     queryFn: () => api.get<PluginNotice[]>("/plugins/notices"),
     enabled,
     staleTime: 300_000,
+  });
+/** What is wrong with the panel right now (GET /health), for the administrators' banner; asked again each minute. */
+export const usePanelHealth = (enabled: boolean) =>
+  useQuery({
+    queryKey: keys.health,
+    queryFn: () => api.get<PanelHealth>("/health"),
+    enabled,
+    staleTime: 60_000,
+    refetchInterval: enabled ? 60_000 : false,
   });
 export const useMarketplace = () =>
   useQuery({ queryKey: keys.marketplace, queryFn: () => api.get<MarketplaceStatus>("/marketplace") });

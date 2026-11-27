@@ -45,7 +45,9 @@ tunnel = "sudoo.exposure.cloudflare:CloudflareQuickTunnel"
 
 A setting names the plugin (`EXPOSURE=direct`). When the panel starts, `plugins.py` finds the class registered
 under that name, creates it **once** with the panel's settings (dependency injection: plugins never read the
-environment themselves), and every part of the panel uses that object.
+environment themselves), and every part of the panel uses that object. The one exception is a plugin written
+with the plugin SDK (a `SudooPlugin` subclass): it is created once with the `PluginContext` the SDK defines
+(`src/sudoo/plugin_context.py`, see [Plugins from the marketplace](#9-plugins-from-the-marketplace)).
 
 | Plugin type | Entry-point group | Setting | Interface | Built-in plugins |
 | :--- | :--- | :--- | :--- | :--- |
@@ -64,7 +66,30 @@ See which plugins are installed and which are in use:
 docker exec sudoo-panel sudoo.sh config
 ```
 
-A setting that names a plugin that is not installed stops the panel at start-up with the list of installed ones.
+A setting that names a plugin that is not installed, or a plugin that fails, never stops the panel: see
+[When a plugin fails](#when-a-plugin-fails).
+
+### When a plugin fails
+
+Every plugin is loaded, and every plugin from outside the panel is called, through `src/sudoo/plugin_guard.py`:
+
+* **Loading.** An exception in the plugin's module, in its constructor (even `SystemExit`), or a name that is not
+  installed: the plugin is marked failed with the error (without secrets), logged, written to the audit log and
+  shown to the administrators on a banner and at `GET /api/v1/health`. The group's built-in default is used instead
+  (`local` sign-in, `sqlite` storage, `smtp` mailer, `memory` rate limiter, the default exposure). An Enterprise
+  add-on source that fails turns only Enterprise off; an update trigger that fails is left out and the others run;
+  a second factor that fails is still asked for, so nobody signs in without the factor they set up.
+* **Calls.** An exception from a method of a plugin that is not part of the panel is counted and shown the same
+  way. Sign-in and rate limits answer that call with the built-in default; an e-mail plugin's exception becomes a
+  `MailError`; other groups pass it on to the request or job, which ends cleanly. A call that succeeds resets the
+  count.
+* **Switched off.** After `PLUGIN_FAILURE_LIMIT` failures in a row (default 5; 0: never) the plugin is switched off
+  and the default is used, also after a restart, until an administrator switches it on again (the banner's
+  **Switch on again**, or `POST /api/v1/health/plugins/<group>/<name>/enable`). Storage is never switched off while
+  the panel runs.
+
+A plugin should still raise its group's own error for expected failures (`MailError`, `ValueError` for bad
+details): those are answers, not faults.
 
 Plugins can also come from the **Sudoo.sh marketplace**, installed from the panel's **Plugins** page without touching
 the server: see [Plugins from the marketplace](#9-plugins-from-the-marketplace).
@@ -410,7 +435,7 @@ from the Sudoo.sh marketplace on the **Plugins** page. The page, buying, licence
 | Verify | SHA-256 as stated by the hub, the hub's Ed25519 signature over id, version and SHA-256, with a hub key the panel trusts (active, or retiring before its end) |
 | Check | `manifest.json` names the same plugin and version; `min_sudoo_version`, `max_sudoo_version`, `sdk_version` (the panel offers SDK 0.1.0) and `requires` fit; no Python dependencies, compiled files, links or unsafe paths |
 | Unpack | `/opt/odoo/manager/plugins/<id>/<version>/package/` (root only); the package file is deleted |
-| Register | The manifest's `entry_points` are written as a small `dist-info` folder next to the package, and both folders are added to the **end** of Python's path when the backend starts. `plugins.load(group, name, settings)` then finds the plugin exactly like a built-in one: an installed mailer named `sendgrid` is chosen with `MAILER=sendgrid` |
+| Register | The manifest's `entry_points` are written as a small `dist-info` folder next to the package, and both folders are added to the **end** of Python's path when the backend starts. `plugins.load(group, name, settings)` then finds the plugin exactly like a built-in one: an installed mailer named `sendgrid` is chosen with `MAILER=sendgrid`. A class written with the plugin SDK (a `SudooPlugin` subclass) is created with its `PluginContext` instead of the settings object (`src/sudoo/plugin_context.py`) |
 | Restart | The backend restarts by itself once no job runs; instances and links keep running |
 | Keep honest | Every file is hashed at install; the hashes are checked at each start and every 10 minutes. A changed plugin is not loaded |
 
@@ -428,6 +453,15 @@ Rules for a marketplace plugin, on top of [Rules for plugins](#7-rules-for-plugi
   installed packages provide is not loaded at all.
 * **Declare what you need.** The manifest's `permissions` are shown before installing and checked by the
   marketplace's reviewers.
+
+The `PluginContext` an SDK-built plugin is created with is built from the plugin's install record and its
+verified manifest (`src/sudoo/plugin_context.py`): its settings are the manifest's declared defaults until the
+panel grows a settings page for plugins; `storage`, `secrets` and `mail` are the panel's own, one namespace per
+plugin and present only when the matching permission was granted at install; `data_dir` is a folder only the
+plugin writes to, kept across updates and removed on uninstall. The core service layer (`context.services`,
+SDK ROADMAP section 11) does not exist in this panel version yet: every access answers a typed `ServiceError`
+501, so a plugin that needs services cannot run yet, while one that needs only its settings, logger, storage,
+secrets or mail works today.
 
 The plugin SDK (`sudoo-plugin-sdk`) builds, checks and packs plugins in this format.
 It is published on PyPI as [`sudoo-plugin-sdk`](https://pypi.org/project/sudoo-plugin-sdk/):

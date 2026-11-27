@@ -200,7 +200,7 @@ a name yet, their gateway ports, over https) and SSH for administrators; the web
 | **Exposure plugins** (`direct` for new installations; `proxy`, `tunnel`) | Give the panel and every instance a public https address. | Direct serves fixed addresses with certificates from Let's Encrypt on the server's own ports 80 and 443; proxy fits behind an existing reverse proxy; tunnel works without any open port. See [Public addresses](docs/concepts/PUBLIC_ADDRESSES.md). |
 | **Python 3.12+** with type hints | The panel's language. | Same language as Odoo, so every Odoo developer can read and fix it; type hints checked by mypy catch mistakes before they run. |
 | **uv** | Installs the dependencies, from a lock file. | Fast, and every installation (servers, CI, developers) gets exactly the same versions. |
-| **pydantic-settings** | Reads and checks the settings. | Every setting typed and documented in one class; a wrong value stops the panel at start-up with a clear message. |
+| **pydantic-settings** | Reads and checks the settings. | Every setting typed and documented in one class; a wrong value is named at start-up and takes its default. |
 | **Entry-point plugins** | How instances are reached, where Enterprise comes from, what starts updates. | Nothing is forced: each server chooses, and new options are added as plugins without changing the panel. See [Plugins](docs/PLUGINS.md). |
 | **Flask** | The panel's pages and JSON API. | Small, well known, signed session cookies built in. |
 | **Gunicorn** | Serves the Flask app. | Production web server; threads let long actions run without blocking the page. |

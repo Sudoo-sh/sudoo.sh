@@ -3139,6 +3139,10 @@ route("GET", "/plugins", () => {
   return ok(plugins, { restart_pending: false });
 });
 route("GET", "/plugins/notices", () => ok([]));
+route("GET", "/health", () => {
+  need("plugins.view", "/api/v1/health");
+  return ok({ status: "ok", problems: [], plugins: [] });
+});
 route("POST", "/plugins", ({ body }) => {
   const entry = catalog().find((p) => p.id === body.id);
   if (!entry) throw new Problem(404, "This plugin is not in the marketplace.");

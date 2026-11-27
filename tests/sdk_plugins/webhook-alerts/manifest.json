@@ -1,0 +1,49 @@
+{
+  "$schema": "https://hub.sudoo.sh/schemas/plugin-manifest-v1.json",
+  "id": "com.example.webhook-alerts",
+  "name": "Webhook alerts",
+  "version": "0.1.0",
+  "sdk_version": ">=0.1.0,<1.0.0",
+  "min_sudoo_version": "2.0.0",
+  "author": {
+    "name": "Example Plugins",
+    "url": "https://example.com"
+  },
+  "description": "Posts the panel's alerts (failed updates, finished jobs, new instances) to a chat webhook such as Slack, Mattermost or Discord.",
+  "long_description_file": "README.md",
+  "license": "MIT",
+  "type": "notification",
+  "tags": ["alerts", "webhook", "chat"],
+  "entry_points": {
+    "sudoo.notifications": {
+      "webhook-alerts": "example_webhook_alerts.plugin:WebhookAlerts"
+    }
+  },
+  "settings": [
+    {
+      "key": "webhook_url",
+      "type": "secret",
+      "label": "Webhook address",
+      "description": "The incoming-webhook address your chat gives you (https only). Empty: no alerts are sent."
+    },
+    {
+      "key": "minimum_severity",
+      "type": "choice",
+      "label": "Send alerts from",
+      "description": "Alerts below this level are not sent.",
+      "choices": ["info", "success", "warning", "error"],
+      "default": "warning"
+    },
+    {
+      "key": "payload",
+      "type": "choice",
+      "label": "Message format",
+      "description": "slack: {\"text\": ...} (Slack, Mattermost, Rocket.Chat); discord: {\"content\": ...}.",
+      "choices": ["slack", "discord"],
+      "default": "slack"
+    }
+  ],
+  "permissions": ["network.outbound"],
+  "requires": [],
+  "tier": "free"
+}

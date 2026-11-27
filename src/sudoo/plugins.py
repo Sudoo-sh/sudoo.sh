@@ -11,14 +11,15 @@ A setting names the plugin to use (`EXPOSURE=cloudflare-quick`). The class is cr
 Plugins from other installed packages are found the same way, so new ones need no change in this code. Plugins
 installed from the marketplace (plugin_manager.py) are put on the path, with their entry points, the first time a
 plugin is loaded; the storage plugin is loaded before that, because the installed plugins are recorded in storage.
+
+`load` raises when the plugin cannot be created. The panel itself loads plugins through plugin_guard.load_safely,
+which never raises: a plugin that fails is listed, and the built-in default of its group is used instead.
 """
 
 from __future__ import annotations
 
 from importlib.metadata import EntryPoint, entry_points
 from typing import Any
-
-from sudoo_plugin_sdk import SudooPlugin
 
 from sudoo.config import Settings
 
@@ -33,7 +34,7 @@ RATE_LIMITER_GROUP = "sudoo.rate_limiters"
 
 
 class PluginError(RuntimeError):
-    """A setting names a plugin that is not installed."""
+    """A setting names a plugin that is not installed (or one that may not be loaded)."""
 
 
 def _with_installed(group: str) -> None:
@@ -82,8 +83,21 @@ def _create(entry: EntryPoint, settings: Settings) -> Any:
     panel's Settings, the contract this module documents and tests/test_plugins.py pins.
     """
     cls = entry.load()
-    if isinstance(cls, type) and issubclass(cls, SudooPlugin):
+    base = _sdk_base()
+    if base is not None and isinstance(cls, type) and issubclass(cls, base):
         from sudoo import plugin_context
 
-        return cls(plugin_context.build(entry))
+        plugin = cls(plugin_context.build(entry))
+        plugin.on_enable()  # the SDK's lifecycle: called at each start of the panel while the plugin is on
+        return plugin
     return cls(settings)
+
+
+def _sdk_base() -> type[Any] | None:
+    """The SDK's SudooPlugin class, or None when the SDK cannot be imported: a panel whose SDK is missing or
+    broken still loads its built-in plugins (and an SDK plugin then fails on its own import, safely)."""
+    try:
+        from sudoo_plugin_sdk import SudooPlugin
+    except Exception:  # noqa: BLE001 - never a reason for the panel not to start
+        return None
+    return SudooPlugin

@@ -11,6 +11,7 @@ import { RouterProvider } from "react-router";
 import { ApiError } from "./api/client";
 import { keys } from "./api/queries";
 import { ToastProvider } from "./components/app/overlay";
+import { AppErrorBoundary } from "./components/Problems";
 import { DirectionProvider } from "./components/ui/direction";
 import { dirOf, isLocale, setLocale, signedOutChoice, useLocale } from "./i18n";
 import { followNavigationKind } from "./lib/navigation";
@@ -74,8 +75,10 @@ const app = (
     <QueryClientProvider client={client}>
       <ToastProvider>
         <LocaleRoot>
-          {demo && <demo.DemoBanner router={router} />}
-          <RouterProvider router={router} />
+          <AppErrorBoundary>
+            {demo && <demo.DemoBanner router={router} />}
+            <RouterProvider router={router} />
+          </AppErrorBoundary>
         </LocaleRoot>
       </ToastProvider>
     </QueryClientProvider>

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from functools import cache
 
-from sudoo import plugins
+from sudoo import plugin_guard, plugins
 from sudoo.config import settings
 
 from .base import Decision, RateLimiter
@@ -19,8 +19,15 @@ __all__ = ["Decision", "RateLimiter", "check_request", "limiter"]
 
 @cache
 def limiter() -> RateLimiter:
-    plugin: RateLimiter = plugins.load(plugins.RATE_LIMITER_GROUP, settings.rate_limiter, settings)
+    """The RATE_LIMITER plugin; the built-in one when it cannot be loaded, and for each call it fails."""
+    plugin: RateLimiter = plugin_guard.load_safely(
+        plugins.RATE_LIMITER_GROUP, settings.rate_limiter, settings, plugin_guard.default_of("rate_limiter"),
+        call_fallback=True,
+    )  # fmt: skip
     return plugin
+
+
+plugin_guard.on_reset(plugins.RATE_LIMITER_GROUP, limiter.cache_clear)
 
 
 def check_request(caller: str, changes: bool) -> Decision | None:

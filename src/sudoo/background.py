@@ -3,7 +3,12 @@ downloading images ahead of time (PREPULL_IMAGES) and checking for newer Odoo im
 App's webhook address, gateway, connectors, alerts, the marketplace heartbeat, the plugin watchdog (files,
 licences), the renewal of custom domains' certificates, the premium features' integrity pass and background work (premium/) and the mail
 catcher (its settings, network connections and retention), and the watch over production upgrades in their
-rollback window."""
+rollback window.
+
+Each loop runs under supervision (core/resilience.py): an exception in one round is logged, shown to the
+administrators, and the loop starts again after a growing pause; it never stops the other loops. Work that runs
+once at start (exposing the panel and the instances, adopting instances) is tried again the same way until it
+succeeds, so Docker, the database or the network being down at start only delays it."""
 
 from __future__ import annotations
 
@@ -13,7 +18,7 @@ import time
 
 from sudoo import accounts, alerts, exposure, plugin_manager, premium, triggers
 from sudoo.config import live, settings
-from sudoo.core import audit, jobs
+from sudoo.core import audit, jobs, resilience
 from sudoo.core.shell import redact, succeeds
 from sudoo.core.state import STATE
 from sudoo.hub import marketplace
@@ -43,8 +48,8 @@ def start() -> None:
     if servers.is_agent():
         start_agent()
         return
-    github.configure_git()
-    threading.Thread(target=accounts.dummy_hash, daemon=True, name="dummy-hash").start()
+    resilience.attempt("git", github.configure_git)
+    resilience.start_thread("dummy-hash", accounts.dummy_hash)
     for loop in (
         monitor.run_forever,
         STATE.save_visits_forever,
@@ -66,35 +71,35 @@ def start() -> None:
         _access_reviews,
         _capacity_queue,
     ):
-        threading.Thread(target=loop, daemon=True, name=loop.__name__).start()
-    alerts.start()
+        resilience.start_thread(loop.__name__, loop)
+    resilience.attempt("alerts", alerts.start)
     from sudoo.projects import builds  # late: projects/ imports the instances package, as this module does
 
-    builds.listen()
+    resilience.attempt("build history", builds.listen)
     from sudoo.projects import previews, refresh
 
-    previews.listen()
-    threading.Thread(target=refresh.run_forever, daemon=True, name="staging-refresh").start()
+    resilience.attempt("pull request previews", previews.listen)
+    resilience.start_thread("staging-refresh", refresh.run_forever)
     from sudoo.projects import clients
 
-    threading.Thread(target=clients.run_forever, daemon=True, name="client-portal").start()
+    resilience.start_thread("client-portal", clients.run_forever)
     from sudoo import maintenance
 
-    threading.Thread(target=maintenance.run_forever, daemon=True, name="maintenance").start()
+    resilience.start_thread("maintenance", maintenance.run_forever)
 
     from sudoo import notifications
     from sudoo.status import checks as status_checks
 
-    notifications.start()
-    threading.Thread(target=status_checks.run_forever, daemon=True, name="status-checks").start()
-    _start_premium_jobs()
-    gateway.start(wake=start_wake_job)
+    resilience.attempt("notifications", notifications.start)
+    resilience.start_thread("status-checks", status_checks.run_forever)
+    resilience.attempt("premium background work", _start_premium_jobs)
+    resilience.attempt("gateway", gateway.start, start_wake_job)
     live.on_change(_domain_settings_changed)
-    _start_access_rules()
-    threading.Thread(target=exposure.ensure_all, daemon=True, name="connectors").start()
-    triggers.start_all()
-    threading.Thread(target=_adopt_instances, daemon=True, name="projects").start()
-    threading.Thread(target=_check_project_branches, daemon=True, name="project-branches").start()
+    resilience.attempt("access rules", _start_access_rules)
+    resilience.start_thread("connectors", exposure.ensure_all)
+    resilience.attempt("update triggers", triggers.start_all)
+    resilience.start_thread("projects", _adopt_instances)
+    resilience.start_thread("project-branches", _check_project_branches)
 
 
 def _capacity_queue() -> None:
@@ -109,7 +114,7 @@ def _start_access_rules() -> None:
     they use changes."""
     from sudoo.instances import access_rules, geoip
 
-    threading.Thread(target=geoip.update_forever, daemon=True, name="country-database").start()
+    resilience.start_thread("country-database", geoip.update_forever)
     live.on_change(
         lambda changed: access_rules.apply() if any(k.startswith("access_rules_") for k in changed) else None
     )
@@ -121,7 +126,7 @@ def start_agent() -> None:
     custom domains and their certificates, the mail catcher, the gateway (waking paused instances) and the
     connectors. The panel's own work (marketplace, plugins, premium installs, update triggers, projects, alerts,
     the premium packages' background work) stays with the main panel."""
-    github.configure_git()
+    resilience.attempt("git", github.configure_git)
     for loop in (
         monitor.run_forever,
         STATE.save_visits_forever,
@@ -134,11 +139,11 @@ def start_agent() -> None:
         mail_catcher.maintain_forever,
         _watch_upgrades,
     ):
-        threading.Thread(target=loop, daemon=True, name=loop.__name__).start()
-    gateway.start(wake=start_wake_job)
+        resilience.start_thread(loop.__name__, loop)
+    resilience.attempt("gateway", gateway.start, start_wake_job)
     live.on_change(_domain_settings_changed)
-    _start_access_rules()
-    threading.Thread(target=exposure.ensure_all, daemon=True, name="connectors").start()
+    resilience.attempt("access rules", _start_access_rules)
+    resilience.start_thread("connectors", exposure.ensure_all)
 
 
 def _start_premium_jobs() -> None:

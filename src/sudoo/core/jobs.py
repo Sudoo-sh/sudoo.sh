@@ -31,6 +31,7 @@ from collections import OrderedDict, defaultdict
 from collections.abc import Callable
 from typing import Any
 
+from sudoo.config import settings
 from sudoo.core import events, failure, slots
 from sudoo.core.hints import friendly_hint
 from sudoo.core.shell import redact
@@ -251,6 +252,8 @@ class Job:
         if input:  # written by a thread: a command that never reads its input cannot hold the step past the deadline
             threading.Thread(target=feed, args=(input,), daemon=True, name=f"job-{self.id}-input").start()
         threading.Thread(target=read, daemon=True, name=f"job-{self.id}-output").start()
+        if not timeout and settings.job_command_max_hours > 0:  # a command without a limit of its own: never forever
+            timeout = float(settings.job_command_max_hours) * 3600
         deadline = time.monotonic() + timeout if timeout else None
         while True:
             left = None if deadline is None else deadline - time.monotonic()

@@ -1,8 +1,9 @@
 """Every setting of the panel, typed and documented in one place.
 
 Values come from environment variables (the panel's `.env` file, passed in by Docker Compose). Names are case
-insensitive: the field `idle_hours` is set with `IDLE_HOURS=6`. A wrong value (for example `IDLE_HOURS=soon`) stops
-the panel at start-up with a message naming the setting, instead of failing later.
+insensitive: the field `idle_hours` is set with `IDLE_HOURS=6`. A wrong value (for example `IDLE_HOURS=soon`) does
+not stop the panel: that setting takes its default, and the administrators are shown which setting is wrong and
+why (LiveSettings.problems, core/resilience.py). Settings(), used alone, still refuses a wrong value.
 
 The settings that choose plugins (`exposure`, `enterprise_source`) name an entry point; see plugins.py and
 docs/PLUGINS.md.
@@ -23,7 +24,7 @@ from pathlib import Path
 from typing import Any, Literal, cast
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, ValidationError, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PACKAGE_DIR = Path(__file__).resolve().parent
@@ -1850,6 +1851,40 @@ class Settings(BaseSettings):
         description="Most entries one export of the audit log (CSV or XLSX) contains; an export covers a year at most.",
     )
 
+    # ------------------------------------------------------------------ staying up (core/resilience.py, plugins.py)
+    plugin_failure_limit: int = Field(
+        5,
+        ge=0,
+        le=1000,
+        description="Failures in a row after which a plugin is switched off and the panel uses its built-in default "
+        "instead, until an administrator switches the plugin on again (the banner shown to administrators); 0: never "
+        "switched off.",
+    )
+    background_restart_seconds: float = Field(
+        5,
+        ge=1,
+        le=600,
+        description="Seconds before a background job that failed is started again; the pause doubles after each "
+        "failure in a row.",
+    )
+    background_restart_max_seconds: float = Field(
+        300, ge=5, le=86_400, description="Longest pause before a background job that keeps failing is started again."
+    )
+    background_queue_max: int = Field(
+        10_000,
+        ge=100,
+        le=1_000_000,
+        description="Alerts and notifications waiting to be delivered, at most; beyond that the oldest waiting one is "
+        "dropped (and logged), so a mail server or webhook that is down never fills the memory.",
+    )
+    job_command_max_hours: float = Field(
+        24,
+        ge=0,
+        le=720,
+        description="Hours a command of a job (docker, git, a backup) may run when it has no time limit of its own; "
+        "then it is stopped and the job fails, so a stuck job never holds its instance for good. 0: no limit.",
+    )
+
     # ------------------------------------------------------------------ servers (premium/servers.py, docs/ADMIN_GUIDE.md "Servers")
     server_name: str = Field(
         "Main", min_length=1, max_length=40, description="Name of this server, the main one, where instances show it."
@@ -2599,6 +2634,11 @@ EDITABLE = (
     *SHELL_SETTINGS,
     *PROFILER_SETTINGS,
     "audit_export_max_rows",
+    "plugin_failure_limit",
+    "background_restart_seconds",
+    "background_restart_max_seconds",
+    "background_queue_max",
+    "job_command_max_hours",
     "support_access",
     "support_access_max_hours",
     *CLIENT_SETTINGS,
@@ -2657,22 +2697,55 @@ class LiveSettings:
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
-        self._env = Settings()
+        self._problems: dict[str, str] = {}  # setting -> why its value was not taken (problems())
+        self._env, _ = self._tolerant({})
         self._overrides: dict[str, Any] = {}
         self._encrypted: dict[str, str] = {}
         self._current = self._env
         self._listeners: list[Callable[[dict[str, Any]], None]] = []
         try:
             saved = _migrated(json.loads(self._file.read_text()))
-            self._encrypted = {
-                k: v["encrypted"] for k, v in saved.items() if k in SECRET and isinstance(v, dict) and "encrypted" in v
-            }
-            plain = {k: v for k, v in saved.items() if k in _CHANGEABLE and k not in self._encrypted}
-            self._current = Settings(**plain)
-            self._overrides = {k: getattr(self._current, k) for k in plain}
-        except (OSError, ValueError):
-            pass  # no changes yet, or an unreadable file: .env alone
+        except FileNotFoundError:
+            saved = {}  # no changes made in the panel yet
+        except (OSError, ValueError) as error:
+            saved = {}
+            self._problems["settings.json"] = f"The changes made in the panel cannot be read ({type(error).__name__})."
+        self._encrypted = {
+            k: v["encrypted"] for k, v in saved.items() if k in SECRET and isinstance(v, dict) and "encrypted" in v
+        }
+        plain = {k: v for k, v in saved.items() if k in _CHANGEABLE and k not in self._encrypted}
+        self._current, replaced = self._tolerant(plain)
+        self._overrides = {k: getattr(self._current, k) for k in plain if k not in replaced}
         self._started = self._current  # what the plugins were created with
+
+    def _tolerant(self, values: dict[str, Any]) -> tuple[Settings, set[str]]:
+        """Settings from `.env` and `values`, a setting with a wrong value taking its default: the panel starts
+        anyway and lists the setting (problems(), shown to administrators) instead of stopping. Also returns the
+        names of the settings that took their default."""
+        values = dict(values)
+        replaced: set[str] = set()
+        for _ in range(len(Settings.model_fields)):
+            try:
+                return Settings(**values), replaced
+            except ValidationError as error:
+                wrong = {
+                    str(item["loc"][0]): str(item.get("msg") or "not valid")
+                    for item in error.errors()
+                    if item.get("loc") and str(item["loc"][0]) in Settings.model_fields
+                }
+                wrong = {name: why for name, why in wrong.items() if name not in replaced}
+                if not wrong:
+                    break
+                for name, why in wrong.items():  # pydantic's message names the rule, never the value (a secret)
+                    self._problems.setdefault(name, why[:200])
+                    values[name] = Settings.model_fields[name].get_default(call_default_factory=True)
+                    replaced.add(name)
+        self._problems["settings"] = "The settings cannot be read together; every setting has its default."
+        return Settings.model_construct(), set(Settings.model_fields)
+
+    def problems(self) -> dict[str, str]:
+        """Settings whose value was not taken at start (a wrong value in .env or settings.json), with why."""
+        return dict(self._problems)
 
     def __getattr__(self, name: str) -> Any:
         if name in SECRET and self._encrypted:
@@ -2728,8 +2801,7 @@ class LiveSettings:
                 for k, v in self._overrides.items()
             }
             vault.write_private(self._file, json.dumps(stored, indent=1))
-        for listener in self._listeners:
-            listener(dict(values))
+        self.notify(values)  # each listener on its own: one that fails never undoes the change or stops the others
 
     def use(self, values: Mapping[str, Any]) -> None:
         """Take these values on top of `.env`, in memory only: the gateway service gets the panel's current values

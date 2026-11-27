@@ -258,7 +258,12 @@ _WORKER = threading.Event()
 
 
 def _deliver_later(record_id: str) -> None:
-    """Deliver in one background thread, in order: a slow mail server or webhook never holds a job or the monitor."""
+    """Deliver in one background thread, in order: a slow mail server or webhook never holds a job or the monitor.
+    At most BACKGROUND_QUEUE_MAX alerts wait; beyond that the new one is not delivered (it stays in the list of
+    alerts) and that is logged, so a mail server that is down never fills the memory."""
+    if _QUEUE.qsize() >= settings.background_queue_max:
+        print(f"alert {record_id}: not delivered, too many alerts waiting", flush=True)
+        return
     _QUEUE.put(record_id)
     if not _WORKER.is_set():
         _WORKER.set()

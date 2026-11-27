@@ -66,7 +66,30 @@ See which plugins are installed and which are in use:
 docker exec sudoo-panel sudoo.sh config
 ```
 
-A setting that names a plugin that is not installed stops the panel at start-up with the list of installed ones.
+A setting that names a plugin that is not installed, or a plugin that fails, never stops the panel: see
+[When a plugin fails](#when-a-plugin-fails).
+
+### When a plugin fails
+
+Every plugin is loaded, and every plugin from outside the panel is called, through `src/sudoo/plugin_guard.py`:
+
+* **Loading.** An exception in the plugin's module, in its constructor (even `SystemExit`), or a name that is not
+  installed: the plugin is marked failed with the error (without secrets), logged, written to the audit log and
+  shown to the administrators on a banner and at `GET /api/v1/health`. The group's built-in default is used instead
+  (`local` sign-in, `sqlite` storage, `smtp` mailer, `memory` rate limiter, the default exposure). An Enterprise
+  add-on source that fails turns only Enterprise off; an update trigger that fails is left out and the others run;
+  a second factor that fails is still asked for, so nobody signs in without the factor they set up.
+* **Calls.** An exception from a method of a plugin that is not part of the panel is counted and shown the same
+  way. Sign-in and rate limits answer that call with the built-in default; an e-mail plugin's exception becomes a
+  `MailError`; other groups pass it on to the request or job, which ends cleanly. A call that succeeds resets the
+  count.
+* **Switched off.** After `PLUGIN_FAILURE_LIMIT` failures in a row (default 5; 0: never) the plugin is switched off
+  and the default is used, also after a restart, until an administrator switches it on again (the banner's
+  **Switch on again**, or `POST /api/v1/health/plugins/<group>/<name>/enable`). Storage is never switched off while
+  the panel runs.
+
+A plugin should still raise its group's own error for expected failures (`MailError`, `ValueError` for bad
+details): those are answers, not faults.
 
 Plugins can also come from the **Sudoo.sh marketplace**, installed from the panel's **Plugins** page without touching
 the server: see [Plugins from the marketplace](#9-plugins-from-the-marketplace).

@@ -10,7 +10,7 @@ from __future__ import annotations
 import time
 from functools import cache
 
-from sudoo import plugins
+from sudoo import plugin_guard, plugins
 from sudoo.config import settings
 from sudoo.exposure.base import Exposure, Target
 from sudoo.instances import store
@@ -33,8 +33,11 @@ __all__ = [
 
 @cache
 def provider() -> Exposure:
-    """The configured exposure plugin, created once."""
-    plugin: Exposure = plugins.load(plugins.EXPOSURE_GROUP, settings.exposure, settings)
+    """The configured exposure plugin, created once; the default one (EXPOSURE's default) when it cannot be loaded
+    (plugin_guard.py)."""
+    plugin: Exposure = plugin_guard.load_safely(
+        plugins.EXPOSURE_GROUP, settings.exposure, settings, plugin_guard.default_of("exposure")
+    )
     return plugin
 
 

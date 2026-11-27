@@ -6,6 +6,28 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [3.6.0] - 2026-11-27
+
+### Upgrade notes
+
+- **Disabling or enabling an account needs a reason** (up to 300 characters): scripts calling
+  `POST /users/<name>/disable` or `POST /users/<name>/enable` must send `reason`. The reason is kept in the audit log.
+- **Disabled accounts are new**: a disabled account cannot sign in, its sessions end at once and its API tokens are
+  refused; its data stays and **Enable** brings it back. A push from a disabled person's linked GitHub account creates no
+  instance.
+- **Capacity limits are checked again when a queued creation runs, and when a paused instance is restarted.** A
+  restart or a queued creation that used to get through above the total or per-person limit is now refused with the
+  usual limit message.
+- **Super admin checks ignore disabled accounts**: a disabled super admin no longer counts as "the last super admin",
+  and password sign-in rules count only active ones.
+- **Log scrubbing hides more**: `scheme://user:pass@host` and `key=value` / `key: value` forms are masked, and the rest
+  of a line is masked when a value cannot be bounded. Logs may show more `***` than before.
+- **Access requests are off by default** (`ACCESS_REQUEST_DOMAINS` empty). Nothing changes until you set it.
+- **The AI explanation of failed builds is off by default** and needs an administrator's settings plus a per-project
+  opt-in.
+- **Tours** start for each person once; `TOURS_ENABLED=false` turns them off for everyone.
+- **GitHub commit statuses** for failed builds now name the recognised cause ("Modules: ...") when there is one.
+
 ### Added
 
 - A short first-visit tour of the panel's sidebar (Projects, New instance, Backups, Help), in English and Arabic. Each
@@ -1756,7 +1778,8 @@ Use `sudoo` instead of `python3 manage.py` in commands.
 - Documentation in `docs/`, also shown inside the panel.
 - Contributor files: contributing guide, security policy, code of conduct, issue and pull request templates, continuous integration and Dependabot.
 
-[Unreleased]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.5.0...HEAD
+[Unreleased]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.6.0...HEAD
+[3.6.0]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.5.0...v3.6.0
 [3.5.0]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.4.1...v3.5.0
 [3.4.1]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.4.0...v3.4.1
 [3.4.0]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.3.4...v3.4.0

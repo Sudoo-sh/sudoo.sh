@@ -98,11 +98,12 @@ environment at all.
 A typical team runs Sudoo.sh on a single rented server with a few gigabytes of memory: the instances in use run,
 the rest wait paused, and the monthly cost stays the server's price however many branches there are.
 
-**Made for:** Odoo partners and integrators (a demo per prospect), in-house Odoo teams (every branch tested before
-production), trainers and schools (an instance per class or student), and freelancers.
+**Made for:** Odoo partners and integrators, in-house Odoo teams (every branch tested before production, and
+production itself), trainers and schools (an instance per class or student), and freelancers.
 
-**Not for:** production databases. Keep live company data on a production host; Sudoo.sh is for everything around
-it (development, demos, tests and training).
+**Production:** supported. A branch in the Production stage is your company's live Odoo: every update to it is backed
+up first, updates are tested on a staging copy before they reach it, and nothing removes a production instance on its
+own. For live company data, use a server sized for it and turn on off-site backups.
 
 ### Sudoo.sh and Odoo.sh
 

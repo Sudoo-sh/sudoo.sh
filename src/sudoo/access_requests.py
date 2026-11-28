@@ -14,13 +14,13 @@ from __future__ import annotations
 import hashlib
 import hmac
 import secrets
-import threading
 import time
 from typing import Any
 
 from sudoo import accounts, invitations
 from sudoo.config import settings
 from sudoo.core import vault
+from sudoo.core.shared import SharedLock
 from sudoo.storage import Document, storage
 
 COLLECTION = "access_requests"
@@ -133,7 +133,7 @@ def submit(email: str, first_name: str, last_name: str, client: str) -> tuple[st
     return request_id, secret
 
 
-_SUBMIT = threading.Lock()
+_SUBMIT = SharedLock("access-requests-submit")
 
 
 def confirm(token: str) -> Document | None:
@@ -180,7 +180,7 @@ def decide(request_id: str, status: str, by: str, reason: str = "", role: str = 
     return decided[0] if decided else None
 
 
-_DECIDE = threading.Lock()
+_DECIDE = SharedLock("access-requests-decide")
 
 
 def public_fields(item: Document) -> dict[str, Any]:

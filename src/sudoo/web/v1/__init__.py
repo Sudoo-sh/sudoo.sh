@@ -173,7 +173,7 @@ def register(app: Flask) -> None:
     app.register_blueprint(api)
     app.register_blueprint(premium.files)
     bus.present("instance", instance_resource)
-    bus.present("job", lambda job_id: job_resource(jobs.JOBS[job_id]))
+    bus.present("job", lambda job_id: job_resource(jobs.find(job_id) or jobs.JOBS[job_id]))
     bus.present("domains", domains.domains_resource)
     bus.present("project", _project_event)
     bus.present("build", projects.build_event)

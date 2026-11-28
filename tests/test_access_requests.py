@@ -35,7 +35,7 @@ class FakeMailer:
 def clean() -> Iterator[None]:
     def wipe() -> None:
         live.change(dict.fromkeys(live.overrides()))
-        accounts.THROTTLE._failures.clear()
+        accounts.THROTTLE.clear()
         invitations.SEND_LIMIT.clear()
         access_requests.BY_ADDRESS.clear()
         access_requests.BY_CLIENT.clear()

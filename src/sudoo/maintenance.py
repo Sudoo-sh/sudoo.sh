@@ -63,6 +63,7 @@ from typing import Any
 from sudoo import accounts
 from sudoo.config import settings
 from sudoo.core import audit, vault
+from sudoo.core.shared import SharedLock
 from sudoo.storage import Document, storage
 
 log = logging.getLogger(__name__)
@@ -99,8 +100,8 @@ TITLES = {
     "restart": ("Restart", "إعادة تشغيل"),
     "custom": ("Maintenance work", "أعمال صيانة"),
 }
-_LOCK = threading.RLock()
-_RUNNING = threading.Lock()  # one item runs at a time
+_LOCK = SharedLock("maintenance")
+_RUNNING = SharedLock("maintenance-running", reentrant=False)  # one item runs at a time, in every process
 _WAKE = threading.Event()
 
 

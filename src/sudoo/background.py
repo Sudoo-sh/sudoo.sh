@@ -41,8 +41,18 @@ from sudoo.repos import github, github_app
 from sudoo.topology import share as topology_share
 
 
+def start_every_process() -> None:
+    """What every worker process of the panel runs, the leader or not: writing the visits it recorded, and handing
+    its live events to the leader (core/event_bridge.py)."""
+    from sudoo.core import event_bridge
+
+    event_bridge.install()
+    resilience.start_thread("save-visits", STATE.save_visits_forever)
+
+
 def start() -> None:
-    """Start everything. Called once when the web panel starts (in a server's agent: start_agent)."""
+    """Start everything. Called once when the web panel starts, in the worker process that holds the leadership
+    (core/shared.py; in a server's agent: start_agent)."""
     from sudoo.premium import servers
 
     if servers.is_agent():
@@ -52,7 +62,6 @@ def start() -> None:
     resilience.start_thread("dummy-hash", accounts.dummy_hash)
     for loop in (
         monitor.run_forever,
-        STATE.save_visits_forever,
         _pause_idle_instances,
         _delete_expired_instances,
         _daily_backups,
@@ -443,7 +452,7 @@ def remove_expired_snapshots(now: float | None = None) -> list[str]:
     """Remove expired safety backups, unless a job is running; return the removed file names."""
     removed: list[str] = []
     for backup in backups.expired_snapshots(now):
-        if jobs.ACTIVE_JOB or any(jobs.busy(name) for name in store.names()):
+        if jobs.any_unfinished() or any(jobs.busy(name) for name in store.names()):
             break
         (settings.backups_dir / backup["file"]).unlink(missing_ok=True)
         removed.append(backup["file"])

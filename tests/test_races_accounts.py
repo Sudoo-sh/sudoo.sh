@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import threading
 import time
+import uuid
 from collections.abc import Callable, Iterator
 from typing import Any
 
@@ -35,7 +36,7 @@ class ReadyMailer:
 def fresh_throttle(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     """Every test starts with no failed sign-ins recorded (the limit is per address and the tests share one); the
     e-mail code is offered (a mailer that is ready, sending nothing)."""
-    monkeypatch.setattr(accounts, "THROTTLE", accounts.SignInThrottle())
+    monkeypatch.setattr(accounts, "THROTTLE", accounts.SignInThrottle(f"sign_in_throttle_{uuid.uuid4().hex[:8]}"))
     monkeypatch.setattr(email_code, "mailer", lambda: ReadyMailer())
     yield
 

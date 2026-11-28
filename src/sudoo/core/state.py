@@ -4,11 +4,10 @@
 "update_failed": the last code update failed and was (or could not be) put back (instances/operations.update_code),
 and "keep_backups": before-update backups kept for a restore by hand after an automatic rollback failed.
 
-Kept by the storage plugin (collection "instance_state"). Visits are recorded on every request, so they are kept in
-memory and written at most every 30 seconds; all other changes are written immediately.
-
-Writes to the storage happen one at a time, each with the state as it is when it is written (_write): a change
-never puts back an older copy over a newer one, and the state of a removed instance is never written again.
+Kept by the storage plugin (collection "instance_state"), the one place every worker process reads and changes:
+each change is one atomic write onto the stored state (a change made by another process stays), and a read gives
+the stored state. Visits are recorded on every request, so they are kept in memory and written at most every 30
+seconds (each process writes its own, the newest visit wins); all other changes are written immediately.
 """
 
 from __future__ import annotations
@@ -20,75 +19,74 @@ from typing import Any
 from sudoo.storage import storage
 
 COLLECTION = "instance_state"
+_VISIT_KEYS = ("last_visit", "used_since")
 
 
 class StateStore:
     def __init__(self) -> None:
-        self._lock = threading.Lock()  # the state in memory; never held while the storage is written
-        self._write = threading.Lock()  # writing to the storage: taken before _lock, held until the write is done
-        self._data: dict[str, dict[str, Any]] | None = None
-        self._dirty: set[str] = set()
-
-    def _all(self) -> dict[str, dict[str, Any]]:
-        if self._data is None:  # loaded on first use, not at import (storage needs the settings first)
-            self._data = storage().all(COLLECTION)
-        return self._data
+        self._lock = threading.Lock()  # the visits recorded in this process and not written yet
+        self._visits: dict[str, dict[str, float]] = {}
 
     def get(self, name: str) -> dict[str, Any]:
         """A copy of the instance's state: {"last_visit", "used_since", "paused", "switched_off", "branch_missing",
         "rolled_back", "update_failed", "keep_backups"}."""
+        state = dict(storage().get(COLLECTION, name) or {})
         with self._lock:
-            return dict(self._all().get(name, {}))
+            visit = self._visits.get(name)
+        if visit:
+            state = self._with_visit(state, visit)
+        return state
+
+    @staticmethod
+    def _with_visit(state: dict[str, Any], visit: dict[str, float]) -> dict[str, Any]:
+        if visit["last_visit"] > float(state.get("last_visit") or 0):
+            state["last_visit"] = visit["last_visit"]
+        if not state.get("used_since"):
+            state["used_since"] = visit["used_since"]
+        return state
 
     def update(self, name: str, **values: Any) -> None:
-        with self._write:
-            with self._lock:
-                state = self._all().setdefault(name, {})
-                state.update(values)
-                self._dirty.discard(name)
-                snapshot = dict(state)
-            storage().put(COLLECTION, name, snapshot)
+        storage().change(COLLECTION, name, lambda found: {**(found or {}), **values})
 
     def record_visit(self, name: str) -> None:
         now = time.time()
         with self._lock:
-            state = self._all().setdefault(name, {})
-            state["last_visit"] = now
-            if not state.get("used_since"):
-                state["used_since"] = now
-            self._dirty.add(name)
+            visit = self._visits.setdefault(name, {"last_visit": now, "used_since": now})
+            visit["last_visit"] = now
 
     def merge_visit(self, name: str, when: float) -> bool:
         """A visit recorded elsewhere (by the gateway service, instances/gateway_link.py): taken when it is newer
         than the last one known. Returns whether it was."""
+        if when <= float(self.get(name).get("last_visit") or 0):
+            return False
         with self._lock:
-            state = self._all().setdefault(name, {})
-            if when <= (state.get("last_visit") or 0):
-                return False
-            state["last_visit"] = when
-            if not state.get("used_since"):
-                state["used_since"] = when
-            self._dirty.add(name)
-            return True
+            visit = self._visits.setdefault(name, {"last_visit": when, "used_since": when})
+            visit["last_visit"] = max(visit["last_visit"], when)
+        return True
 
     def remove(self, name: str) -> None:
-        with self._write:
-            with self._lock:
-                self._all().pop(name, None)
-                self._dirty.discard(name)
-            storage().delete(COLLECTION, name)
+        with self._lock:
+            self._visits.pop(name, None)
+        storage().delete(COLLECTION, name)
 
     def save(self) -> None:
-        """Write the visits recorded since the last save."""
-        with self._write:
-            with self._lock:
-                dirty = {name: dict(self._all()[name]) for name in self._dirty if name in self._all()}
-                self._dirty.clear()
-            for name, state in dirty.items():
-                storage().put(COLLECTION, name, state)
+        """Write the visits recorded since the last save onto the stored state (never bringing back the state of an
+        instance removed meanwhile)."""
+        with self._lock:
+            visits, self._visits = self._visits, {}
+        from sudoo.instances import store  # late: the instances package imports this module
+
+        for name, visit in visits.items():
+            if not store.exists(name):
+                continue
+
+            def merged(found: dict[str, Any] | None, visit: dict[str, float] = visit) -> dict[str, Any]:
+                return self._with_visit(dict(found or {}), visit)
+
+            storage().change(COLLECTION, name, merged)
 
     def save_visits_forever(self) -> None:
-        """Background loop: write recorded visits every 30 seconds."""
+        """Background loop (every worker process): write recorded visits every 30 seconds."""
         while True:
             time.sleep(30)
             self.save()

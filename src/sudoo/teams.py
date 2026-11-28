@@ -20,10 +20,10 @@ team.
 from __future__ import annotations
 
 import re
-import threading
 import time
 from collections.abc import Iterable
 
+from sudoo.core.shared import SharedLock
 from sudoo.storage import Document, storage
 
 COLLECTION = "teams"
@@ -31,7 +31,7 @@ ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
 NAME_MAX = 60
 DESCRIPTION_MAX = 200
 MAX_MEMBERS = 500
-_LOCK = threading.RLock()
+_LOCK = SharedLock("teams")
 
 
 class TeamError(Exception):

@@ -35,7 +35,7 @@ from .responses import ok
 blueprint = Blueprint("setup_wizard", __name__)
 
 SETUP_CODE_HEADER = "X-Setup-Code"
-TEST_EMAILS = accounts.SignInThrottle()
+TEST_EMAILS = accounts.SignInThrottle("setup_test_emails")
 """Test e-mails of the setup page, counted per address: at most 5 every 15 minutes."""
 
 

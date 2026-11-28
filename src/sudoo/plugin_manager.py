@@ -61,6 +61,7 @@ from typing import Any
 from sudoo.config import settings
 from sudoo.core import audit, events, jobs
 from sudoo.core.jobs import Job, JobError
+from sudoo.core.shared import SharedLock
 from sudoo.hub import HubRefused, HubUnavailable, client, crypto, marketplace
 from sudoo.storage import storage
 
@@ -360,7 +361,7 @@ def schedule_restart(reason: str) -> bool:
 
     def wait_and_stop() -> None:
         time.sleep(2)
-        while jobs.ACTIVE_JOB:
+        while jobs.any_unfinished():  # in every worker process: a restart would end their jobs
             time.sleep(2)
         audit.record("system", None, "panel restarted", detail=reason)
         stop_backend()
@@ -1032,21 +1033,29 @@ def watch_forever() -> None:
 # ---------------------------------------------------------------- the hub's command: remove paid plugins
 
 _COMMANDS: set[str] = set()  # commands being carried out in this process
+_COMMAND_LOCK = SharedLock("plugin-commands")  # the check and the start together, for every process
 
 
 def start_command(command_id: str, payload: dict[str, Any]) -> None:
-    """Start removing the paid plugins a remove_paid_plugins command lists (a job), unless it already runs."""
-    with _LOCK:
-        if command_id in _COMMANDS:
+    """Start removing the paid plugins a remove_paid_plugins command lists (a job), unless it already runs (in any
+    worker process: the job carries the command as its request key)."""
+    key = f"command:{command_id}"
+    with _COMMAND_LOCK:
+        if command_id in _COMMANDS or jobs.same_request(key) is not None:
             return
         _COMMANDS.add(command_id)
+        _start_command(command_id, payload, key)
+
+
+def _start_command(command_id: str, payload: dict[str, Any], key: str) -> None:
     listed = [str(p) for p in payload.get("plugins") or [] if isinstance(p, str) and PLUGIN_ID_RE.match(p)]
     reason = str(payload.get("reason") or "unlinked")
     marketplace.record_command(command_id, kind="remove_paid_plugins", status="running", at=time.time(),
                                plugins=listed, reason=reason)  # fmt: skip
     marketplace._save(linked=None)  # the hub sends it when this server was unlinked (or its key revoked)
-    jobs.start(JOB_INSTANCE, "Remove paid plugins (logged out of the account)", "plugin-remove-paid",
-               remove_paid_plugins, command_id, listed, reason)  # fmt: skip
+    job = jobs.start(JOB_INSTANCE, "Remove paid plugins (logged out of the account)", "plugin-remove-paid",
+                     remove_paid_plugins, command_id, listed, reason)  # fmt: skip
+    job.request_key = key
 
 
 def remove_paid_plugins(job: Job, command_id: str, listed: list[str], reason: str) -> None:

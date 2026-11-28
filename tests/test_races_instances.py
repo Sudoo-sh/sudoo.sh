@@ -126,21 +126,14 @@ def test_changes_to_an_instances_kept_state_at_once_all_reach_the_storage() -> N
 
 def test_a_removed_instances_state_is_not_written_back_by_a_change_in_flight(monkeypatch: pytest.MonkeyPatch) -> None:
     """A change took its copy of the state, the instance was deleted (its state removed), then the change wrote its
-    copy: the state of a deleted instance came back, and a new instance of that name inherited it."""
-    real_put = storage().put
-    removal: list[threading.Thread] = []
-
-    def removed_meanwhile(collection: str, key: str, document: dict[str, Any]) -> None:
-        if collection == STATE_COLLECTION and key == NAME and not removal:
-            removal.append(threading.Thread(target=lambda: STATE.remove(NAME)))
-            removal[0].start()
-            removal[0].join(0.5)  # the removal waits for the change to be written once that is one step
-        real_put(collection, key, document)
-
-    monkeypatch.setattr(type(storage()), "put", lambda self, c, k, d: removed_meanwhile(c, k, d))
+    copy: the state of a deleted instance came back, and a new instance of that name inherited it. Each change is now
+    one write onto the stored state; what is still kept in memory (visits) is never written for a removed state."""
     STATE.update(NAME, paused=True)
-    assert removal
-    removal[0].join(10)
+    STATE.record_visit(NAME)  # a visit recorded before the removal, written later
+    done = threading.Thread(target=lambda: STATE.remove(NAME))
+    done.start()
+    done.join(10)
+    STATE.save()
     assert storage().get(STATE_COLLECTION, NAME) is None
     assert STATE.get(NAME) == {}
 

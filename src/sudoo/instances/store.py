@@ -23,6 +23,7 @@ import os
 import re
 import socket
 import threading
+import time
 from collections import defaultdict
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
@@ -31,6 +32,7 @@ from pathlib import Path
 from sudoo.config import settings
 from sudoo.core import vault
 from sudoo.core.cache import FileMemo
+from sudoo.core.shared import SharedLock, SharedMap
 
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,30}$")
 ENV_KEY_RE = re.compile(r"[A-Z][A-Z0-9_]*")
@@ -196,8 +198,9 @@ def container(name: str, service: str) -> str:
 
 # --------------------------------------------------------------------------- ports
 
-_PORT_LOCK = threading.Lock()
-_RESERVED: set[int] = set()
+_PORT_LOCK = SharedLock("ports")
+_RESERVED = SharedMap("port_reservations")  # ports planned for a creation, by every worker process, until .env has them
+RESERVATION_SECONDS = 6 * 3600  # a reservation never released (a process that died while creating) lapses
 _PORT_SUFFIX = "_PORT"  # every .env key ending in _PORT holds a port reserved for the instance
 
 
@@ -213,7 +216,7 @@ def _free(port: int) -> bool:
 
 
 def _used_ports() -> set[int]:
-    used = {settings.panel_port, settings.panel_connector_status_port} | _RESERVED
+    used = {settings.panel_port, settings.panel_connector_status_port} | {int(port) for port in _RESERVED.items()}
     for name in names():
         env = read_env(name)
         used |= {int(value) for key, value in env.items() if key.endswith(_PORT_SUFFIX) and value.isdigit()}
@@ -238,11 +241,14 @@ def reserve_ports(extra: dict[str, int], only: dict[str, int] | None = None) -> 
         for key, start in wanted.items():
             ports[key] = _next_free(start, used)
             used.add(ports[key])
-        _RESERVED.update(ports.values())
+        until = time.time() + RESERVATION_SECONDS
+        for port in ports.values():
+            _RESERVED.put(str(port), {"expires": until})
         return ports
 
 
 def release_ports(ports: dict[str, int]) -> None:
     """Forget a reservation once the ports are written to the instance's .env (or creation failed)."""
     with _PORT_LOCK:
-        _RESERVED.difference_update(ports.values())
+        for port in ports.values():
+            _RESERVED.delete(str(port))

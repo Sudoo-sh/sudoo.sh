@@ -27,6 +27,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Banner "Something is wrong with the panel"** for administrators (EN and AR), with **Switch on again** for
   plugins switched off after failing, and `GET /api/v1/health`, `POST /api/v1/health/plugins/<group>/<name>/enable`.
 - **Error screen in the web app** (EN and AR) instead of a blank page when a page fails to draw.
+- **Several backend processes** (`PANEL_WORKERS`, `.env`, 1 by default): what decides correctness is shared by all
+  of them (the panel's storage and lock files of the host): sign-in limits, jobs (a job started by one is seen,
+  counted and serialised by all; the same request sent to two of them is one job), one-time codes, shell tickets,
+  Connect-as links, GitHub sign-in flows, API nonces, port reservations, instance state, settings (a change in one
+  is seen by the others within a second) and the locks around every check-then-change. One process at a time runs
+  the background work, the gateway link and the live events, and another takes over when it stops; the others hand
+  their live events to it.
 - **Settings** `PLUGIN_FAILURE_LIMIT` (5), `BACKGROUND_RESTART_SECONDS` (5), `BACKGROUND_RESTART_MAX_SECONDS` (300),
   `BACKGROUND_QUEUE_MAX` (10000) and `JOB_COMMAND_MAX_HOURS` (24), changeable on the Settings page (Advanced).
 
@@ -94,6 +101,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
     one delivery thread sends alerts, in order; the GitHub App's webhook address and a new installation recorded at
     the same moment are both kept.
 
+- **The command line and the panel never send a heartbeat at the same moment** (`sudoo.sh marketplace heartbeat`):
+  a lock both take; what a heartbeat from the command line would start as a job (a hub command, the premium
+  features' sync) is left to the panel's next heartbeat, so it never ends with the command.
+- **Invitations at the same moment**: two administrators inviting one address make one invitation (the second
+  answer is that invitation, `meta.existing`); two invitations whose addresses give the same user name, accepted at
+  the same moment, both make an account (the second gets a free name, given in `meta.username`); an acceptance that
+  cannot make the account keeps its invitation, so its link works again.
+- **A re-enabled plugin, an accepted licence agreement and alerts** are the same in every worker process (no copy
+  kept in memory for longer than a few seconds).
+
 ### Security
 
 - **A session ended by an administrator stays ended**: a request of that session that was already running (sign out
@@ -102,7 +119,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   it answers 401.
 - **Sign-in limits hold for guesses sent together**: a try is counted when it starts, not when its answer is known,
   so many wrong passwords or codes sent at the same moment are limited to the same 5 per 15 minutes as tries sent one
-  by one (before, all of them were checked).
+  by one (before, all of them were checked), also across worker processes. One-time codes and API nonces are used
+  once whichever worker process gets them.
 - **A second factor an administrator removed stays removed**, and a used authenticator code stays used, when the
   person changes their second factors at the same moment; two removals at once never leave an account that must
   have a second factor without one.

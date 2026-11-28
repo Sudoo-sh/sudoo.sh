@@ -1155,7 +1155,7 @@ def list_jobs() -> Response:
     instance_name = request.args.get("instance")
     if instance_name:
         check.instance_name(instance_name)
-    found: list[Any] = [j for j in reversed(jobs.JOBS.values()) if not instance_name or j.instance == instance_name]
+    found: list[Any] = jobs.all_jobs(instance_name or None)  # of every worker process, newest first
     remote = servers.remote_jobs(instance_name or None)  # resources other servers' agents reported
     if remote:  # one list, newest first: this server's jobs as resources too
         found = sorted(
@@ -1174,7 +1174,7 @@ def list_jobs() -> Response:
 
 def _job(job_id: str, permission: str = "instances.view") -> jobs.Job:
     """The job, when the caller has `permission` in its instance (404 for an instance hidden from them)."""
-    found = jobs.JOBS.get(job_id) or abort(404, "This job does not exist or is too old to be kept.")
+    found = jobs.find(job_id) or abort(404, "This job does not exist or is too old to be kept.")
     if not jobs.is_panel_job(found.instance):
         refusal = access.instance_refusal(g.user, permission, found.instance)
         if refusal is not None:

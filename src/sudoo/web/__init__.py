@@ -20,7 +20,7 @@ from werkzeug.exceptions import HTTPException
 
 from sudoo import accounts, background, exposure, link_deadline, triggers
 from sudoo.config import settings
-from sudoo.core import resilience, slots
+from sudoo.core import event_bridge, resilience, shared, slots
 
 from . import docs, security, v1
 
@@ -145,9 +145,17 @@ def create_app() -> Flask:
         resilience.attempt("background work", background.start)  # no event stream; the panel passes requests on
         return app
     resilience.attempt("link deadline", link_deadline.first_run)  # recorded once, the first time the panel runs
-    resilience.attempt("background work", background.start)
-    resilience.attempt("live events", v1.stream.start, app)
-    resilience.attempt("support channel", _start_support_channel, app)
+    resilience.attempt("background work of every process", background.start_every_process)
+
+    def lead() -> None:
+        """In one worker process at a time (core/shared.py leadership): the background work, the gateway, the
+        live events (the others hand theirs over, core/event_bridge.py) and the support channel."""
+        event_bridge.run_as_leader()
+        resilience.attempt("background work", background.start)
+        resilience.attempt("live events", v1.stream.start, app)
+        resilience.attempt("support channel", _start_support_channel, app)
+
+    resilience.attempt("leadership", shared.when_leader, lead)
     return app
 
 

@@ -31,6 +31,7 @@ from typing import Any
 
 from sudoo.config import settings
 from sudoo.core import events
+from sudoo.core.shared import SharedLock
 from sudoo.core.shell import redact
 from sudoo.storage import storage
 
@@ -89,15 +90,12 @@ class Alert:
         return self.key or f"{self.type}:{self.instance or ''}"
 
 
-_LOCK = threading.RLock()
-_RECORDS: dict[str, dict[str, Any]] | None = None  # id -> alert record, loaded on first use
+_LOCK = SharedLock("alerts")
 
 
 def _all() -> dict[str, dict[str, Any]]:
-    global _RECORDS
-    if _RECORDS is None:
-        _RECORDS = storage().all(COLLECTION)
-    return _RECORDS
+    """The alerts as stored now (every worker process records and closes them: never a copy kept in memory)."""
+    return storage().all(COLLECTION)
 
 
 def _save(record: dict[str, Any]) -> None:
@@ -516,10 +514,11 @@ def send_digest(now: float | None = None) -> int:
             print("alert summary e-mail:", repr(error), flush=True)
     if sent:
         with _LOCK:
+            stored = _all()
             for r in due:
-                if r["id"] in _all():
-                    _all()[r["id"]]["emailed"] = True
-                    _save(_all()[r["id"]])
+                if r["id"] in stored:
+                    stored[r["id"]]["emailed"] = True
+                    _save(stored[r["id"]])
     return len(due)
 
 

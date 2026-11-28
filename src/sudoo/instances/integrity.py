@@ -45,6 +45,7 @@ from typing import Any
 from sudoo.config import settings
 from sudoo.core import audit, events, jobs
 from sudoo.core.jobs import CommandFailed, Job, JobError
+from sudoo.core.shared import SharedLock
 from sudoo.core.shell import capture
 from sudoo.core.state import STATE
 from sudoo.instances import odoo, resources, store
@@ -63,7 +64,9 @@ _INPUTS = (
 )  # fmt: skip
 _LATE_INPUTS = ("ODOO_GEVENT_PORT",)  # reserved after creation: recorded empty until then
 
-_LOCK = threading.RLock()  # writing an instance's files and comparing them never overlap
+_LOCK = SharedLock(
+    "instance-files"
+)  # every worker process; writing an instance's files and comparing them never overlap
 FILES_LOCK = _LOCK  # taken before store.env_lock by every change of an instance's .env (store.change_env)
 _SEEN: dict[str, tuple[str, ...]] = {}  # instance -> differences found by the previous check, not yet confirmed
 _ATTEMPTED: dict[str, tuple[tuple[str, ...], float]] = {}  # instance -> (differences, when) of the last repair

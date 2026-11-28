@@ -38,7 +38,6 @@ import hashlib
 import json
 import os
 import re
-import threading
 import time
 import urllib.error
 import urllib.request
@@ -54,6 +53,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey,
 
 from sudoo.config import PACKAGE_DIR, settings
 from sudoo.core import vault
+from sudoo.core.shared import SharedLock
 from sudoo.storage import storage
 
 from . import crypto
@@ -67,7 +67,7 @@ DEFAULT_HUB = "https://hub.sudoo.sh"
 # HUB_PUBLIC_KEYS replaces them; for another hub with none configured, the keys first seen are used.
 SHIPPED_KEYS: dict[str, tuple[str, ...]] = {DEFAULT_HUB: ("Bgvq7-nu5waTKd5pcBHNhkY_nWyuSqvScBCK8M7olN0",)}
 MACHINE_ID_FILES = ("/host/etc/machine-id", "/etc/machine-id", "/var/lib/dbus/machine-id")
-_LOCK = threading.RLock()
+_LOCK = SharedLock("hub-client")
 
 
 class HubUnavailable(Exception):

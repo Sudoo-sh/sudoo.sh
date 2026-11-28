@@ -20,6 +20,7 @@ from sudoo.core import cache, jobs
 from sudoo.core.events import Event
 from sudoo.instances import backups, metrics, store
 from sudoo.repos import gitrepo
+from sudoo.storage import storage
 from sudoo.web.v1 import events as stream
 from sudoo.web.v1 import resources
 
@@ -160,7 +161,9 @@ def test_replayed_nonces_are_refused_and_old_ones_forgotten(monkeypatch: pytest.
     later = time.time() + 2 * api_tokens.MAX_CLOCK_SKEW_SECONDS + 1
     monkeypatch.setattr(api_tokens.time, "time", lambda: later)
     api_tokens._remember_nonce("perf-nonce-abcdefghij")
-    assert "perf-nonce-0123456789" not in api_tokens._NONCES
+    assert api_tokens._NONCES.get("perf-nonce-0123456789") is None
+    api_tokens._NONCES.prune(force=True)
+    assert "perf-nonce-0123456789" not in storage().all(api_tokens._NONCES.collection)
 
 
 def test_last_used_is_written_at_most_once_a_minute(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -178,10 +181,11 @@ def test_last_used_is_written_at_most_once_a_minute(monkeypatch: pytest.MonkeyPa
 
 
 def test_sign_in_throttle_keeps_only_failures() -> None:
-    throttle = accounts.SignInThrottle()
+    throttle = accounts.SignInThrottle("sign_in_throttle_perf")
+    throttle.clear()
     for number in range(1000):
         assert throttle.seconds_to_wait(f"10.0.{number // 250}.{number % 250}", f"nobody{number}") == 0
-    assert throttle._failures == {}  # asking stores nothing
+    assert throttle.stored() == {}  # asking stores nothing
     for _ in range(throttle.MAX_PER_ACCOUNT_AND_ADDRESS):
         throttle.failed("10.9.9.9", "ada")
     assert throttle.seconds_to_wait("10.9.9.9", "ada") > 0
@@ -189,4 +193,4 @@ def test_sign_in_throttle_keeps_only_failures() -> None:
     throttle._swept = 0
     time.sleep(0.01)
     assert throttle.seconds_to_wait("10.9.9.9", "ada") == 0
-    assert throttle._failures == {}
+    assert throttle.stored() == {}

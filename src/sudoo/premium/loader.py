@@ -62,6 +62,7 @@ from sudoo import plugin_manager
 from sudoo.config import settings
 from sudoo.core import audit, events, jobs
 from sudoo.core.jobs import Job, JobError
+from sudoo.core.shared import SharedLock
 from sudoo.hub import HubRefused, HubUnavailable, client, crypto, marketplace
 from sudoo.storage import storage
 
@@ -84,7 +85,7 @@ ROUTE_RE = re.compile(r"^/[a-z0-9][a-z0-9/-]{0,60}$")
 SLOT_RE = re.compile(r"^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*){1,3}$")
 EXPORT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,60}$")
 
-_LOCK = threading.RLock()
+_LOCK = SharedLock("premium")
 LOADED: set[str] | None = None  # ids of the packages this process put on sys.path (None: not activated yet)
 _WAKE = threading.Event()
 

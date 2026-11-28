@@ -20,18 +20,18 @@ from __future__ import annotations
 
 import json
 import re
-import threading
 from typing import Any
 
 from sudoo import accounts, config, server_check
 from sudoo.config import live, settings
 from sudoo.core import vault
+from sudoo.core.shared import SharedLock
 
 STEPS = ("welcome", "server", "address", "email", "github", "account", "admin", "done")
 EXPOSURES = config.EXPOSURE_MODES
 NAME_KINDS = ("server", "domain", "managed")
 SECURITY = ("starttls", "ssl", "none")
-_LOCK = threading.Lock()
+_LOCK = SharedLock("setup-wizard")
 DOMAIN_RE = re.compile(r"^(?=.{1,253}$)((?!-)[a-z0-9-]{1,63}(?<!-)\.)+(?!-)[a-z0-9-]{1,63}(?<!-)$")
 LINK_CODE_RE = re.compile(r"^[A-Z0-9][A-Z0-9-]{3,31}$")
 

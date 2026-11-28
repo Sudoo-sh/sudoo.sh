@@ -73,7 +73,6 @@ Everything is in the audit log, scoped to the project (core/audit.py), and the c
 from __future__ import annotations
 
 import secrets
-import threading
 import time
 from collections.abc import Iterable, Mapping
 from typing import Any
@@ -81,6 +80,7 @@ from typing import Any
 from sudoo import accounts, roles
 from sudoo.config import settings
 from sudoo.core import audit, events
+from sudoo.core.shared import SharedLock
 from sudoo.storage import Document, storage
 
 STATES = ("open", "closed", "timed")
@@ -96,7 +96,7 @@ MAX_PASSES = 100
 FORGET_REQUESTS_DAYS = 90  # answered requests stay listed this long
 TOPIC = "client"  # live events: a project's client part or its requests changed (key: the project's id)
 _BASE = frozenset({"instances.view", "instances.logs"})
-_LOCK = threading.RLock()
+_LOCK = SharedLock("clients")
 
 
 class ClientError(Exception):

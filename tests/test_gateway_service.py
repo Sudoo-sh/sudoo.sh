@@ -113,6 +113,7 @@ def test_routes_are_checked_and_a_bad_file_keeps_the_last_good_routes(tmp_path: 
     finally:
         file.unlink(missing_ok=True)
         live.use({})
+        live._frozen = False  # this test process is the panel again: it reads settings.json
 
 
 def test_the_panel_hands_over_its_settings_to_the_gateway_service() -> None:
@@ -133,6 +134,7 @@ def test_the_panel_hands_over_its_settings_to_the_gateway_service() -> None:
     finally:
         file.unlink(missing_ok=True)
         live.use({})
+        live._frozen = False  # this test process is the panel again: it reads settings.json
     assert settings.gateway_max_upload_mb == 2048
 
 

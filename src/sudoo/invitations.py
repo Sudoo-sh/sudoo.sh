@@ -34,11 +34,29 @@ from typing import Any
 from sudoo import accounts
 from sudoo.config import settings
 from sudoo.core import vault
+from sudoo.core.shared import SharedLock
 from sudoo.storage import Document, storage
 
 INVITATIONS = "invitations"
 PATH = "/invite"
 FORGET_AFTER_SECONDS = 30 * 86400  # an expired invitation stays listed (to resend it) for 30 days, then goes
+
+
+SAME_MOMENT_SECONDS = (
+    60  # an invitation of the same address made this recently is the same request (two admins, two tabs)
+)
+_CREATE = SharedLock("invitations")  # one address, one invitation: the check and the new one together, every process
+ACCEPT = SharedLock("invitation-accept")  # the account's name is chosen and the account made one acceptance at a time
+
+
+class AlreadyInvited(ValueError):
+    """The address has an invitation that has not expired. `recent`: made within SAME_MOMENT_SECONDS (the same
+    invitation asked for twice at the same moment): the caller answers with it."""
+
+    def __init__(self, invitation_id: str, recent: bool) -> None:
+        super().__init__("This address is already invited. Send the invitation again from the list instead.")
+        self.invitation_id = invitation_id
+        self.recent = recent
 
 
 @dataclass(frozen=True, slots=True)
@@ -113,34 +131,46 @@ def create(
         raise ValueError(problem)
     if not email:
         raise ValueError("Enter the person's e-mail address: the invitation is sent to it.")
-    if accounts.email_taken(email):
-        raise ValueError("An account already uses this e-mail address.")
-    if pending_for(email):
-        raise ValueError("This address is already invited. Send the invitation again from the list instead.")
-    invitation_id = secrets.token_urlsafe(9)
-    secret, digest = _new_secret()
-    now = time.time()
-    storage().put(
-        INVITATIONS,
-        invitation_id,
-        {
-            "email": email,
-            "role": role,
-            **{
-                key: value
-                for key, value in (("first_name", first_name), ("last_name", last_name), ("github_login", github_login))
-                if value
+    with _CREATE:  # every process: two invitations of one address at the same moment make one
+        existing = pending_for(email)
+        if existing:
+            created = float((get(existing) or {}).get("created") or 0)
+            raise AlreadyInvited(existing, time.time() - created < SAME_MOMENT_SECONDS)
+        if accounts.email_taken(email):
+            raise ValueError("An account already uses this e-mail address.")
+        invitation_id = secrets.token_urlsafe(9)
+        secret, digest = _new_secret()
+        now = time.time()
+        storage().put(
+            INVITATIONS,
+            invitation_id,
+            {
+                "email": email,
+                "role": role,
+                **{
+                    key: value
+                    for key, value in (
+                        ("first_name", first_name),
+                        ("last_name", last_name),
+                        ("github_login", github_login),
+                    )
+                    if value
+                },
+                "invited_by": invited_by,
+                "created": now,
+                "sent": now,
+                "sent_count": 1,
+                "expires": now + lifetime_seconds(),
+                "secret_hash": digest,
+                **({"projects": list(projects)} if projects else {}),
             },
-            "invited_by": invited_by,
-            "created": now,
-            "sent": now,
-            "sent_count": 1,
-            "expires": now + lifetime_seconds(),
-            "secret_hash": digest,
-            **({"projects": list(projects)} if projects else {}),
-        },
-    )
+        )
     return invitation_id, Link(invitation_id, f"{invitation_id}.{secret}")
+
+
+def give_back(invitation_id: str, invitation: Document) -> None:
+    """Put back an invitation used up by an acceptance that could not make the account: its link works again."""
+    storage().change(INVITATIONS, invitation_id, lambda found: found if found is not None else dict(invitation))
 
 
 def add_project(invitation_id: str, project: dict[str, Any]) -> Document | None:

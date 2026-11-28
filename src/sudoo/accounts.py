@@ -34,12 +34,12 @@ import re
 import secrets
 import threading
 import time
-from collections import deque
 from collections.abc import Callable, Mapping
 from typing import Any
 
 from sudoo.config import settings
 from sudoo.core import vault
+from sudoo.core.shared import SharedLock
 from sudoo.roles import LABELS
 from sudoo.storage import Document, storage
 
@@ -107,7 +107,7 @@ SEQUENCES = (  # a password containing five characters in a row of one of these 
 _SCRYPT = {"n": 2**15, "r": 8, "p": 1}  # 32 MB of memory and about 0.1 s per hash
 _MAXMEM = 64 * 1024 * 1024
 _ALGORITHM = "scrypt-peppered"
-_LOCK = threading.Lock()
+_LOCK = SharedLock("accounts")  # every worker process: the last super admin, first-run setup
 REASON_MAX = 300  # characters of the reason an account is disabled or enabled for (kept whole)
 
 
@@ -700,132 +700,160 @@ class SignInThrottle:
     """Refuses sign-ins after too many failures: per account and address, and per address (an IPv6 address counts as its
     /64, rate_key).
 
-    Only failures are kept, and only for WINDOW_SECONDS, plus the tries being checked right now: a flood of
-    sign-ins under made-up names or from many addresses cannot fill the panel's memory.
+    Kept in the panel's storage (one record per address, collection `collection`), so every worker process counts the
+    same tries. Only failures are kept, and only for WINDOW_SECONDS, plus the tries being checked right now: asking
+    about an address that never failed stores nothing, and a flood under made-up names stops at MAX_PER_ADDRESS
+    failures of that address.
 
     A try is counted from the moment it is allowed, not when its answer is known: try_now() reserves it (the slow
     password check runs after), failed() turns the reservation into a failure, succeeded() and the end of the
     request (end_request, web/__init__.py) give it back; seconds_to_wait() only counts. Guesses sent at the same
-    moment are therefore limited like guesses sent one after another. A reservation not given back lapses after
-    RESERVED_SECONDS."""
+    moment, to one worker or several, are therefore limited like guesses sent one after another. A reservation not
+    given back lapses after RESERVED_SECONDS."""
 
     WINDOW_SECONDS = 15 * 60
     MAX_PER_ACCOUNT_AND_ADDRESS = 5
     MAX_PER_ADDRESS = 20
     RESERVED_SECONDS = 60
+    SWEEP_SECONDS = 60
 
-    def __init__(self) -> None:
-        self._lock = threading.Lock()
-        self._failures: dict[tuple[str, str | None], deque[float]] = {}
-        self._reserved: dict[tuple[str, str | None], list[float]] = {}
-        self._mine = threading.local()  # (key, when) of the reservations made by this thread's request
+    def __init__(self, collection: str = "sign_in_throttle") -> None:
+        self.collection = collection
+        self._mine = threading.local()  # (address, username, token) of the reservations of this thread's request
         self._swept = 0.0
 
-    def _recent(self, key: tuple[str, str | None], now: float) -> int:
-        failures = self._failures.get(key)
-        if failures is None:
-            return 0
-        while failures and now - failures[0] > self.WINDOW_SECONDS:
-            failures.popleft()
-        if not failures:
-            del self._failures[key]
-            return 0
-        return len(failures)
+    # one record per address: {"all": part, "accounts": {username: part}}; part = {"failed": [t], "reserved": {tok: t}}
 
-    def _in_flight(self, key: tuple[str, str | None], now: float) -> int:
-        stamps = [when for when in self._reserved.get(key, []) if now - when < self.RESERVED_SECONDS]
-        if stamps:
-            self._reserved[key] = stamps
-        else:
-            self._reserved.pop(key, None)
-        return len(stamps)
+    def _part(self, part: Mapping[str, Any] | None, now: float) -> dict[str, Any]:
+        part = part or {}
+        return {
+            "failed": [t for t in part.get("failed") or [] if now - float(t) <= self.WINDOW_SECONDS],
+            "reserved": {
+                k: t for k, t in (part.get("reserved") or {}).items() if now - float(t) < self.RESERVED_SECONDS
+            },
+        }
 
-    def _sweep(self, now: float) -> None:
-        """Forget every key without a recent failure or reservation (at most once a minute)."""
-        if now - self._swept < 60:
-            return
-        self._swept = now
-        for key in list(self._failures):
-            self._recent(key, now)
-        for key in list(self._reserved):
-            self._in_flight(key, now)
+    def _clean(self, doc: Document | None, now: float) -> dict[str, Any]:
+        doc = doc or {}
+        accounts_ = {name: self._part(part, now) for name, part in (doc.get("accounts") or {}).items()}
+        return {
+            "all": self._part(doc.get("all"), now),
+            "accounts": {name: part for name, part in accounts_.items() if part["failed"] or part["reserved"]},
+        }
 
     @staticmethod
-    def _keys(ip: str, username: str) -> tuple[tuple[str, str | None], tuple[str, None]]:
-        return (ip, username), (ip, None)
+    def _stored(doc: dict[str, Any]) -> Document | None:
+        return doc if doc["accounts"] or doc["all"]["failed"] or doc["all"]["reserved"] else None
 
-    def _held(self) -> list[tuple[tuple[str, str | None], float]]:
-        held: list[tuple[tuple[str, str | None], float]] | None = getattr(self._mine, "held", None)
-        if held is None:
-            held = self._mine.held = []
-        return held
+    def _wait(self, doc: dict[str, Any], username: str, now: float, with_reserved: bool) -> int:
+        account = doc["accounts"].get(username) or {"failed": [], "reserved": {}}
+        for part, limit in ((account, self.MAX_PER_ACCOUNT_AND_ADDRESS), (doc["all"], self.MAX_PER_ADDRESS)):
+            failed = part["failed"]
+            if len(failed) >= limit:
+                return int(self.WINDOW_SECONDS - (now - float(failed[0]))) + 1
+            if with_reserved and len(failed) + len(part["reserved"]) >= limit:
+                return 60  # tries still being checked fill the allowance: their answers decide
+        return 0
 
-    def _give_back(self, keys: tuple[tuple[str, str | None], ...]) -> None:
-        """Give back this thread's reservation for each of `keys` (the caller holds the lock)."""
-        held = self._held()
-        for key in keys:
-            mine = next((item for item in held if item[0] == key), None)
-            if mine is None:
-                continue
-            held.remove(mine)
-            stamps = self._reserved.get(key, [])
-            if mine[1] in stamps:
-                stamps.remove(mine[1])
-            if not stamps:
-                self._reserved.pop(key, None)
+    def _sweep(self, now: float) -> None:
+        """Forget every address without a recent failure or reservation (at most once a minute)."""
+        if now - self._swept < self.SWEEP_SECONDS:
+            return
+        self._swept = now
+        for key in list(storage().all(self.collection)):
+            storage().change(self.collection, key, lambda doc: self._stored(self._clean(doc, now)))
 
     def seconds_to_wait(self, ip: str, username: str) -> int:
         """How long to wait before trying again (0: now), counting the failures only: for checks that are fast,
         such as an API call's signature."""
         ip = rate_key(ip)
         now = time.time()
-        with self._lock:
-            self._sweep(now)
-            for key, limit in zip(self._keys(ip, username), (self.MAX_PER_ACCOUNT_AND_ADDRESS, self.MAX_PER_ADDRESS),
-                                  strict=True):  # fmt: skip
-                if self._recent(key, now) >= limit:
-                    return int(self.WINDOW_SECONDS - (now - self._failures[key][0])) + 1
-        return 0
+        self._sweep(now)
+        found = storage().get(self.collection, ip)
+        return self._wait(self._clean(found, now), username, now, with_reserved=False) if found else 0
 
     def try_now(self, ip: str, username: str) -> int:
         """0, with one try reserved for the caller, or how long to wait before trying again: for a slow check (a
         password, a code) that guesses sent together could otherwise all pass before the first one failed."""
         ip = rate_key(ip)
         now = time.time()
-        keys = self._keys(ip, username)
-        with self._lock:
-            self._sweep(now)
-            for key, limit in zip(keys, (self.MAX_PER_ACCOUNT_AND_ADDRESS, self.MAX_PER_ADDRESS), strict=True):
-                failed = self._recent(key, now)
-                if failed + self._in_flight(key, now) >= limit:
-                    if failed >= limit:
-                        return int(self.WINDOW_SECONDS - (now - self._failures[key][0])) + 1
-                    return 60  # tries still being checked fill the allowance: their answers decide
-            for key in keys:
-                self._reserved.setdefault(key, []).append(now)
-                self._held().append((key, now))
+        self._sweep(now)
+        token = secrets.token_hex(8)
+        waits: list[int] = []
+
+        def reserve(found: Document | None) -> Document | None:
+            doc = self._clean(found, now)
+            wait = self._wait(doc, username, now, with_reserved=True)
+            waits.append(wait)
+            if wait:
+                return self._stored(doc)
+            doc["all"]["reserved"][token] = now
+            doc["accounts"].setdefault(username, {"failed": [], "reserved": {}})["reserved"][token] = now
+            return doc
+
+        storage().change(self.collection, ip, reserve)
+        if waits and waits[-1]:
+            return waits[-1]
+        self._held().append((ip, username, token))
         return 0
+
+    def _held(self) -> list[tuple[str, str, str]]:
+        held: list[tuple[str, str, str]] | None = getattr(self._mine, "held", None)
+        if held is None:
+            held = self._mine.held = []
+        return held
+
+    def _mine_for(self, ip: str, username: str) -> str | None:
+        held = self._held()
+        found = next((item for item in held if item[0] == ip and item[1] == username), None)
+        if found is None:
+            return None
+        held.remove(found)
+        return found[2]
+
+    def _record(self, ip: str, username: str, token: str | None, failed: bool, forget: bool = False) -> None:
+        now = time.time()
+
+        def apply(found: Document | None) -> Document | None:
+            doc = self._clean(found, now)
+            account = doc["accounts"].setdefault(username, {"failed": [], "reserved": {}})
+            if token is not None:
+                doc["all"]["reserved"].pop(token, None)
+                account["reserved"].pop(token, None)
+            if failed:
+                doc["all"]["failed"].append(now)
+                account["failed"].append(now)
+            if forget:
+                account["failed"] = []
+            if not account["failed"] and not account["reserved"]:
+                doc["accounts"].pop(username, None)
+            return self._stored(doc)
+
+        storage().change(self.collection, ip, apply)
 
     def failed(self, ip: str, username: str) -> None:
         ip = rate_key(ip)
-        now = time.time()
-        keys = self._keys(ip, username)
-        with self._lock:
-            self._give_back(keys)
-            for key in keys:
-                self._failures.setdefault(key, deque()).append(now)
+        self._record(ip, username, self._mine_for(ip, username), failed=True)
 
     def succeeded(self, ip: str, username: str) -> None:
         ip = rate_key(ip)
-        keys = self._keys(ip, username)
-        with self._lock:
-            self._give_back(keys)
-            self._failures.pop((ip, username), None)
+        self._record(ip, username, self._mine_for(ip, username), failed=False, forget=True)
 
     def end_request(self) -> None:
         """Give back the tries this thread reserved and neither failed nor succeeded (the request ended otherwise)."""
-        with self._lock:
-            self._give_back(tuple(key for key, _ in list(self._held())))
+        held = self._held()
+        while held:
+            ip, username, token = held.pop()
+            self._record(ip, username, token, failed=False)
+
+    def clear(self) -> None:
+        """Forget every failure and reservation (tests)."""
+        for key in list(storage().all(self.collection)):
+            storage().delete(self.collection, key)
+
+    def stored(self) -> dict[str, Document]:
+        """The records kept now, by address."""
+        return storage().all(self.collection)
 
 
 THROTTLE = SignInThrottle()

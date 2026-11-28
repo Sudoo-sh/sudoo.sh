@@ -31,15 +31,15 @@ def first_run(app: Flask, monkeypatch: pytest.MonkeyPatch) -> Iterator[tuple[Fla
     monkeypatch.setattr(licence, "COLLECTION", f"licence_wizard_{time.monotonic_ns()}")
     monkeypatch.setattr(server_check, "_docker_system", lambda: "Ubuntu 24.04.3 LTS")
     monkeypatch.setattr(server_check, "_cache", None)
-    accounts.THROTTLE._failures.clear()
-    endpoints.TEST_EMAILS._failures.clear()
+    accounts.THROTTLE.clear()
+    endpoints.TEST_EMAILS.clear()
     setup_wizard.finish()
     (settings.manager_dir / "installer").mkdir(exist_ok=True)
     yield app.test_client(), accounts.setup_code() or ""
     setup_wizard.finish()
     (settings.manager_dir / "installer" / "server-check").unlink(missing_ok=True)
     (settings.manager_dir / "setup_code_wizard").unlink(missing_ok=True)
-    accounts.THROTTLE._failures.clear()
+    accounts.THROTTLE.clear()
 
 
 def code_headers(code: str) -> dict[str, str]:

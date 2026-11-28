@@ -221,7 +221,8 @@ def test_a_ticket_expires_within_seconds(monkeypatch: pytest.MonkeyPatch) -> Non
 
 def test_only_its_hash_is_kept_and_waiting_tickets_are_limited() -> None:
     token = _issue()
-    assert token not in tickets._TICKETS and len(next(iter(tickets._TICKETS))) == 64
+    kept = tickets._TICKETS.items()
+    assert token not in kept and len(next(iter(kept))) == 64
     for _ in range(tickets.MAX_WAITING_PER_USER - 1):
         _issue()
     with pytest.raises(OverflowError):

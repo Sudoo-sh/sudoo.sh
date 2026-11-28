@@ -117,6 +117,7 @@ const en = {
     menu: "Menu",
     error: "Something went wrong.",
     unreachable: "The panel cannot be reached. Check the connection and try again.",
+    loadFailed: "This could not be loaded",
   },
   time: {
     justNow: "just now",
@@ -271,6 +272,7 @@ const ar: Common = {
     menu: "القائمة",
     error: "حدث خطأ ما.",
     unreachable: "يتعذّر الوصول إلى اللوحة. تحقّق من الاتصال وحاول مجددًا.",
+    loadFailed: "تعذّر تحميل هذا المحتوى",
   },
   time: {
     justNow: "الآن",

@@ -24,7 +24,18 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Page, PageHead, useMe } from "@/components/Shell";
 import { ACCOUNTS_TOUR } from "@/lib/tour";
 import { PasswordFields, passwordReady } from "@/components/PasswordFields";
-import { Button, Callout, CopyField, Empty, Field, Segmented, Skeleton, Switch, Tag } from "@/components/app/basics";
+import {
+  Button,
+  Callout,
+  CopyField,
+  Empty,
+  Field,
+  LoadFailed,
+  Segmented,
+  Skeleton,
+  Switch,
+  Tag,
+} from "@/components/app/basics";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { SelectBox } from "@/components/app/select";
@@ -40,6 +51,7 @@ import {
 import { useConfirm } from "@/components/app/confirm";
 import { Menu, MenuItem, MenuSeparator, Modal, useToast } from "@/components/app/overlay";
 import { ago, fullDateTime } from "@/lib/format";
+import { initials } from "@/lib/initials";
 import { generatePassword, type Person } from "@/lib/password";
 import { useT } from "@/i18n";
 import words from "@/i18n/admin";
@@ -384,10 +396,10 @@ function AccountForm({
               </Field>
             )}
             <Field label={t.form.firstName} hint={inviting ? t.invite.namesOptional : undefined}>
-              <Input autoFocus={!!user} value={form.first_name} onChange={set("first_name")} />
+              <Input autoFocus={!!user} value={form.first_name} maxLength={60} onChange={set("first_name")} />
             </Field>
             <Field label={t.form.lastName} hint={inviting ? t.invite.namesOptional : undefined}>
-              <Input value={form.last_name} onChange={set("last_name")} />
+              <Input value={form.last_name} maxLength={60} onChange={set("last_name")} />
             </Field>
           </div>
           <div className="field">
@@ -781,7 +793,7 @@ function RequestsTable({
 
 export function AccountsPage() {
   const me = useMe();
-  const { data: users, isPending, refetch } = useUsers();
+  const { data: users, isPending, isError, error, refetch } = useUsers();
   const { data: invited, refetch: refetchInvitations } = useInvitations();
   const { data: asked, refetch: refetchAsked } = useAccessRequests();
   const [tab, setTab] = useState<AccountTab | null>(null);
@@ -864,6 +876,8 @@ export function AccountsPage() {
               {asked?.policy.enabled ? a.domains(asked.policy.domains.join(", ")) : a.off}
             </Empty>
           )
+        ) : isError && !users ? (
+          <LoadFailed error={error} onRetry={refetch} />
         ) : isPending ? (
           <div className="card-body">
             <Skeleton height={160} />
@@ -894,7 +908,7 @@ export function AccountsPage() {
                 >
                   <TableCell>
                     <div className="row" style={{ gap: 12 }}>
-                      <span className="avatar">{(u.first_name?.[0] ?? u.name[0]) + (u.last_name?.[0] ?? "")}</span>
+                      <span className="avatar">{initials(u.first_name || u.name, u.last_name)}</span>
                       <div style={{ minWidth: 0 }}>
                         <div className="truncate">
                           <bdi>{u.display_name}</bdi>

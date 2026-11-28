@@ -451,6 +451,11 @@ def delete(job: Job, name: str, without_backup: bool = False, no_backup: bool = 
     `no_backup`: no backup is taken at all (a pull request's preview, projects/previews.py: its data is throw-away).
     `expired`: the automatic deletion at the end of its lifetime (the history says so instead of naming a person)."""
     job.expect(3)
+    if not store.folder(name).exists():
+        # asked for while its creation was still running, and that creation failed and removed everything: nothing
+        # is left to back up or remove, so the deletion is done (not "failed", which would suggest something stayed)
+        job.note("Nothing was left to delete: the instance's creation had failed and was already cleaned up.")
+        return
     job.step("Backing up the database and files" if not no_backup else "Leaving out the backup")
     if no_backup:
         job.note("No backup: this instance's data is throw-away.")

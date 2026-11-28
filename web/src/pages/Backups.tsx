@@ -7,7 +7,7 @@ import { api } from "@/api/client";
 import { useBackups, useCall, useInstances } from "@/api/queries";
 import type { Backup } from "@/api/types";
 import { Page, PageHead } from "@/components/Shell";
-import { Button, Empty, Skeleton, Tag } from "@/components/app/basics";
+import { Button, Empty, LoadFailed, Skeleton, Tag } from "@/components/app/basics";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useConfirm } from "@/components/app/confirm";
 import { useToast } from "@/components/app/overlay";
@@ -27,7 +27,7 @@ function Details({ backup: b }: { backup: Backup }) {
 }
 
 export function BackupsPage() {
-  const { data: backups, isPending } = useBackups();
+  const { data: backups, isPending, isError, error, refetch } = useBackups();
   const toast = useToast();
   const remove = useCall((file: string) => api.del(`/backups/${encodeURIComponent(file)}`), [["backups"]]);
   const { data: instances } = useInstances();
@@ -53,7 +53,11 @@ export function BackupsPage() {
         {backups?.length ? t.summary(count(backups.length, "backup"), bytes(total)) : ""}
       </PageHead>
       <PremiumSlot name="backups.offsite" />
-      {isPending ? (
+      {isError && !backups ? (
+        <div className="card rise">
+          <LoadFailed error={error} onRetry={refetch} />
+        </div>
+      ) : isPending ? (
         <div className="card rise">
           <div className="card-body">
             <Skeleton height={140} />

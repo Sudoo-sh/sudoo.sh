@@ -252,8 +252,11 @@ def profile_problem(values: dict[str, Any]) -> str | None:
     """What is wrong with profile fields (first and last name, e-mail, phone), or None."""
     for key in ("first_name", "last_name"):
         value = values.get(key)
-        if value is not None and (not isinstance(value, str) or len(value) > 60 or re.search(r"[\x00-\x1f<>]", value)):
-            return f"The {key.replace('_', ' ')} must be text of at most 60 characters."
+        label = key.replace("_", " ")
+        if value is not None and (not isinstance(value, str) or len(value) > 60):
+            return f"The {label} must be text of at most 60 characters."
+        if value is not None and re.search(r"[\x00-\x1f<>]", value):  # each problem named as it is
+            return f"The {label} may not contain < or > (or control characters)."
     email = values.get("email")
     if email and not EMAIL_RE.match(str(email)):
         return "Enter a valid e-mail address."

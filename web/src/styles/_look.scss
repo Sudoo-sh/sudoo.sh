@@ -456,6 +456,10 @@
 // segmented controls (components/app/basics.tsx Segmented): a grey rail, the chosen option on a white thumb that slides
 [data-slot="toggle-group"].segmented {
   display: inline-flex;
+  // never wider than its place: on a phone the options scroll sideways inside the rail, not the whole page
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
   gap: 2px;
   padding: 2px;
   border-radius: var(--radius-control);

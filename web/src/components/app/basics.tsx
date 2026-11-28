@@ -22,6 +22,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/utils";
 import { SelectBox } from "@/components/app/select";
+import { ApiError } from "@/api/client";
+import { onePress } from "@/lib/one-press";
 import { useT } from "@/i18n";
 import common from "@/i18n/common";
 import { statusLabel } from "@/lib/format";
@@ -60,6 +62,9 @@ export function Button({
 }) {
   const square = !children;
   const shape = square ? (size ? (`icon-${size}` as const) : "icon") : (size ?? "default");
+  // a second click while the first one's work still runs is ignored: one press, one request (lib/one-press.ts)
+  const running = useRef(false);
+  const click = onePress(running, props.onClick, loading !== undefined);
   const classes = cn(block && "w-full", className);
   if (asChild)
     return (
@@ -74,8 +79,9 @@ export function Button({
       variant={BUTTON_VARIANT[variant]}
       size={shape}
       className={classes}
-      disabled={loading || props.disabled}
       {...props}
+      disabled={loading || props.disabled}
+      onClick={click}
     >
       {loading ? <span className="spinner" /> : icon}
       {children}
@@ -259,6 +265,20 @@ export function Empty({
       {children && <p>{children}</p>}
       {action}
     </div>
+  );
+}
+
+/** In place of a list or page whose data could not be loaded: says so (never "nothing here") and offers a retry. */
+export function LoadFailed({ error, onRetry }: { error: unknown; onRetry: () => unknown }) {
+  const c = useT(common).common;
+  return (
+    <Empty
+      icon={<CircleAlert />}
+      title={c.loadFailed}
+      action={<Button onClick={() => void onRetry()}>{c.retry}</Button>}
+    >
+      {error instanceof ApiError && error.status !== 0 ? error.detail || c.error : c.unreachable}
+    </Empty>
   );
 }
 

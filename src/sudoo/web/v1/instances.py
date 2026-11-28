@@ -61,6 +61,8 @@ A production instance (instances/stages.py) asks for more: pausing, switching of
 from __future__ import annotations
 
 import contextlib
+import hashlib
+import json
 import time
 from collections.abc import Callable, Mapping
 from typing import Any, NoReturn, cast
@@ -421,8 +423,18 @@ def create() -> Response:
         if found is not None:
             _refuse_in_branch("instances.restore", found, branch, "create an instance from a backup")
         from_backup = _usable_backup(from_backup, version, edition)
+    key = request_key("create", data)
     with quotas.LOCK:  # until the job is registered: from then on it counts toward the limits
-        return _start_creation(data, repo, branch, version, edition, custom_name, from_backup, stage)
+        if (same := jobs.same_request(key)) is not None:  # sent twice: the first one's creation, not a second one
+            return _accepted(same)
+        return _start_creation(data, repo, branch, version, edition, custom_name, from_backup, stage, request=key)
+
+
+def request_key(what: str, data: Mapping[str, Any], name: str = "") -> str:
+    """What makes two API requests the same one sent twice: the caller, what it asks for and on which instance, and
+    the body it sends (jobs.same_request)."""
+    body = json.dumps(data, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha256(f"{g.user['name']}\n{what}\n{name}\n{body}".encode()).hexdigest()
 
 
 def _refuse_in_branch(permission: str, project: Mapping[str, Any], branch: str, what: str) -> None:
@@ -445,9 +457,11 @@ def _start_creation(
     stage: str,
     project: str | None = None,
     from_production: str | None = None,
+    request: str | None = None,
 ) -> Response:
     """Check the limits and start the creation (the caller holds quotas.LOCK). `project`: the project's id when the
-    instance is made for one of its branches (web/v1/projects.py); `from_production`: see planning.build."""
+    instance is made for one of its branches (web/v1/projects.py); `from_production`: see planning.build; `request`:
+    the request_key of the API request (the same request sent again answers with this creation)."""
     refuse_unlinked("creating instances", "instance creation refused (panel not linked)")
     modules = check.initial_modules(data)  # before anything counts toward the limits
     server_id = _placement(data, project, repo, from_backup, from_production)
@@ -513,6 +527,7 @@ def _start_creation(
         log("Create instance (waiting for capacity)", instance=name, detail=f"Odoo {version} {edition}, {stage}")
         return _queued(waiting)
     job = planning.start(plan_data, g.user["name"])
+    job.request_key = request
     log(
         "Create instance",
         instance=name,
@@ -971,6 +986,13 @@ def _refuse_over_capacity(
     abort(403, refused)
 
 
+def refuse_busy(name: str, message: str) -> None:
+    """409 while a job of `name` is queued or running. Called under quotas.LOCK, where jobs are registered: two
+    requests at once (a double click, two tabs) cannot both pass it and start the same work twice."""
+    if jobs.unfinished(name):
+        abort(409, message)
+
+
 def admit_start(name: str, what: str) -> None:
     """403 when `name` is stopped and starting it would pass a running limit (the instance's own owner and stage, read
     from its .env; no queue: the caller needs the answer now). The caller holds quotas.LOCK from here until the
@@ -1009,9 +1031,13 @@ def run(name: str, action: str) -> Response:
     refuse_unless(permission, f"{action} on {name}")
     if action in link_deadline.DEPLOY_ACTIONS:
         refuse_unlinked("updating and deploying instances", f"{action} on {name} refused (panel not linked)")
-    fn, args = _job_for(action, name, check.body())
+    data = check.body()
+    fn, args = _job_for(action, name, data)
     build = {"build": "manual"} if action in BUILD_ACTIONS else None  # a new build in the branch's history
+    key = request_key(action, data, name)
     with quotas.LOCK:  # from the limit check until the start's job is registered (it counts as running from then on)
+        if (same := jobs.same_request(key)) is not None:  # sent twice (two tabs, a double click): that one job
+            return _accepted(same)
         if action in STARTING_ACTIONS and not _running(name):
             env = store.read_env(name)
             if _refuse_over_capacity(
@@ -1027,6 +1053,7 @@ def run(name: str, action: str) -> Response:
                 return _queued(waiting)
         job = jobs.start(name, title, kind, fn, *args, user=g.user["name"], details=build,
                          holds_slot=True if action in STARTING_ACTIONS else None)  # fmt: skip
+        job.request_key = key
     log(title, instance=name)
     return _accepted(job)
 

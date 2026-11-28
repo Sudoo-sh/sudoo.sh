@@ -64,6 +64,7 @@ _INPUTS = (
 _LATE_INPUTS = ("ODOO_GEVENT_PORT",)  # reserved after creation: recorded empty until then
 
 _LOCK = threading.RLock()  # writing an instance's files and comparing them never overlap
+FILES_LOCK = _LOCK  # taken before store.env_lock by every change of an instance's .env (store.change_env)
 _SEEN: dict[str, tuple[str, ...]] = {}  # instance -> differences found by the previous check, not yet confirmed
 _ATTEMPTED: dict[str, tuple[tuple[str, ...], float]] = {}  # instance -> (differences, when) of the last repair
 _REPAIR_RETRY_SECONDS = 1800

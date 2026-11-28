@@ -286,10 +286,11 @@ def convert(code: str) -> dict[str, Any]:
 
 def set_hook_url(url: str) -> None:
     """Remember the webhook address GitHub has (set by the manifest or by update_hook_url)."""
-    data = _read()
-    if data is not None:
-        data["hook_url"] = url
-        _write(data)
+    with _lock:  # one read and write with the others (an installation recorded at the same moment stays)
+        data = _read()
+        if data is not None:
+            data["hook_url"] = url
+            _write(data)
 
 
 def update_hook_url(base: str) -> bool:

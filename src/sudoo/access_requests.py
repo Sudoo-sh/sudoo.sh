@@ -112,24 +112,28 @@ def submit(email: str, first_name: str, last_name: str, client: str) -> tuple[st
     # it takes whether the domain is allowed, the address is known, or its own allowance for it is used up.
     valid = enabled() and allowed(email) and not accounts.profile_problem({"email": email})
     within = BY_ADDRESS.take(email)
-    known = bool(accounts.email_taken(email) or invitations.pending_for(email) or _open_for(email))
-    if not (valid and within) or known:
-        return None
     request_id = secrets.token_urlsafe(9)
     secret = secrets.token_urlsafe(32)
-    storage().put(
-        COLLECTION,
-        request_id,
-        {
-            "email": email,
-            "first_name": first_name.strip()[:60],
-            "last_name": last_name.strip()[:60],
-            "status": "unconfirmed",
-            "created": time.time(),
-            "secret_hash": _digest(secret),
-        },
-    )
+    with _SUBMIT:  # the checks and the new request together: two at once for one address make one
+        known = bool(accounts.email_taken(email) or invitations.pending_for(email) or _open_for(email))
+        if not (valid and within) or known:
+            return None
+        storage().put(
+            COLLECTION,
+            request_id,
+            {
+                "email": email,
+                "first_name": first_name.strip()[:60],
+                "last_name": last_name.strip()[:60],
+                "status": "unconfirmed",
+                "created": time.time(),
+                "secret_hash": _digest(secret),
+            },
+        )
     return request_id, secret
+
+
+_SUBMIT = threading.Lock()
 
 
 def confirm(token: str) -> Document | None:
@@ -142,25 +146,38 @@ def confirm(token: str) -> Document | None:
         return None
     if item["created"] + CONFIRM_HOURS * 3600 < time.time():
         return None
-    changed = {**item, "status": "pending", "confirmed": time.time()}
-    changed.pop("secret_hash", None)  # used up
-    storage().put(COLLECTION, request_id, changed)
-    return changed
+    used: list[Document] = []
+
+    def use(current: Document | None) -> Document | None:  # once: the link clicked twice at once confirms once
+        if current is None or current.get("status") != "unconfirmed" or "secret_hash" not in current:
+            return current
+        changed = {**current, "status": "pending", "confirmed": time.time()}
+        changed.pop("secret_hash", None)  # used up
+        used.append(changed)
+        return changed
+
+    storage().change(COLLECTION, request_id, use)
+    return used[0] if used else None
 
 
 def decide(request_id: str, status: str, by: str, reason: str = "", role: str = "") -> Document | None:
     """Mark a pending request approved or rejected; None when it is not pending (so it is decided once)."""
-    with _DECIDE:
-        item = get(request_id)
-        if item is None or item["status"] != "pending":
-            return None
+    decided: list[Document] = []
+
+    def apply(item: Document | None) -> Document | None:
+        if item is None or item.get("status") != "pending":
+            return item
         changed = {**item, "status": status, "decided": time.time(), "decided_by": by}
         if reason:
             changed["reason"] = reason
         if role:
             changed["role"] = role
-        storage().put(COLLECTION, request_id, changed)
+        decided.append(changed)
         return changed
+
+    with _DECIDE:  # one write decides (every process: the storage's own transaction)
+        storage().change(COLLECTION, request_id, apply)
+    return decided[0] if decided else None
 
 
 _DECIDE = threading.Lock()

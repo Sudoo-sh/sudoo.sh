@@ -48,6 +48,7 @@ LABELS = {
 }
 
 _LOCK = threading.Lock()
+_PERSIST = threading.Lock()  # a switch-off and a switch-on are kept in storage in the order they happen in memory
 _STATE: dict[tuple[str, str], dict[str, Any]] = {}  # (group, name) -> failures, last error, switched off
 _PERSISTED: dict[str, dict[str, Any]] | None = None  # the switched-off plugins kept in storage (read once)
 _RESETS: dict[str, list[Callable[[], None]]] = {}  # group -> what forgets the created plugin (functools caches)
@@ -148,7 +149,11 @@ def failed(group: str, name: str, stage: str, error: BaseException) -> bool:
         resilience.report("plugin", _key(group, name), f"{what} was switched off after {limit} failures in a row; "
                           "the built-in default is used until an administrator switches it on again", detail)  # fmt: skip
         _audit("plugin switched off (kept failing)", f"{group} {name}: {detail}")
-        _persist(group, name, snapshot)
+        with _PERSIST:
+            with _LOCK:  # an administrator switched it on again meanwhile: that is what is kept
+                still = _STATE.get((group, name)) is state and state["disabled"]
+            if still:
+                _persist(group, name, snapshot)
         _reset(group)
     else:
         verb = "could not be loaded; the built-in default is used" if stage == "load" else "failed"
@@ -173,10 +178,11 @@ def succeeded(group: str, name: str) -> None:
 def enable(group: str, name: str, user: str) -> bool:
     """An administrator switches a failed plugin on again: it is loaded again at its next use. False when it was
     neither failed nor switched off."""
-    with _LOCK:
-        state = _STATE.pop((group, name), None)
-    known = state is not None or _key(group, name) in _persisted()
-    _persist(group, name, None)
+    with _PERSIST:
+        with _LOCK:
+            state = _STATE.pop((group, name), None)
+        known = state is not None or _key(group, name) in _persisted()
+        _persist(group, name, None)
     resilience.resolve("plugin", _key(group, name))
     if known:
         try:

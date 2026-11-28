@@ -927,6 +927,19 @@ def forget_agent_packages() -> bool:
 # ---------------------------------------------------------------- the integrity pass
 
 
+def _verified_now(package_id: str) -> bool:
+    """verify_files() of the package's record as it is now, while no premium job changes files: a sync running now
+    holds the premium jobs' lock, and the files it is replacing are checked at the next pass."""
+    lock = jobs.INSTANCE_LOCKS[JOB_INSTANCE]
+    if not lock.acquire(blocking=False):
+        return True
+    try:
+        rec = record(package_id)
+        return rec is None or verify_files(rec)
+    finally:
+        lock.release()
+
+
 def watch() -> None:
     """One integrity pass: files, signature, binding and plan of every package; a restart when what should run
     differs from what runs."""
@@ -934,7 +947,7 @@ def watch() -> None:
     wanted = included_ids()
     should: set[str] = set()
     for package_id, rec in records().items():
-        if package_id in loaded and not verify_files(rec):
+        if package_id in loaded and not _verified_now(package_id):
             continue
         ok, why = runs(rec, wanted)
         if ok:

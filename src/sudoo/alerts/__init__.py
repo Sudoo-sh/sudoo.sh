@@ -255,6 +255,7 @@ def link(record: dict[str, Any], base: str | None) -> str | None:
 
 _QUEUE: queue.Queue[str] = queue.Queue()
 _WORKER = threading.Event()
+_WORKER_LOCK = threading.Lock()
 
 
 def _deliver_later(record_id: str) -> None:
@@ -265,9 +266,10 @@ def _deliver_later(record_id: str) -> None:
         print(f"alert {record_id}: not delivered, too many alerts waiting", flush=True)
         return
     _QUEUE.put(record_id)
-    if not _WORKER.is_set():
-        _WORKER.set()
-        threading.Thread(target=_work_forever, daemon=True, name="alerts").start()
+    with _WORKER_LOCK:  # one delivery thread, also when two alerts are raised at the same moment (in order)
+        if not _WORKER.is_set():
+            _WORKER.set()
+            threading.Thread(target=_work_forever, daemon=True, name="alerts").start()
 
 
 def _work_forever() -> None:

@@ -64,6 +64,50 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   from the manifest, storage, secrets and mail by permission, a data folder) and their `on_enable` hook runs, instead
   of failing with "'Settings' object has no attribute 'settings'". Built-in and earlier plugins still get the settings.
   The panel also starts when the SDK itself cannot be imported.
+- **Requests at the same moment** (two tabs, a double click, a client that retries, a webhook sent twice, a
+  background loop beside a request) no longer overwrite each other or do the work twice:
+  - an instance's `.env` is written whole and moved into place (a request never reads it half written), and two
+    changes to it at once (a lifetime and a job's branch, say) both stay, also with the CLI (a lock on its folder);
+  - the same instance action or creation sent twice while the first one is waiting or running answers with that
+    job instead of starting a second one (a second backup, a second instance named "-2");
+  - the same GitHub delivery, or the same push sent by the GitHub App and a webhook, updates once; an update asked
+    for twice at once (a push and polling) starts one job; a deleted branch reported twice archives once; a
+    delivery that failed is handled when GitHub sends it again;
+  - polling never fetches into an instance's checkout while a job works on it (the update job no longer fails on
+    git's locks);
+  - rebuilding staging, testing, starting or cancelling an upgrade checks for a running job where jobs are
+    registered, so a request sent twice is refused instead of starting the work twice;
+  - deleting a project while an instance of it is being created either waits for the creation (then refuses) or
+    refuses the creation; no instance is left in a deleted project;
+  - a plugin disabled while it is being updated stays disabled, and the watchdog no longer reports an update that is
+    replacing a plugin's or a premium feature's files as files changed by hand;
+  - a maintenance window someone chose while the default window was being applied is kept, and the hub's "failed"
+    never ends an item that has just started running; two panel updates in a row no longer remove each other's
+    request for the host's updater, which is now written whole;
+  - a webhook's new signing secret is not put back by a change saved at the same moment, and a deleted notification
+    channel does not come back;
+  - a client action confirmed by its e-mail is never recorded as cancelled; the client limit of a project holds for
+    clients added at the same moment; an access request's link confirms once, and one address gets one request;
+  - a pusher gets one e-mail when two instances of the branch fail on the same commit; a commit is recorded once in
+    a branch's history; an instance's kept state (paused, rolled back, ...) keeps every change and never comes back
+    after the instance is deleted; a plugin switched on again while it was being switched off for failing stays on;
+    one delivery thread sends alerts, in order; the GitHub App's webhook address and a new installation recorded at
+    the same moment are both kept.
+
+### Security
+
+- **A session ended by an administrator stays ended**: a request of that session that was already running (sign out
+  everywhere else, a second factor set up or removed, a new e-mail address, a password change) no longer gives it a
+  fresh valid session, and a password change in flight no longer replaces a password an administrator has just reset:
+  it answers 401.
+- **Sign-in limits hold for guesses sent together**: a try is counted when it starts, not when its answer is known,
+  so many wrong passwords or codes sent at the same moment are limited to the same 5 per 15 minutes as tries sent one
+  by one (before, all of them were checked).
+- **A second factor an administrator removed stays removed**, and a used authenticator code stays used, when the
+  person changes their second factors at the same moment; two removals at once never leave an account that must
+  have a second factor without one.
+- **A sign-in with an old password no longer undoes a reset made at the same moment** (accounts with a hash of an
+  earlier kind), and two accounts can no longer get the same e-mail address by being created or changed at once.
 
 ## [3.6.0] - 2026-11-27
 

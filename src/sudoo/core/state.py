@@ -6,6 +6,9 @@ and "keep_backups": before-update backups kept for a restore by hand after an au
 
 Kept by the storage plugin (collection "instance_state"). Visits are recorded on every request, so they are kept in
 memory and written at most every 30 seconds; all other changes are written immediately.
+
+Writes to the storage happen one at a time, each with the state as it is when it is written (_write): a change
+never puts back an older copy over a newer one, and the state of a removed instance is never written again.
 """
 
 from __future__ import annotations
@@ -21,7 +24,8 @@ COLLECTION = "instance_state"
 
 class StateStore:
     def __init__(self) -> None:
-        self._lock = threading.Lock()
+        self._lock = threading.Lock()  # the state in memory; never held while the storage is written
+        self._write = threading.Lock()  # writing to the storage: taken before _lock, held until the write is done
         self._data: dict[str, dict[str, Any]] | None = None
         self._dirty: set[str] = set()
 
@@ -37,12 +41,13 @@ class StateStore:
             return dict(self._all().get(name, {}))
 
     def update(self, name: str, **values: Any) -> None:
-        with self._lock:
-            state = self._all().setdefault(name, {})
-            state.update(values)
-            self._dirty.discard(name)
-            snapshot = dict(state)
-        storage().put(COLLECTION, name, snapshot)
+        with self._write:
+            with self._lock:
+                state = self._all().setdefault(name, {})
+                state.update(values)
+                self._dirty.discard(name)
+                snapshot = dict(state)
+            storage().put(COLLECTION, name, snapshot)
 
     def record_visit(self, name: str) -> None:
         now = time.time()
@@ -67,18 +72,20 @@ class StateStore:
             return True
 
     def remove(self, name: str) -> None:
-        with self._lock:
-            self._all().pop(name, None)
-            self._dirty.discard(name)
-        storage().delete(COLLECTION, name)
+        with self._write:
+            with self._lock:
+                self._all().pop(name, None)
+                self._dirty.discard(name)
+            storage().delete(COLLECTION, name)
 
     def save(self) -> None:
         """Write the visits recorded since the last save."""
-        with self._lock:
-            dirty = {name: dict(self._all()[name]) for name in self._dirty if name in self._all()}
-            self._dirty.clear()
-        for name, state in dirty.items():
-            storage().put(COLLECTION, name, state)
+        with self._write:
+            with self._lock:
+                dirty = {name: dict(self._all()[name]) for name in self._dirty if name in self._all()}
+                self._dirty.clear()
+            for name, state in dirty.items():
+                storage().put(COLLECTION, name, state)
 
     def save_visits_forever(self) -> None:
         """Background loop: write recorded visits every 30 seconds."""

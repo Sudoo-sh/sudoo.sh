@@ -38,7 +38,7 @@ import threading
 import time
 import uuid
 from collections import OrderedDict
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -228,32 +228,50 @@ def create(project_id: str, data: Mapping[str, Any], user: str) -> tuple[Documen
     return channel, signing
 
 
+def _change(channel_id: str, fn: Callable[[Document], Document]) -> Document:
+    """fn(the channel as it is stored now) -> the channel, in one write: a change never puts back a copy read before
+    another change (a new signing secret, a delivery's result) or a channel deleted meanwhile (ChannelError)."""
+
+    def apply(found: Document | None) -> Document:
+        if found is None:
+            raise ChannelError("This channel no longer exists.")
+        return fn(dict(found))
+
+    return storage().change(COLLECTION, channel_id, apply) or {}
+
+
 def change(channel: Mapping[str, Any], data: Mapping[str, Any]) -> Document:
     """Change a channel's name, events, on/off, settings or secrets (a secret left out stays as it is)."""
     kind = channel["type"]
-    updated = dict(channel)
-    if "name" in data:
-        updated["name"] = str(data.get("name") or "").strip()[:60] or kind.capitalize()
-    if "events" in data:
-        updated["events"] = _clean_events(data["events"])
-    if "enabled" in data:
-        if not isinstance(data["enabled"], bool):
-            raise ChannelError('"enabled" is true or false.')
-        updated["enabled"] = data["enabled"]
-    if "config" in data:
-        updated["config"] = _clean_config(kind, data.get("config") or {}, channel.get("config"))
+    if "enabled" in data and not isinstance(data["enabled"], bool):
+        raise ChannelError('"enabled" is true or false.')
     given = data.get("secrets")
-    if isinstance(given, dict):
-        sealed, hints = dict(channel.get("secrets") or {}), dict(channel.get("hints") or {})
+    sealed_new: dict[str, str] = {}
+    hints_new: dict[str, str] = {}
+    if isinstance(given, dict):  # checked and sealed before the write
         for secret_name in channels.SECRETS[kind]:
             if secret_name == "signing_secret" or not given.get(secret_name):
                 continue
             value = _clean_secret(kind, secret_name, given[secret_name])
-            sealed[secret_name] = vault.encrypt(value, _label(channel["id"], secret_name))
-            hints[secret_name] = _hint(value)
-        updated.update(secrets=sealed, hints=hints)
-    storage().put(COLLECTION, channel["id"], updated)
-    return updated
+            sealed_new[secret_name] = vault.encrypt(value, _label(channel["id"], secret_name))
+            hints_new[secret_name] = _hint(value)
+    events_new = _clean_events(data["events"]) if "events" in data else None
+
+    def apply(updated: Document) -> Document:
+        if "name" in data:
+            updated["name"] = str(data.get("name") or "").strip()[:60] or kind.capitalize()
+        if events_new is not None:
+            updated["events"] = events_new
+        if "enabled" in data:
+            updated["enabled"] = data["enabled"]
+        if "config" in data:
+            updated["config"] = _clean_config(kind, data.get("config") or {}, updated.get("config"))
+        if sealed_new:
+            updated["secrets"] = {**(updated.get("secrets") or {}), **sealed_new}
+            updated["hints"] = {**(updated.get("hints") or {}), **hints_new}
+        return updated
+
+    return _change(str(channel["id"]), apply)
 
 
 def new_signing_secret(channel: Mapping[str, Any]) -> tuple[Document, str]:
@@ -261,14 +279,14 @@ def new_signing_secret(channel: Mapping[str, Any]) -> tuple[Document, str]:
     if channel["type"] != "webhook":
         raise ChannelError("Only a webhook has a signing secret.")
     signing = "whsec_" + random.token_urlsafe(32)
-    updated = dict(channel)
-    updated["secrets"] = {
-        **(channel.get("secrets") or {}),
-        "signing_secret": vault.encrypt(signing, _label(channel["id"], "signing_secret")),
-    }
-    updated["hints"] = {**(channel.get("hints") or {}), "signing_secret": _hint(signing)}
-    storage().put(COLLECTION, channel["id"], updated)
-    return updated, signing
+    sealed = vault.encrypt(signing, _label(channel["id"], "signing_secret"))
+
+    def apply(updated: Document) -> Document:
+        updated["secrets"] = {**(updated.get("secrets") or {}), "signing_secret": sealed}
+        updated["hints"] = {**(updated.get("hints") or {}), "signing_secret": _hint(signing)}
+        return updated
+
+    return _change(str(channel["id"]), apply), signing
 
 
 def remove(channel_id: str) -> None:

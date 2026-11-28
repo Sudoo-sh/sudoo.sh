@@ -98,6 +98,15 @@ def create_app() -> Flask:
             return v1.problem(code, error.description or HTTPStatus(code).phrase)
         return jsonify(error=error.description), code  # the documentation's images, /healthz
 
+    @app.errorhandler(accounts.SessionEnded)
+    def session_ended(error: accounts.SessionEnded) -> ResponseReturnValue:
+        """The session asking was ended meanwhile (an administrator, a reset, a sign-out everywhere): it stays
+        ended, and its cookie is cleared."""
+        security.end_current_session()
+        if request.path.startswith(security.API_PREFIX):
+            return v1.problem(401, str(error))
+        return jsonify(error=str(error)), 401
+
     @app.errorhandler(slots.Refused)
     def slots_refused(error: slots.Refused) -> ResponseReturnValue:
         """The running limits refused a start inside the write that would have recorded it."""
@@ -122,6 +131,10 @@ def create_app() -> Flask:
         if request.path.startswith(security.API_PREFIX):
             return v1.problem(500, "Something unexpected went wrong on the server. Quote the request_id.")
         return jsonify(error="Something unexpected went wrong on the server.", request_id=request_id()), 500
+
+    @app.teardown_request
+    def give_back_sign_in_tries(error: BaseException | None) -> None:  # noqa: ARG001 - every request, any outcome
+        accounts.THROTTLE.end_request()
 
     @app.after_request
     def api_request_id(response: Response) -> Response:

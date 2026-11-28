@@ -155,6 +155,13 @@ def current_user() -> dict[str, str] | None:
     return user
 
 
+def own_session_version() -> int | None:
+    """The session version of the signed-in browser session (None for an API token): a change that ends the other
+    sessions refuses when this one was ended meanwhile (accounts.SessionEnded)."""
+    version = session.get("version") if session.get("user") == g.user["name"] else None
+    return version if isinstance(version, int) else None
+
+
 def end_current_session() -> None:
     """Sign out: the session's id is remembered as ended (a copy of the cookie stops working), and the cookie is
     cleared."""

@@ -772,7 +772,8 @@ def _unpack(job: Job, archive: zipfile.ZipFile, manifest: dict[str, Any], detail
     shutil.rmtree(final, ignore_errors=True)
     partial.rename(final)
     now = time.time()
-    rec = {
+    hashed = tree_hash(final)
+    new = {
         "id": plugin_id,
         "name": str(manifest.get("name") or detail.get("name") or plugin_id),
         "version": version,
@@ -784,18 +785,26 @@ def _unpack(job: Job, archive: zipfile.ZipFile, manifest: dict[str, Any], detail
         "requires": [{"id": i, "version": v} for i, v in _requirements(manifest)],
         "entry_points": manifest["entry_points"],
         "modules": sorted(_top_level_modules(archive.infolist())),
-        "enabled": previous.get("enabled", True) if previous else True,
         "tampered": False,
-        "standing": (previous or {}).get("standing"),
-        "licence": (previous or {}).get("licence"),
-        "switched_off": (previous or {}).get("switched_off"),
-        "notified": (previous or {}).get("notified") or {},
-        "tree_hash": tree_hash(final),
-        "installed_at": (previous or {}).get("installed_at") or now,
-        "installed_by": (previous or {}).get("installed_by") or user,
+        "tree_hash": hashed,
         "updated_at": now,
     }
-    storage().put(COLLECTION, plugin_id, rec)
+
+    def install(current: dict[str, Any] | None) -> dict[str, Any]:
+        # what the administrators and the marketplace decided is taken from the record as it is now, in the same
+        # write: a disable (or a heartbeat's licence) made while the files were unpacked is kept
+        return {
+            **new,
+            "enabled": (current or {}).get("enabled", True),
+            "standing": (current or {}).get("standing"),
+            "licence": (current or {}).get("licence"),
+            "switched_off": (current or {}).get("switched_off"),
+            "notified": (current or {}).get("notified") or {},
+            "installed_at": (current or {}).get("installed_at") or now,
+            "installed_by": (current or {}).get("installed_by") or user,
+        }
+
+    storage().change(COLLECTION, plugin_id, install)
     if previous and previous.get("version") != version:
         shutil.rmtree(base / previous["version"], ignore_errors=True)
         job.write(f"Removed version {previous['version']}\n")
@@ -962,7 +971,7 @@ def watch(start_job: Callable[..., Job] = jobs.start) -> None:
     lease_valid = marketplace.lease() is not None
     ending = False
     for plugin_id, rec in records().items():
-        if plugin_id in (LOADED or set()) and not verify_files(rec):
+        if plugin_id in (LOADED or set()) and not _verified_now(plugin_id):
             continue
         ok, reason = allowed(rec, now, lease_valid)
         if not _paid(rec):
@@ -989,6 +998,20 @@ def watch(start_job: Callable[..., Job] = jobs.start) -> None:
                       _licence_ended, plugin_id)  # fmt: skip
     if not ending and allowed_ids() != (LOADED or set()):
         schedule_restart("plugins changed (licences or marketplace)")
+
+
+def _verified_now(plugin_id: str) -> bool:
+    """verify_files() of the plugin's record as it is now, while no plugin job changes files: an install, update or
+    removal running now holds the plugin jobs' lock, and its files are checked at the next pass instead (they are
+    being replaced: comparing them would report a fresh update as changed by hand)."""
+    lock = jobs.INSTANCE_LOCKS[JOB_INSTANCE]
+    if not lock.acquire(blocking=False):
+        return True
+    try:
+        rec = record(plugin_id)
+        return rec is None or verify_files(rec)
+    finally:
+        lock.release()
 
 
 def _job_running(plugin_id: str) -> bool:

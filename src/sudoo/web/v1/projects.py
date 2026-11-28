@@ -494,14 +494,17 @@ def delete_project(project_id: str) -> Response:
     found = _project(project_id, "projects.manage")
     if check.text(check.body(), "confirm", max_length=60) != project_id:
         abort(400, "Type the project's id exactly to confirm.")
-    members = projects.instances(project_id)
-    if members:
-        abort(
-            409,
-            f"{found['name']} still has {len(members)} {'instance' if len(members) == 1 else 'instances'} "
-            f"({', '.join(members[:5])}). Delete them first; the repository on GitHub is never touched.",
-        )
-    projects.remove(project_id)
+    # the locks of a creation (create_instance, automation.branch_created), in their order: an instance of the project
+    # is either registered before the check (refused here) or refused after the removal (the project is gone)
+    with quotas.LOCK, projects.LOCK:
+        members = projects.instances(project_id)
+        if members:
+            abort(
+                409,
+                f"{found['name']} still has {len(members)} {'instance' if len(members) == 1 else 'instances'} "
+                f"({', '.join(members[:5])}). Delete them first; the repository on GitHub is never touched.",
+            )
+        projects.remove(project_id)
     builds.forget_project(project_id)
     from sudoo.explain import service as explain
 
@@ -668,6 +671,8 @@ def create_instance(project_id: str, branch: str) -> Response:
     # the same locks, in the same order, as the creation for a new branch (projects/automation.py branch_created): a
     # branch the panel is creating an instance for, or that has one, gets a second one only when asked for by name
     with quotas.LOCK, projects.LOCK:
+        if projects.get(project_id) is None:  # deleted meanwhile: no instance of a project that is gone
+            abort(404, "This project was deleted.")
         members = projects.by_branch(project_id).get(branch, [])
         if members and check.flag(data, "another") is not True:
             creating = [name for name in members if jobs.creating(name)]
@@ -716,9 +721,8 @@ def rebuild(project_id: str, branch: str) -> Response:
     if refused:
         abort(409, refused)
     _refuse_locked_production(found, staging.production_instance(found))
-    if jobs.busy(name):
-        abort(409, f"{name} is busy with another job. Try again when it has finished.")
     with quotas.LOCK:  # from the limit check until the job is registered with its slot
+        instances_api.refuse_busy(name, f"{name} is busy with another job. Try again when it has finished.")
         instances_api.admit_start(name, f"rebuild of {project_id} {branch}")
         job = jobs.start(
             name, "Rebuild from production", "restore", staging.rebuild, name, user=g.user["name"],

@@ -213,6 +213,7 @@ All paths start with `/api/v1`, and every answer follows the same conventions:
 | :--- | :--- |
 | Success | `{"data": <resource or list>}`, and `"meta"` for lists |
 | Background work | **202 Accepted**, the job in `data`, and a `Location` header pointing to it (`/api/v1/jobs/<id>`) |
+| Sent twice | The same `POST /instances` or instance action, by the same caller with the same body, sent again while its job waits or runs answers with **that** job (same id): a retry or a double click never starts the work twice |
 | Errors | [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) problem details, `Content-Type: application/problem+json` (see [Errors](#5-errors)) |
 | Times | ISO 8601 in UTC: `2026-11-12T08:30:00Z` |
 | Request id | Every answer has `X-Request-ID`; send your own (8 to 64 letters, digits, `-`, `_`, `.`) to find a call in both logs |

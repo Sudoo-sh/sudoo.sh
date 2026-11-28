@@ -352,6 +352,13 @@ def add_client(project_id: str, name: str, by: str, backups: bool = False, shell
     """Make the client account `name` a client of the project, or change what it is given."""
     from sudoo import projects
 
+    with projects.LOCK:  # the checks and the change together: two additions at once stay within the limits
+        return _add_client(project_id, name, by, backups, shell)
+
+
+def _add_client(project_id: str, name: str, by: str, backups: bool, shell: bool) -> Document:
+    from sudoo import projects
+
     account = accounts.get(name)
     if account is None or roles.normalize(str(account.get("role"))) != roles.CLIENT:
         raise ClientError(f"{name} is not a client account.", 400)
@@ -382,6 +389,13 @@ def add_client(project_id: str, name: str, by: str, backups: bool = False, shell
 
 
 def remove_client(project_id: str, name: str, by: str) -> Document:
+    from sudoo import projects
+
+    with projects.LOCK:  # two removals at once never leave a closed project without its client
+        return _remove_client(project_id, name, by)
+
+
+def _remove_client(project_id: str, name: str, by: str) -> Document:
     from sudoo import projects
 
     project = projects.get(project_id)

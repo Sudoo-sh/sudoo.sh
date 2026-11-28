@@ -100,6 +100,7 @@ class Job:
         self.expected_steps: int | None = None  # set by operations that know how many steps they take
         self.details: dict[str, Any] = {}  # what the caller knows in advance (a creation's plan, without secrets)
         self._masked: list[str] = []  # secrets never written to the log (mask)
+        self.request_key: str | None = None  # the API request that started it (same_request: sent twice, one job)
 
     def expect(self, steps: int) -> None:
         """Announce how many steps this job will take, so its progress can be shown as a percentage."""
@@ -608,6 +609,14 @@ def unfinished(instance: str) -> bool:
     return INSTANCE_LOCKS[instance].locked() or any(
         j.instance == instance and j.status in ("queued", "running") for j in live
     )
+
+
+def same_request(key: str) -> Job | None:
+    """The job of this panel process started by the same request (web/v1/instances.py request_key) that is queued or
+    running: a request sent twice (two tabs, a double click, a client that retries) answers with that job."""
+    with _JOBS_LOCK:
+        live = [*JOBS.values(), *_HELD.values()]
+    return next((j for j in live if j.request_key == key and j.status in ("queued", "running")), None)
 
 
 def generation(instance: str) -> int:

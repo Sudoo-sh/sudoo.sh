@@ -18,14 +18,18 @@ Each instance gets three ports on 127.0.0.1, allocated together when it is creat
 
 from __future__ import annotations
 
+import fcntl
 import os
 import re
 import socket
 import threading
-from collections.abc import Mapping
+from collections import defaultdict
+from collections.abc import Callable, Iterator, Mapping
+from contextlib import contextmanager
 from pathlib import Path
 
 from sudoo.config import settings
+from sudoo.core import vault
 from sudoo.core.cache import FileMemo
 
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,30}$")
@@ -126,15 +130,42 @@ def write_env(name: str, env: Mapping[str, object]) -> None:
         if not ENV_KEY_RE.fullmatch(key) or unsafe_env_value(value):
             raise ValueError(f"refusing to write an unsafe .env entry {key[:40]!r}")
     path = folder(name) / ".env"
-    with integrity.writing(name, ".env"):
-        path.touch(mode=0o600)
-        path.write_text("".join(f"{key}={value}\n" for key, value in env.items()))
+    with integrity.writing(name, ".env"):  # a new file moved into place: a reader never sees it half written
+        vault.write_private(path, "".join(f"{key}={value}\n" for key, value in env.items()))
+
+
+_ENV_LOCKS: defaultdict[str, threading.Lock] = defaultdict(threading.Lock)
+
+
+@contextmanager
+def env_lock(name: str) -> Iterator[None]:
+    """One change of the instance's .env at a time: a thread lock in this process and an flock on the instance's
+    folder for every process of the host (the CLI), so a read, change and write is one step."""
+    with _ENV_LOCKS[name]:
+        try:
+            fd = os.open(folder(name), os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_CLOEXEC", 0))
+        except OSError:  # no folder (yet): nothing else can be writing its .env
+            yield
+            return
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX)
+            yield
+        finally:
+            os.close(fd)  # releases the flock
+
+
+def change_env(name: str, fn: Callable[[dict[str, str]], Mapping[str, object]]) -> None:
+    """Read the instance's .env, change it with fn(env) -> new env, write it: one step (env_lock), so a change made
+    at the same moment by a request, a job or the CLI is never lost."""
+    from sudoo.instances import integrity
+
+    # the order of the locks: the files' lock first (integrity.apply holds it while it changes .env), then this .env's
+    with integrity.FILES_LOCK, env_lock(name):
+        write_env(name, fn(read_env(name)))
 
 
 def update_env(name: str, **values: object) -> None:
-    env = read_env(name)
-    env.update({key: str(value) for key, value in values.items()})
-    write_env(name, env)
+    change_env(name, lambda env: {**env, **{key: str(value) for key, value in values.items()}})
 
 
 _STARTING = ("up", "run", "create", "start", "restart")  # Compose commands that create or start containers

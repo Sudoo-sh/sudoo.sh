@@ -1437,7 +1437,7 @@ GitHub at once, like **Verify Deploy Key** and **Verify Webhook** on Odoo.sh, an
 | Repository | The server can read the repository (through the App, a deploy key, or as a public repository). |
 | GitHub App installation | The App is installed on the repository's owner, not suspended, and covers the repository (all repositories, or among the selected ones). |
 | Permissions and events | **Contents: read** and **Metadata: read** are needed; **Commit statuses: write** (builds shown on commits) and the push, create and delete events (changes arrive at once, not at the next poll) are recommended. |
-| Webhook | The App's webhook goes to this panel's address, and its latest deliveries for this repository (or the App's) arrived; a failed delivery links to the App's **Advanced** page on GitHub, where it can be redelivered. |
+| Webhook | The App's webhook goes to this panel's address, and its latest deliveries for this repository (or the App's) arrived; a failed delivery links to the App's **Advanced** page on GitHub, where it can be redelivered. A delivery is handled once: the same delivery sent again, or the same push sent by the App and a repository webhook, updates the instances once (a delivery that failed is handled when it is sent again). |
 | Submodules and deploy keys | Every submodule of the default branch can be read; a private one the App does not cover needs a deploy key. |
 
 Each check that fails or warns says what to do and links to the page where it is done. The check needs

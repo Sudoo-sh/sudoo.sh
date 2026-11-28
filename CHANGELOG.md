@@ -6,7 +6,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
-## [3.7.0] - 2026-11-28
+## [3.7.1] - 2026-11-28
 
 ### Upgrade notes
 
@@ -14,26 +14,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   `REQUEST_QUEUE_SECONDS` (10) and are then answered `503` "The panel is busy. Try again in a few seconds." with
   `Retry-After: 5`, nothing done. API clients should retry such answers after `Retry-After`.
 
-- **A wrong value in `.env` no longer stops the panel**: the setting takes its default and administrators see a
-  banner naming it (never its value). Scripts that relied on the container failing to start must read
-  `GET /api/v1/health` or `/healthz` (`degraded`) instead.
-- **A plugin that cannot be loaded no longer stops the panel**: the built-in default of its group is used, and the
-  plugin is shown as failed. A plugin that fails `PLUGIN_FAILURE_LIMIT` times in a row (5) is switched off until an
-  administrator switches it on again.
-- **`/healthz` tells more**: `ok`, `degraded` (the panel works around a problem), or `unavailable` with HTTP 503 when
-  the panel's own storage cannot be read; Docker then marks `sudoo-panel` unhealthy.
-
 ### Added
 
 - Load tests at scale: `perf/seed.py --users --projects`, and `perf/k6/scale.js` (baseline, spike and soak).
-- **The panel stays up when something fails** (docs/ADMIN_GUIDE.md, "When something fails"): every plugin load and
-  every call into a plugin from outside the panel is guarded; a failing plugin is shown with its error (without
-  secrets), written to the audit log, and replaced by its group's built-in default (the panel's own sign-in and
-  storage, the default mailer, rate limiter and exposure), or just that feature is turned off (an Enterprise add-on
-  source, one update trigger). A second factor whose plugin failed is still asked for, so nobody gets in without it.
-- **Banner "Something is wrong with the panel"** for administrators (EN and AR), with **Switch on again** for
-  plugins switched off after failing, and `GET /api/v1/health`, `POST /api/v1/health/plugins/<group>/<name>/enable`.
-- **Error screen in the web app** (EN and AR) instead of a blank page when a page fails to draw.
 - **Several backend processes** (`PANEL_WORKERS`, `.env`, 1 by default): what decides correctness is shared by all
   of them (the panel's storage and lock files of the host): sign-in limits, jobs (a job started by one is seen,
   counted and serialised by all; the same request sent to two of them is one job), one-time codes, shell tickets,
@@ -41,23 +24,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   is seen by the others within a second) and the locks around every check-then-change. One process at a time runs
   the background work, the gateway link and the live events, and another takes over when it stops; the others hand
   their live events to it.
-- **Settings** `PLUGIN_FAILURE_LIMIT` (5), `BACKGROUND_RESTART_SECONDS` (5), `BACKGROUND_RESTART_MAX_SECONDS` (300),
-  `BACKGROUND_QUEUE_MAX` (10000) and `JOB_COMMAND_MAX_HOURS` (24), changeable on the Settings page (Advanced).
-
-### Changed
-
-- **Start-up never fails on one part**: each start-up step (exposure, session key, update-trigger webhooks, the
-  premium packages, background work, live events) is guarded; Docker, the database, the mail server or the hub being
-  down at start only delays the work that needs them.
-- **Background loops run under supervision**: one that raises is started again after a pause that doubles up to
-  `BACKGROUND_RESTART_MAX_SECONDS`; the others never notice. A failing settings listener no longer breaks saving
-  settings.
-- **Bounded**: a job's command without its own time limit stops after `JOB_COMMAND_MAX_HOURS`; alerts and
-  notifications waiting for delivery are capped by `BACKGROUND_QUEUE_MAX`; the list of problems is capped.
-- **Unexpected errors in a request** answer with a `request_id` outside the API too, and the server's log carries it.
 
 ### Fixed
 
+- **The installer** (`sudoo-install.sh`, now built from the installer's latest commit): installing, uninstalling or
+  changing the engine never runs at the same moment as the automatic update timer.
 - **1,000 projects or instances**: the project list took 196 s and, for anyone but a super admin, the instance list
   never finished: each project and each access check looked at every instance again. Now one look per answer
   (0.4 s and 0.6 s). The status checks did the same every minute and kept an idle panel at 110 % processor (now
@@ -67,26 +38,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **More than 500 instances**: the dashboard showed only the first 500; it now reads every page.
 - **An instance or project page that fails to load** (busy, a server error, offline) says so with **Try again**,
   instead of "This page does not exist".
-- **A list that cannot be loaded says so**: when the panel cannot be reached or answers with an error, the instances,
-  projects, accounts, backups and audit log pages show "This could not be loaded" with **Try again**, instead of an
-  empty list ("No projects yet") that looked as if the data were gone. A failed session check no longer sends a
-  signed-in person to the sign-in page.
-- **One press, one request**: a double click on a button (for example **Create** on the new instance page or in a new
-  account) sends its request once; a button that shows it is busy can no longer be pressed meanwhile (before, a second
-  click on **Create** could start a second instance with a "-2" name).
-- **Phone width**: the segmented filters (instance views, account tabs) scroll inside their rail instead of widening the
-  whole page past the screen at 375 px.
-- **Avatars** keep an emoji or another character outside the Basic Multilingual Plane whole instead of showing a broken
-  character.
-- **Server figures before the first measurement** show "Measuring" instead of "NaN B free" and "— of —".
-- **Names with < or >** are refused with a message that says so, instead of "at most 60 characters"; the name fields
-  stop at 60 characters as the server does.
-- **A deletion asked for while the instance's creation was running** ends as done when that creation failed and was
-  cleaned up, instead of failing with a backup error that suggested the instance was still there.
-- **Plugins built with the plugin SDK load**: they are created with the `PluginContext` the SDK defines (settings
-  from the manifest, storage, secrets and mail by permission, a data folder) and their `on_enable` hook runs, instead
-  of failing with "'Settings' object has no attribute 'settings'". Built-in and earlier plugins still get the settings.
-  The panel also starts when the SDK itself cannot be imported.
 - **Requests at the same moment** (two tabs, a double click, a client that retries, a webhook sent twice, a
   background loop beside a request) no longer overwrite each other or do the work twice:
   - an instance's `.env` is written whole and moved into place (a request never reads it half written), and two
@@ -116,7 +67,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
     after the instance is deleted; a plugin switched on again while it was being switched off for failing stays on;
     one delivery thread sends alerts, in order; the GitHub App's webhook address and a new installation recorded at
     the same moment are both kept.
-
 - **The command line and the panel never send a heartbeat at the same moment** (`sudoo.sh marketplace heartbeat`):
   a lock both take; what a heartbeat from the command line would start as a job (a hub command, the premium
   features' sync) is left to the panel's next heartbeat, so it never ends with the command.
@@ -142,6 +92,67 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   have a second factor without one.
 - **A sign-in with an old password no longer undoes a reset made at the same moment** (accounts with a hash of an
   earlier kind), and two accounts can no longer get the same e-mail address by being created or changed at once.
+
+## [3.7.0] - 2026-11-28
+
+### Upgrade notes
+
+- **A wrong value in `.env` no longer stops the panel**: the setting takes its default and administrators see a
+  banner naming it (never its value). Scripts that relied on the container failing to start must read
+  `GET /api/v1/health` or `/healthz` (`degraded`) instead.
+- **A plugin that cannot be loaded no longer stops the panel**: the built-in default of its group is used, and the
+  plugin is shown as failed. A plugin that fails `PLUGIN_FAILURE_LIMIT` times in a row (5) is switched off until an
+  administrator switches it on again.
+- **`/healthz` tells more**: `ok`, `degraded` (the panel works around a problem), or `unavailable` with HTTP 503 when
+  the panel's own storage cannot be read; Docker then marks `sudoo-panel` unhealthy.
+
+### Added
+
+- **The panel stays up when something fails** (docs/ADMIN_GUIDE.md, "When something fails"): every plugin load and
+  every call into a plugin from outside the panel is guarded; a failing plugin is shown with its error (without
+  secrets), written to the audit log, and replaced by its group's built-in default (the panel's own sign-in and
+  storage, the default mailer, rate limiter and exposure), or just that feature is turned off (an Enterprise add-on
+  source, one update trigger). A second factor whose plugin failed is still asked for, so nobody gets in without it.
+- **Banner "Something is wrong with the panel"** for administrators (EN and AR), with **Switch on again** for
+  plugins switched off after failing, and `GET /api/v1/health`, `POST /api/v1/health/plugins/<group>/<name>/enable`.
+- **Error screen in the web app** (EN and AR) instead of a blank page when a page fails to draw.
+- **Settings** `PLUGIN_FAILURE_LIMIT` (5), `BACKGROUND_RESTART_SECONDS` (5), `BACKGROUND_RESTART_MAX_SECONDS` (300),
+  `BACKGROUND_QUEUE_MAX` (10000) and `JOB_COMMAND_MAX_HOURS` (24), changeable on the Settings page (Advanced).
+
+### Changed
+
+- **Start-up never fails on one part**: each start-up step (exposure, session key, update-trigger webhooks, the
+  premium packages, background work, live events) is guarded; Docker, the database, the mail server or the hub being
+  down at start only delays the work that needs them.
+- **Background loops run under supervision**: one that raises is started again after a pause that doubles up to
+  `BACKGROUND_RESTART_MAX_SECONDS`; the others never notice. A failing settings listener no longer breaks saving
+  settings.
+- **Bounded**: a job's command without its own time limit stops after `JOB_COMMAND_MAX_HOURS`; alerts and
+  notifications waiting for delivery are capped by `BACKGROUND_QUEUE_MAX`; the list of problems is capped.
+- **Unexpected errors in a request** answer with a `request_id` outside the API too, and the server's log carries it.
+
+### Fixed
+
+- **A list that cannot be loaded says so**: when the panel cannot be reached or answers with an error, the instances,
+  projects, accounts, backups and audit log pages show "This could not be loaded" with **Try again**, instead of an
+  empty list ("No projects yet") that looked as if the data were gone. A failed session check no longer sends a
+  signed-in person to the sign-in page.
+- **One press, one request**: a double click on a button (for example **Create** on the new instance page or in a new
+  account) sends its request once; a button that shows it is busy can no longer be pressed meanwhile (before, a second
+  click on **Create** could start a second instance with a "-2" name).
+- **Phone width**: the segmented filters (instance views, account tabs) scroll inside their rail instead of widening the
+  whole page past the screen at 375 px.
+- **Avatars** keep an emoji or another character outside the Basic Multilingual Plane whole instead of showing a broken
+  character.
+- **Server figures before the first measurement** show "Measuring" instead of "NaN B free" and "— of —".
+- **Names with < or >** are refused with a message that says so, instead of "at most 60 characters"; the name fields
+  stop at 60 characters as the server does.
+- **A deletion asked for while the instance's creation was running** ends as done when that creation failed and was
+  cleaned up, instead of failing with a backup error that suggested the instance was still there.
+- **Plugins built with the plugin SDK load**: they are created with the `PluginContext` the SDK defines (settings
+  from the manifest, storage, secrets and mail by permission, a data folder) and their `on_enable` hook runs, instead
+  of failing with "'Settings' object has no attribute 'settings'". Built-in and earlier plugins still get the settings.
+  The panel also starts when the SDK itself cannot be imported.
 
 ## [3.6.0] - 2026-11-27
 
@@ -1915,7 +1926,8 @@ Use `sudoo` instead of `python3 manage.py` in commands.
 - Documentation in `docs/`, also shown inside the panel.
 - Contributor files: contributing guide, security policy, code of conduct, issue and pull request templates, continuous integration and Dependabot.
 
-[Unreleased]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.7.0...HEAD
+[Unreleased]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.7.1...HEAD
+[3.7.1]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.7.0...v3.7.1
 [3.7.0]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.6.0...v3.7.0
 [3.6.0]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.5.0...v3.6.0
 [3.5.0]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.4.1...v3.5.0

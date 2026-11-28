@@ -6,6 +6,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [3.7.0] - 2026-11-28
+
 ### Upgrade notes
 
 - **A wrong value in `.env` no longer stops the panel**: the setting takes its default and administrators see a
@@ -1837,7 +1839,8 @@ Use `sudoo` instead of `python3 manage.py` in commands.
 - Documentation in `docs/`, also shown inside the panel.
 - Contributor files: contributing guide, security policy, code of conduct, issue and pull request templates, continuous integration and Dependabot.
 
-[Unreleased]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.6.0...HEAD
+[Unreleased]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.7.0...HEAD
+[3.7.0]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.6.0...v3.7.0
 [3.6.0]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.5.0...v3.6.0
 [3.5.0]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.4.1...v3.5.0
 [3.4.1]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.4.0...v3.4.1

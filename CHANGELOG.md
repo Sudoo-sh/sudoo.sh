@@ -10,6 +10,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Upgrade notes
 
+- **At most 8 requests are worked on at once** (`MAX_CONCURRENT_REQUESTS`, 0 turns it off): the next ones wait up to
+  `REQUEST_QUEUE_SECONDS` (10) and are then answered `503` "The panel is busy. Try again in a few seconds." with
+  `Retry-After: 5`, nothing done. API clients should retry such answers after `Retry-After`.
+
 - **A wrong value in `.env` no longer stops the panel**: the setting takes its default and administrators see a
   banner naming it (never its value). Scripts that relied on the container failing to start must read
   `GET /api/v1/health` or `/healthz` (`degraded`) instead.
@@ -21,6 +25,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- Load tests at scale: `perf/seed.py --users --projects`, and `perf/k6/scale.js` (baseline, spike and soak).
 - **The panel stays up when something fails** (docs/ADMIN_GUIDE.md, "When something fails"): every plugin load and
   every call into a plugin from outside the panel is guarded; a failing plugin is shown with its error (without
   secrets), written to the audit log, and replaced by its group's built-in default (the panel's own sign-in and
@@ -53,6 +58,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **1,000 projects or instances**: the project list took 196 s and, for anyone but a super admin, the instance list
+  never finished: each project and each access check looked at every instance again. Now one look per answer
+  (0.4 s and 0.6 s). The status checks did the same every minute and kept an idle panel at 110 % processor (now
+  15-25 %). Documents read again and again within one answer are read once.
+- **A rush of requests no longer leaves the panel unusable**: it answers "busy, try again" and is back to normal
+  seconds after the rush, instead of working for minutes on requests nobody waited for.
+- **More than 500 instances**: the dashboard showed only the first 500; it now reads every page.
+- **An instance or project page that fails to load** (busy, a server error, offline) says so with **Try again**,
+  instead of "This page does not exist".
 - **A list that cannot be loaded says so**: when the panel cannot be reached or answers with an error, the instances,
   projects, accounts, backups and audit log pages show "This could not be loaded" with **Try again**, instead of an
   empty list ("No projects yet") that looked as if the data were gone. A failed session check no longer sends a

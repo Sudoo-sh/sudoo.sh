@@ -131,8 +131,27 @@ export const useSession = () =>
     retry: false,
   });
 
-export const useInstances = () =>
-  useQuery({ queryKey: keys.instances, queryFn: () => api.get<Instance[]>("/instances?limit=500") });
+/** The API answers at most this many instances per call (GET /instances, limit 1 to 500). */
+export const INSTANCES_PER_PAGE = 500;
+
+/** Every instance the caller may see. One call while there are at most 500; past that the first answer says how
+ *  many there are (meta.total) and the other pages are asked for together, so a server with 1,000 instances shows
+ *  all of them, not only the first 500. An instance that moved from one page to the next between two calls is
+ *  kept once. */
+export async function allInstances(): Promise<Instance[]> {
+  const first = await api.page<Instance[]>(`/instances?limit=${INSTANCES_PER_PAGE}`);
+  const total = Number(first.meta?.total ?? first.data.length);
+  if (!(total > first.data.length) || first.data.length === 0) return first.data;
+  const offsets: number[] = [];
+  for (let offset = first.data.length; offset < total; offset += INSTANCES_PER_PAGE) offsets.push(offset);
+  const rest = await Promise.all(
+    offsets.map((offset) => api.get<Instance[]>(`/instances?limit=${INSTANCES_PER_PAGE}&offset=${offset}`)),
+  );
+  const seen = new Set<string>();
+  return [first.data, ...rest].flat().filter((instance) => !seen.has(instance.name) && seen.add(instance.name));
+}
+
+export const useInstances = () => useQuery({ queryKey: keys.instances, queryFn: allInstances });
 
 /** The instances deleted lately (kept for the DELETED_HISTORY_DAYS setting) */
 export const useDeletedInstances = (enabled = true) =>

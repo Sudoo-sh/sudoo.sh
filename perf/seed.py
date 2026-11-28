@@ -1,10 +1,13 @@
 """Build a realistic, throwaway panel data folder for the load tests (perf/README.md).
 
-    uv run python perf/seed.py <run folder> [--instances 40] [--audit 200000] [--backups 3]
+    uv run python perf/seed.py <run folder> [--instances 40] [--audit 200000] [--backups 3] [--users 20]
+                                            [--projects 0]
 
 Writes <run folder>/odoo (the panel's ODOO_ROOT: instances, backups, accounts, tokens, a long audit log),
 <run folder>/panel.env (the settings the panel is started with) and <run folder>/secrets.json (what the load tests
-sign in with). No container is created: the instances are folders whose Odoo is not running, except the first one,
+sign in with). With --projects N, the first N instances each belong to a project of their own (a repository on
+GitHub that is never asked: the panel only reads the project documents), as a server full of Odoo.sh-like projects
+has them. No container is created: the instances are folders whose Odoo is not running, except the first one,
 whose ODOO_PORT points at the stub Odoo (perf/stub_odoo.py) so that the gateway can be measured.
 """
 
@@ -31,7 +34,7 @@ PORTS = {
 WEBHOOK_SECRET = "perf-webhook-secret-0123456789abcdef"
 
 
-def panel_env(root: Path) -> dict[str, str]:
+def panel_env(root: Path, odoo_port_start: int) -> dict[str, str]:
     return {
         "ODOO_ROOT": str(root),
         "EXPOSURE": "host-ports",
@@ -40,7 +43,7 @@ def panel_env(root: Path) -> dict[str, str]:
         "EVENTS_PORT": str(PORTS["EVENTS_PORT"]),
         "API_PORT": str(PORTS["API_PORT"]),
         "GATEWAY_PORT_START": str(PORTS["GATEWAY_PORT_START"]),
-        "ODOO_PORT_START": "19400",
+        "ODOO_PORT_START": str(odoo_port_start),
         "CONNECTOR_PREFIX": "pperf-connector-",
         "REQUIRE_SECOND_FACTOR": "none",
         "MAILER": "none",
@@ -64,7 +67,13 @@ def main() -> None:
     parser.add_argument("--instances", type=int, default=40)
     parser.add_argument("--audit", type=int, default=200_000)
     parser.add_argument("--backups", type=int, default=3)
+    parser.add_argument("--users", type=int, default=20, help="developer accounts beside the super admin")
+    parser.add_argument("--projects", type=int, default=0, help="projects, one per instance (at most --instances)")
     args = parser.parse_args()
+    if args.projects > args.instances:
+        parser.error("--projects cannot be more than --instances: each project gets one of the instances")
+    # the instances' Odoo ports come after their gateway ports, so no seeded port is both
+    odoo_port_start = max(19400, PORTS["GATEWAY_PORT_START"] + args.instances + 100)
     run: Path = args.run.resolve()
     root = run / "odoo"
     if root.exists():
@@ -75,11 +84,12 @@ def main() -> None:
     (run / "documentation").mkdir()
     shutil.copy(repository / "README.md", run / "documentation")
     shutil.copytree(repository / "docs", run / "documentation" / "docs")
-    env = panel_env(root)
+    env = panel_env(root, odoo_port_start)
     os.environ.update(env)
 
     # imported only now: the settings are read from the environment when the panel's modules load
-    from sudoo import accounts, api_tokens
+    from sudoo import accounts, api_tokens, licence
+    from sudoo import projects as project_store
     from sudoo.core import vault
     from sudoo.core.state import STATE
     from sudoo.instances import store
@@ -87,8 +97,13 @@ def main() -> None:
 
     password = "Perf-" + secrets.token_urlsafe(12)
     accounts.create("perfadmin", "super_admin", password, must_change=False, email="perf@example.com")
-    for number in range(20):
+    for number in range(args.users):
         accounts.create(f"user{number:02d}", "developer", must_change=False, email=f"user{number}@example.com")
+    # the licence agreement accepted, as after first-run setup: until then a super admin's calls answer 403
+    licence.record(
+        user="perfadmin", account=accounts.get("perfadmin") or {}, role="super_admin", ip="127.0.0.1",
+        user_agent="perf/seed.py", use="company", on_behalf=True, surface="panel_setup",
+    )  # fmt: skip
     token, signing_secret = api_tokens.create("perf read", "read", "perf")
     write_token, write_signing_secret = api_tokens.create("perf write", "write", "perf")
     for number in range(8):
@@ -121,10 +136,18 @@ def main() -> None:
             check=True,
         )  # fmt: skip
         (folder / "docker-compose.yml").write_text("# a folder for the load tests: no container\nservices: {}\n")
-        odoo_port = PORTS["STUB_PORT"] if index == 0 else 19400 + index
+        odoo_port = PORTS["STUB_PORT"] if index == 0 else odoo_port_start + index
+        project = {}
+        if index < args.projects:
+            created = project_store.create(
+                repository=f"example/odoo-addons-{index}", odoo_version="18.0" if index % 2 else "17.0",
+                edition="community", origin="linked", user="perfadmin", name=f"Project {index:04d}",
+            )  # fmt: skip
+            project = {"PROJECT": created["id"]}
         store.write_env(
             name,
             {
+                **project,
                 "ODOO_VERSION": "18.0" if index % 2 else "17.0",
                 "EDITION": "community",
                 "GATEWAY_PORT": PORTS["GATEWAY_PORT_START"] + index,
@@ -159,7 +182,7 @@ def main() -> None:
     db.executemany(
         "INSERT INTO audit (ts, user, ip, event, instance, ok, detail) VALUES (?, ?, ?, ?, ?, ?, ?)",
         (
-            (now - (args.audit - i) * 5, f"user{i % 20:02d}", f"10.0.{i % 250}.{i % 200}", events[i % len(events)],
+            (now - (args.audit - i) * 5, f"user{i % max(1, args.users):02d}", f"10.0.{i % 250}.{i % 200}", events[i % len(events)],
              names[i % len(names)] if i % 3 else None, int(i % 17 != 0), "from the load-test seed" if i % 5 else None)
             for i in range(args.audit)
         ),
@@ -179,6 +202,7 @@ def main() -> None:
                 "write_signing_secret": write_signing_secret,
                 "webhook_secret": WEBHOOK_SECRET,
                 "instances": names,
+                "projects": args.projects,
                 "gateway_instance": names[0],
                 **{key.lower(): value for key, value in PORTS.items()},
             },

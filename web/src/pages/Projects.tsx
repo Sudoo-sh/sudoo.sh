@@ -484,6 +484,15 @@ export function ProjectPage() {
         <Skeleton height={240} />
       </Page>
     );
+  // busy (503), a server error or no network is not "this project does not exist": say so, with a retry
+  if (!data && error && !(error instanceof ApiError && error.status === 404))
+    return (
+      <Page>
+        <div className="card">
+          <LoadFailed error={error} onRetry={refetch} />
+        </div>
+      </Page>
+    );
   if (!data || (error instanceof ApiError && error.status === 404))
     return (
       <Page>

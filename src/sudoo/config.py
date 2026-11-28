@@ -520,6 +520,20 @@ class Settings(BaseSettings):
     rate_limit_changes_per_minute: int = Field(
         60, ge=0, description="Requests that change something, per minute, per user or address; 0: no limit."
     )
+    max_concurrent_requests: int = Field(
+        8,
+        ge=0,
+        le=64,
+        description="Requests the panel works on at once (web/admission.py); the next ones wait their turn. 0: no "
+        "limit. The panel is one process: more at once only makes each slower.",
+    )
+    request_queue_seconds: float = Field(
+        10,
+        ge=1,
+        le=120,
+        description='Seconds a request waits for its turn before it is answered 503 "busy, try again" with '
+        "Retry-After, nothing done.",
+    )
     max_instances: int = Field(0, ge=0, description="Instances on this server at most; 0: no limit.")
     max_instances_per_user: int = Field(0, ge=0, description="Instances one user (or API token) may own; 0: no limit.")
     create_cooldown_minutes: float = Field(
@@ -2503,6 +2517,8 @@ EDITABLE = (
     "session_max_hours",
     "rate_limit_reads_per_minute",
     "rate_limit_changes_per_minute",
+    "max_concurrent_requests",
+    "request_queue_seconds",
     "max_instances",
     "max_instances_per_user",
     "create_cooldown_minutes",

@@ -37,6 +37,7 @@ docker image rm pperf-web:old pperf-web:new
 | `lighthouse.py` | The sign-in page and the dashboard in Lighthouse 12 (mobile), median of three runs (part `web`). |
 | `gateway_ab.py` | The gateway of two versions side by side in rounds that alternate, so a busy machine slows both alike: `uv run python perf/gateway_ab.py <run folder> <old src> src`. |
 | `report.py` | The tables of one run, or of two side by side. |
+| `k6/scale.js` | Baseline (one user), spike (1 to 50 users and back) and soak (people working for minutes) against a seeded panel, e.g. `seed.py <run> --instances 1000 --projects 1000 --users 500 --audit 50000`; see the script's header. |
 
 Every run folder keeps the raw results (`panel.json`, `gateway-direct.json`, `gateway.json`, `sse.json`,
 `cold_start.json`), the peak memory of the backend during each part (`peak_rss_*.txt`) and the logs.

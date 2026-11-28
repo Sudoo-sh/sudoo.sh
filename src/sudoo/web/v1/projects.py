@@ -214,11 +214,13 @@ def _hidden_branches(project: Mapping[str, Any], branches_known: set[str], user:
     return {branch for branch in branches_known if not access.sees_branch(user, project, branch)}
 
 
-def project_resource(project: Mapping[str, Any], user: Mapping[str, Any] | None = None) -> dict[str, Any]:
+def project_resource(
+    project: Mapping[str, Any], user: Mapping[str, Any] | None = None, index: Mapping[str, list[str]] | None = None
+) -> dict[str, Any]:
     """A project as lists show it: no branches from GitHub (those are on its own page), only the branches it knows
     (seen on GitHub, recorded, or followed by an instance) counted by stage. With `user`: what that user may see
-    (branches hidden from them, and their instances, are left out)."""
-    grouped = projects.by_branch(project["id"])
+    (branches hidden from them, and their instances, are left out). `index`: projects.index(), for a list."""
+    grouped = projects.by_branch(project["id"], index)
     known = set(project.get("seen") or []) | set(project.get("branches") or {}) | {b for b in grouped if b}
     hidden = _hidden_branches(project, known | set(grouped), user)
     known -= hidden
@@ -239,7 +241,7 @@ def project_resource(project: Mapping[str, Any], user: Mapping[str, Any] | None 
         "branches": {"total": len(known), **by_stage},
         "instances": {"total": len(names), "by_status": _status(names), "names": names},
         "attention": _attention(names),
-        "production_branches": [b for b in projects.production_branches(project) if b not in hidden],
+        "production_branches": [b for b in projects.production_branches(project, grouped) if b not in hidden],
         "options": projects.options(project),
         "default_server": project.get("default_server") or "main",  # where its new instances go (premium/servers.py)
         "own_options": {k: v for k, v in (project.get("options") or {}).items() if v is not None},
@@ -303,7 +305,8 @@ def list_projects() -> Response:
     adopt.adopt_once()
     shown = access.visible(g.user, projects.all_projects())
     standalone = [name for name in sorted(set(store.names()) | set(jobs.being_created())) if not _project_id_of(name)]
-    return ok([project_resource(p, g.user) for p in shown], meta={"standalone": standalone, "total": len(shown)})
+    index = projects.index()  # once for the whole list, not once per project
+    return ok([project_resource(p, g.user, index) for p in shown], meta={"standalone": standalone, "total": len(shown)})
 
 
 def _project_id_of(name: str) -> str | None:

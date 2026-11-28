@@ -134,6 +134,9 @@ def write_env(name: str, env: Mapping[str, object]) -> None:
     path = folder(name) / ".env"
     with integrity.writing(name, ".env"):  # a new file moved into place: a reader never sees it half written
         vault.write_private(path, "".join(f"{key}={value}\n" for key, value in env.items()))
+    from sudoo import projects  # late: projects/ imports this module
+
+    projects.forget_reading_index()  # the project an instance belongs to may have changed
 
 
 _ENV_LOCKS: defaultdict[str, threading.Lock] = defaultdict(threading.Lock)

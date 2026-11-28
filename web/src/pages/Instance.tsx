@@ -229,7 +229,7 @@ export function InstanceView({
   /** a tab of the page around it, last of the tabs (a project branch's Branch settings, as on Odoo.sh) */
   trail?: { id: string; label: string; icon: React.ReactNode; content: React.ReactNode };
 }) {
-  const { data: instance, isPending, error } = useInstance(name);
+  const { data: instance, isPending, error, refetch } = useInstance(name);
   const can = useCanIn(instance);
   // an alert links to /i/<name>/activity?job=<id>: that job opens at once
   const [jobId, setJobId] = useState<string | null>(() => new URLSearchParams(window.location.search).get("job"));
@@ -248,7 +248,7 @@ export function InstanceView({
   const e = useT(engineWords);
   const { data: offered } = useOfferedEngines(instance?.odoo.version ?? "", !!instance && can("instances.move"));
 
-  if (error && !instance) return <MissingInstance name={name} error={error} />;
+  if (error && !instance) return <MissingInstance name={name} error={error} onRetry={refetch} />;
   if (instance?.status === "creating" && instance.current_job) return <CreatingInstance instance={instance} />;
   if (isPending || !instance)
     return (

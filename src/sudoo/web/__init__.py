@@ -22,7 +22,7 @@ from sudoo import accounts, background, exposure, link_deadline, triggers
 from sudoo.config import settings
 from sudoo.core import event_bridge, resilience, shared, slots
 
-from . import docs, security, v1
+from . import admission, docs, security, v1
 
 
 def default_password_warning() -> str | None:
@@ -80,6 +80,7 @@ def create_app() -> Flask:
     if warning := default_password_warning():
         app.logger.warning(warning)
     app.json.sort_keys = False  # type: ignore[attr-defined]  # answers keep the order they were built in: no sort per answer
+    admission.install(app)  # first: a request waits for its turn before anything is done for it
     security.install(app)
     from sudoo.premium import servers
 

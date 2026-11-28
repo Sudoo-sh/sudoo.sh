@@ -298,6 +298,8 @@ const en = {
     access_request_domains: "Domains that may ask for an account",
     rate_limit_reads_per_minute: "Reading requests per minute",
     rate_limit_changes_per_minute: "Changing requests per minute",
+    max_concurrent_requests: "Requests worked on at once",
+    request_queue_seconds: "Seconds a request waits for its turn",
     support_access: "Support access",
     support_access_max_hours: "Longest support access (hours)",
     share_topology_with_sudoo: "Share the topology with Sudoo.sh",
@@ -782,6 +784,10 @@ const en = {
     rate_limiter: 'Where request counts are kept: "memory".',
     rate_limit_reads_per_minute: "Requests that read, per minute, per signed-in user or address; 0: no limit.",
     rate_limit_changes_per_minute: "Requests that change something, per minute, per user or address; 0: no limit.",
+    max_concurrent_requests:
+      "Requests the panel works on at once; the next ones wait their turn. 0: no limit. The panel is one process: more at once only makes each slower.",
+    request_queue_seconds:
+      'Seconds a request waits for its turn before it is answered 503 "busy, try again" with Retry-After, nothing done.',
     support_access:
       "Super admins and administrators may grant Sudoo.sh support temporary access to the panel; off: none can be granted and every grant ends.",
     support_access_max_hours:
@@ -1612,6 +1618,8 @@ const ar: typeof en = {
     access_request_domains: "النطاقات التي يحق لها طلب حساب",
     rate_limit_reads_per_minute: "طلبات القراءة في الدقيقة",
     rate_limit_changes_per_minute: "طلبات التغيير في الدقيقة",
+    max_concurrent_requests: "الطلبات التي تُعالَج في وقت واحد",
+    request_queue_seconds: "الثواني التي ينتظر فيها الطلب دوره",
     support_access: "وصول الدعم",
     support_access_max_hours: "أطول مدة لوصول الدعم (بالساعات)",
     share_topology_with_sudoo: "شارك البنية مع Sudoo.sh",
@@ -2088,6 +2096,10 @@ const ar: typeof en = {
     rate_limiter: 'مكان حفظ عدد الطلبات: "memory".',
     rate_limit_reads_per_minute: "طلبات القراءة في الدقيقة، لكل مستخدم مسجّل الدخول أو عنوان؛ 0: دون حد.",
     rate_limit_changes_per_minute: "الطلبات التي تغيّر شيئًا في الدقيقة، لكل مستخدم أو عنوان؛ 0: دون حد.",
+    max_concurrent_requests:
+      "الطلبات التي تعالجها اللوحة في وقت واحد؛ ينتظر ما بعدها دوره. 0: دون حد. اللوحة عملية واحدة: معالجة المزيد معًا تبطئ كل طلب فقط.",
+    request_queue_seconds:
+      'الثواني التي ينتظر فيها الطلب دوره قبل أن يُجاب 503 "مشغول، حاول مجددًا" مع Retry-After دون تنفيذ أي شيء.',
     support_access:
       "يستطيع المسؤولون الأعلون والمسؤولون منح دعم Sudoo.sh وصولًا مؤقتًا إلى اللوحة؛ عند الإيقاف لا يمكن منحه وينتهي كل وصول قائم.",
     support_access_max_hours: "أطول مدة يمكن منح وصول الدعم لها: تُعرض ساعة ويوم و3 أيام حتى هذا الحد (من 1 إلى 72).",

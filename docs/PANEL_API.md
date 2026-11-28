@@ -1539,6 +1539,11 @@ RateLimit-Reset: 41          seconds until the window has moved on
 
 Over the limit: `429 Too Many Requests` and `Retry-After`. Well-behaved clients wait that long.
 
+**Requests at once.** The panel works on at most `MAX_CONCURRENT_REQUESTS` requests at once (8); the next ones wait
+their turn for up to `REQUEST_QUEUE_SECONDS` (10). One still waiting then is answered `503 Service Unavailable` with
+`Retry-After: 5` and the problem detail "The panel is busy. Try again in a few seconds."; nothing was done, so it is
+safe to send again.
+
 **Instances.** `MAX_INSTANCES` (server), `MAX_INSTANCES_PER_USER` and `CREATE_COOLDOWN_MINUTES` limit creation; all
 are off (0) unless set, and can be changed on the Settings page. Before offering **New instance**, ask:
 

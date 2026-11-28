@@ -109,8 +109,61 @@ def project_of(name: str) -> str | None:
     return servers.env(name).get("PROJECT") or None
 
 
-def instances(project_id: str) -> list[str]:
-    """The instances of a project, those being created included, sorted."""
+def index() -> dict[str, list[str]]:
+    """{project id: its instances, those being created included, sorted}, from one look at every instance. For
+    callers that need the instances of many projects at once: instances() looks at every instance of the server
+    each time, so asking it once per project costs projects x instances reads (minutes with 1,000 of each)."""
+    from sudoo.core import jobs  # late: core/jobs.py is imported by most of the panel
+    from sudoo.premium import servers
+
+    found: dict[str, set[str]] = {}
+    for name in servers.names():
+        project_id = servers.env(name).get("PROJECT")
+        if project_id:
+            found.setdefault(project_id, set()).add(name)
+    for name in jobs.being_created():
+        job = jobs.creating(name)
+        project_id = job.details.get("project") if job is not None else None
+        if project_id:
+            found.setdefault(str(project_id), set()).add(name)
+    return {project_id: sorted(names) for project_id, names in found.items()}
+
+
+_INDEX_KEY = "_sudoo_project_index"
+
+
+def _reading_index() -> dict[str, list[str]] | None:
+    """index(), made once for a request that only reads (GET or HEAD) and kept until its answer, else None.
+
+    The access checks of a list ask for a project's instances once per branch or instance they show (the stage of a
+    branch is that of its instances), so a list of 1,000 projects or instances asked for them a million times: two
+    minutes for one person's project list. Within one read nothing creates an instance; a write to an instance's
+    .env during it (store.write_env) drops the copy. Background work and changing requests look every time."""
+    from flask import g, has_request_context, request
+
+    if not has_request_context() or request.method not in ("GET", "HEAD"):
+        return None
+    found: dict[str, list[str]] | None = g.get(_INDEX_KEY)
+    if found is None:
+        found = index()
+        setattr(g, _INDEX_KEY, found)
+    return found
+
+
+def forget_reading_index() -> None:
+    """Drop the copy _reading_index() keeps for the current request (an instance's .env was written)."""
+    from flask import g, has_request_context
+
+    if has_request_context():
+        g.pop(_INDEX_KEY, None)
+
+
+def instances(project_id: str, known: Mapping[str, list[str]] | None = None) -> list[str]:
+    """The instances of a project, those being created included, sorted. `known`: an index() made for this answer,
+    when many projects are looked at in a row (within a reading request, one is made and kept by itself)."""
+    known = _reading_index() if known is None else known
+    if known is not None:
+        return list(known.get(project_id, []))
     from sudoo.core import jobs  # late: core/jobs.py is imported by most of the panel
     from sudoo.premium import servers
 
@@ -143,10 +196,10 @@ def stage_of_instance(name: str) -> str:
     return str(job.details.get("stage") or stages.DEFAULT) if job else stages.DEFAULT
 
 
-def by_branch(project_id: str) -> dict[str, list[str]]:
-    """{branch: instances following it} of a project."""
+def by_branch(project_id: str, known: Mapping[str, list[str]] | None = None) -> dict[str, list[str]]:
+    """{branch: instances following it} of a project (`known`: as for instances())."""
     found: dict[str, list[str]] = {}
-    for name in instances(project_id):
+    for name in instances(project_id, known):
         found.setdefault(branch_of(name), []).append(name)
     return found
 
@@ -167,9 +220,10 @@ def branch_version(project: Mapping[str, Any], branch: str) -> str:
     return str(own) if own else str(project.get("odoo_version") or "")
 
 
-def production_branches(project: Mapping[str, Any]) -> list[str]:
-    """Branches of the project in production: recorded as production, or with a production instance."""
-    grouped = by_branch(project["id"])
+def production_branches(project: Mapping[str, Any], grouped: Mapping[str, list[str]] | None = None) -> list[str]:
+    """Branches of the project in production: recorded as production, or with a production instance. `grouped`:
+    the project's by_branch() when the caller has it already."""
+    grouped = by_branch(project["id"]) if grouped is None else grouped
     names = set(project.get("branches") or {}) | set(grouped)
     return sorted(
         branch

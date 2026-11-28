@@ -37,7 +37,6 @@ import shutil
 import stat
 import subprocess
 import tempfile
-import threading
 import time
 import zipfile
 from collections.abc import Iterable, Iterator
@@ -46,6 +45,7 @@ from typing import Any
 
 from sudoo.config import settings
 from sudoo.core.jobs import Job, JobError
+from sudoo.core.shared import SharedLock
 from sudoo.instances import backups, odoo, store
 
 FORMATS = (".sql.gz", ".zip", ".dump", ".sql")
@@ -62,7 +62,7 @@ FREE_SPACE_MARGIN = 2 * 2**30
 """Disk space left free besides the upload itself."""
 ID_RE = re.compile(r"^[A-Za-z0-9_-]{16,40}$")
 FOLDER = ".imports"
-_LOCK = threading.Lock()
+_LOCK = SharedLock("imports")
 
 
 class ImportProblem(ValueError):

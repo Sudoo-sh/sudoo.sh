@@ -51,7 +51,7 @@ from sudoo.projects import access
 
 from .. import signin
 from .. import validation as check
-from ..security import PORTAL, audience, client_ip, end_current_session, log, start_session
+from ..security import PORTAL, audience, client_ip, end_current_session, log, own_session_version, start_session
 from .github import panel_address
 from .responses import no_content, ok
 
@@ -107,7 +107,7 @@ def setup_state() -> Response:
 def setup() -> Response:
     data = check.body()
     ip = client_ip()
-    if accounts.THROTTLE.seconds_to_wait(ip, "setup"):
+    if accounts.THROTTLE.try_now(ip, "setup"):
         abort(429, "Too many wrong setup codes from this address. Try again in 15 minutes.")
     profile = {key: check.text(data, key, max_length=120) for key in accounts.PROFILE_FIELDS}
     if not profile["first_name"] or not profile["email"]:
@@ -286,7 +286,8 @@ def change_password() -> Response:
     problem = accounts.password_problem(new, name, account.get("email"), names)
     if problem:
         abort(400, problem)
-    session["version"] = accounts.set_password(name, new)  # other sessions of this account end
+    # other sessions of this account end; a reset or sign-out made meanwhile wins (accounts.SessionEnded: 401)
+    session["version"] = accounts.set_password(name, new, keep=own_session_version())
     session["restricted"] = signin.restriction(accounts.get(name) or {})
     log("changed own password")
     return no_content()

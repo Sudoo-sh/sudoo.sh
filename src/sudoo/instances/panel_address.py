@@ -29,12 +29,12 @@ from __future__ import annotations
 
 import datetime
 import ipaddress
-import threading
 import time
 from typing import Any
 
 from sudoo.config import exposure_mode, settings
 from sudoo.core import audit, vault
+from sudoo.core.shared import SharedLock
 from sudoo.storage import storage
 
 COLLECTION = "panel_address"
@@ -43,7 +43,7 @@ PORTAL_KEY = "portal"
 SERVER_DAYS = 397  # the panel's own certificate: as long as browsers accept, made again 30 days before the end
 SERVER_RENEW_DAYS = 30
 
-_LOCK = threading.Lock()
+_LOCK = SharedLock("panel-address")
 
 
 def direct() -> bool:

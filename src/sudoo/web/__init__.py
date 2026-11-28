@@ -20,7 +20,7 @@ from werkzeug.exceptions import HTTPException
 
 from sudoo import accounts, background, exposure, link_deadline, triggers
 from sudoo.config import settings
-from sudoo.core import resilience, slots
+from sudoo.core import event_bridge, resilience, shared, slots
 
 from . import docs, security, v1
 
@@ -98,6 +98,15 @@ def create_app() -> Flask:
             return v1.problem(code, error.description or HTTPStatus(code).phrase)
         return jsonify(error=error.description), code  # the documentation's images, /healthz
 
+    @app.errorhandler(accounts.SessionEnded)
+    def session_ended(error: accounts.SessionEnded) -> ResponseReturnValue:
+        """The session asking was ended meanwhile (an administrator, a reset, a sign-out everywhere): it stays
+        ended, and its cookie is cleared."""
+        security.end_current_session()
+        if request.path.startswith(security.API_PREFIX):
+            return v1.problem(401, str(error))
+        return jsonify(error=str(error)), 401
+
     @app.errorhandler(slots.Refused)
     def slots_refused(error: slots.Refused) -> ResponseReturnValue:
         """The running limits refused a start inside the write that would have recorded it."""
@@ -123,6 +132,10 @@ def create_app() -> Flask:
             return v1.problem(500, "Something unexpected went wrong on the server. Quote the request_id.")
         return jsonify(error="Something unexpected went wrong on the server.", request_id=request_id()), 500
 
+    @app.teardown_request
+    def give_back_sign_in_tries(error: BaseException | None) -> None:  # noqa: ARG001 - every request, any outcome
+        accounts.THROTTLE.end_request()
+
     @app.after_request
     def api_request_id(response: Response) -> Response:
         """Every API answer carries X-Request-ID, also errors raised before a view ran."""
@@ -132,9 +145,17 @@ def create_app() -> Flask:
         resilience.attempt("background work", background.start)  # no event stream; the panel passes requests on
         return app
     resilience.attempt("link deadline", link_deadline.first_run)  # recorded once, the first time the panel runs
-    resilience.attempt("background work", background.start)
-    resilience.attempt("live events", v1.stream.start, app)
-    resilience.attempt("support channel", _start_support_channel, app)
+    resilience.attempt("background work of every process", background.start_every_process)
+
+    def lead() -> None:
+        """In one worker process at a time (core/shared.py leadership): the background work, the gateway, the
+        live events (the others hand theirs over, core/event_bridge.py) and the support channel."""
+        event_bridge.run_as_leader()
+        resilience.attempt("background work", background.start)
+        resilience.attempt("live events", v1.stream.start, app)
+        resilience.attempt("support channel", _start_support_channel, app)
+
+    resilience.attempt("leadership", shared.when_leader, lead)
     return app
 
 

@@ -29,6 +29,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Banner "Something is wrong with the panel"** for administrators (EN and AR), with **Switch on again** for
   plugins switched off after failing, and `GET /api/v1/health`, `POST /api/v1/health/plugins/<group>/<name>/enable`.
 - **Error screen in the web app** (EN and AR) instead of a blank page when a page fails to draw.
+- **Several backend processes** (`PANEL_WORKERS`, `.env`, 1 by default): what decides correctness is shared by all
+  of them (the panel's storage and lock files of the host): sign-in limits, jobs (a job started by one is seen,
+  counted and serialised by all; the same request sent to two of them is one job), one-time codes, shell tickets,
+  Connect-as links, GitHub sign-in flows, API nonces, port reservations, instance state, settings (a change in one
+  is seen by the others within a second) and the locks around every check-then-change. One process at a time runs
+  the background work, the gateway link and the live events, and another takes over when it stops; the others hand
+  their live events to it.
 - **Settings** `PLUGIN_FAILURE_LIMIT` (5), `BACKGROUND_RESTART_SECONDS` (5), `BACKGROUND_RESTART_MAX_SECONDS` (300),
   `BACKGROUND_QUEUE_MAX` (10000) and `JOB_COMMAND_MAX_HOURS` (24), changeable on the Settings page (Advanced).
 
@@ -66,6 +73,61 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   from the manifest, storage, secrets and mail by permission, a data folder) and their `on_enable` hook runs, instead
   of failing with "'Settings' object has no attribute 'settings'". Built-in and earlier plugins still get the settings.
   The panel also starts when the SDK itself cannot be imported.
+- **Requests at the same moment** (two tabs, a double click, a client that retries, a webhook sent twice, a
+  background loop beside a request) no longer overwrite each other or do the work twice:
+  - an instance's `.env` is written whole and moved into place (a request never reads it half written), and two
+    changes to it at once (a lifetime and a job's branch, say) both stay, also with the CLI (a lock on its folder);
+  - the same instance action or creation sent twice while the first one is waiting or running answers with that
+    job instead of starting a second one (a second backup, a second instance named "-2");
+  - the same GitHub delivery, or the same push sent by the GitHub App and a webhook, updates once; an update asked
+    for twice at once (a push and polling) starts one job; a deleted branch reported twice archives once; a
+    delivery that failed is handled when GitHub sends it again;
+  - polling never fetches into an instance's checkout while a job works on it (the update job no longer fails on
+    git's locks);
+  - rebuilding staging, testing, starting or cancelling an upgrade checks for a running job where jobs are
+    registered, so a request sent twice is refused instead of starting the work twice;
+  - deleting a project while an instance of it is being created either waits for the creation (then refuses) or
+    refuses the creation; no instance is left in a deleted project;
+  - a plugin disabled while it is being updated stays disabled, and the watchdog no longer reports an update that is
+    replacing a plugin's or a premium feature's files as files changed by hand;
+  - a maintenance window someone chose while the default window was being applied is kept, and the hub's "failed"
+    never ends an item that has just started running; two panel updates in a row no longer remove each other's
+    request for the host's updater, which is now written whole;
+  - a webhook's new signing secret is not put back by a change saved at the same moment, and a deleted notification
+    channel does not come back;
+  - a client action confirmed by its e-mail is never recorded as cancelled; the client limit of a project holds for
+    clients added at the same moment; an access request's link confirms once, and one address gets one request;
+  - a pusher gets one e-mail when two instances of the branch fail on the same commit; a commit is recorded once in
+    a branch's history; an instance's kept state (paused, rolled back, ...) keeps every change and never comes back
+    after the instance is deleted; a plugin switched on again while it was being switched off for failing stays on;
+    one delivery thread sends alerts, in order; the GitHub App's webhook address and a new installation recorded at
+    the same moment are both kept.
+
+- **The command line and the panel never send a heartbeat at the same moment** (`sudoo.sh marketplace heartbeat`):
+  a lock both take; what a heartbeat from the command line would start as a job (a hub command, the premium
+  features' sync) is left to the panel's next heartbeat, so it never ends with the command.
+- **Invitations at the same moment**: two administrators inviting one address make one invitation (the second
+  answer is that invitation, `meta.existing`); two invitations whose addresses give the same user name, accepted at
+  the same moment, both make an account (the second gets a free name, given in `meta.username`); an acceptance that
+  cannot make the account keeps its invitation, so its link works again.
+- **A re-enabled plugin, an accepted licence agreement and alerts** are the same in every worker process (no copy
+  kept in memory for longer than a few seconds).
+
+### Security
+
+- **A session ended by an administrator stays ended**: a request of that session that was already running (sign out
+  everywhere else, a second factor set up or removed, a new e-mail address, a password change) no longer gives it a
+  fresh valid session, and a password change in flight no longer replaces a password an administrator has just reset:
+  it answers 401.
+- **Sign-in limits hold for guesses sent together**: a try is counted when it starts, not when its answer is known,
+  so many wrong passwords or codes sent at the same moment are limited to the same 5 per 15 minutes as tries sent one
+  by one (before, all of them were checked), also across worker processes. One-time codes and API nonces are used
+  once whichever worker process gets them.
+- **A second factor an administrator removed stays removed**, and a used authenticator code stays used, when the
+  person changes their second factors at the same moment; two removals at once never leave an account that must
+  have a second factor without one.
+- **A sign-in with an old password no longer undoes a reset made at the same moment** (accounts with a hash of an
+  earlier kind), and two accounts can no longer get the same e-mail address by being created or changed at once.
 
 ## [3.6.0] - 2026-11-27
 

@@ -53,11 +53,11 @@ class NowThread:
 
 @pytest.fixture(autouse=True)
 def clean(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
-    accounts.THROTTLE._failures.clear()
+    accounts.THROTTLE.clear()
     monkeypatch.setattr(sign_in_notice.threading, "Thread", NowThread)
     yield
     live.change(dict.fromkeys(live.overrides()))
-    accounts.THROTTLE._failures.clear()
+    accounts.THROTTLE.clear()
     for key in list(storage().all(overrides.COLLECTION)):
         overrides.reset(key)
 

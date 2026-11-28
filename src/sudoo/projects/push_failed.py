@@ -28,7 +28,7 @@ from sudoo.core.jobs import Job
 from sudoo.core.shell import capture
 from sudoo.instances import store
 from sudoo.repos.gitrepo import git
-from sudoo.storage import storage
+from sudoo.storage import Document, storage
 
 COLLECTION = "push_failure_emails"
 NOREPLY = "@users.noreply.github.com"
@@ -120,7 +120,16 @@ def notify(
         return {"emailed": False, "reason": "option_off"}
     sha = str((commit or {}).get("full_sha") or (commit or {}).get("sha") or "")
     key = f"{project_id}:{branch}:{sha or job.id}"
-    if storage().get(COLLECTION, key) is not None:
+    claimed: list[bool] = []
+
+    def claim(found: Document | None) -> Document | None:  # once per commit: two builds failing at once e-mail once
+        if found is not None:
+            return found
+        claimed.append(True)
+        return {"at": time.time(), "to": None, "sending": True}
+
+    storage().change(COLLECTION, key, claim)
+    if not claimed:
         return {"emailed": False, "reason": "already"}
     person = recipient(job, commit)
     if person is None:
@@ -155,6 +164,7 @@ def notify(
         mail.send(person["email"], "push_failed_ar" if arabic else "push_failed", **values)
     except Exception as error:  # noqa: BLE001 - a mail server that refuses never changes the build
         job.write(f"Could not e-mail {person['email']} about the failed build: {error!r}\n")
+        storage().delete(COLLECTION, key)  # not sent: the next failure of this commit tries again
         return {"emailed": False, "reason": "mail_failed"}
     storage().put(COLLECTION, key, {"at": time.time(), "to": person["email"]})
     audit.record(

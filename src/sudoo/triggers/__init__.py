@@ -102,12 +102,18 @@ def request_update(name: str, reason: str) -> None:
     if special is not None:
         title, kind, fn, args = special
 
-        def begin() -> jobs.Job:
+        def begin() -> jobs.Job | None:
+            if jobs.unfinished(name):  # checked again where the start happens (quotas.LOCK): see below
+                return None
             return jobs.start(name, f"{title}: {reason}", kind, fn, *args, details=details, holds_slot=True)
 
     else:
 
-        def begin() -> jobs.Job:
+        def begin() -> jobs.Job | None:
+            # a job registered a moment ago by another report of the same commit (a webhook and polling, a second
+            # delivery) is not busy() yet: it is queued, not running; under quotas.LOCK the second start sees it
+            if jobs.unfinished(name):
+                return None
             return jobs.start(
                 name, f"Automatic update: {reason}", "update", operations.update_code, name, details=details,
                 holds_slot=True,
@@ -117,7 +123,9 @@ def request_update(name: str, reason: str) -> None:
     from sudoo.instances import capacity
 
     job, why = capacity.start_admitted(name, begin)
-    if job is None:  # a running limit (or the slot record) refuses it: said so; the next push or poll tries again
+    if (
+        job is None and why is not None
+    ):  # a running limit (or the slot record) refuses it: said so; the next push or poll tries again
         audit.record("system", None, "automatic update skipped (running limit)", name, ok=False, detail=str(why)[:200])
 
 

@@ -16,6 +16,7 @@ from email.utils import formatdate, make_msgid, parseaddr
 from typing import Any
 
 from sudoo.config import settings
+from sudoo.core.shared import SharedLock
 from sudoo.core.shell import capture, succeeds
 from sudoo.core.vault import read_private, write_private
 from sudoo.instances import stages, store
@@ -28,7 +29,7 @@ CONF_KEYS = ("smtp_server", "smtp_port", "smtp_user", "smtp_password", "smtp_ssl
 MAINTAIN_SECONDS = 30.0  # settings file and network connections
 CLEAN_SECONDS = 300.0  # retention, mailboxes of deleted instances, mail servers switched off again
 
-_LOCK = threading.Lock()
+_LOCK = SharedLock("mail-catcher")
 
 
 def catches(env: Mapping[str, str]) -> bool:

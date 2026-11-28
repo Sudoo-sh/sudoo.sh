@@ -41,11 +41,11 @@ class FakeMailer:
 
 @pytest.fixture(autouse=True)
 def clean() -> Iterator[None]:
-    accounts.THROTTLE._failures.clear()
+    accounts.THROTTLE.clear()
     invitations.SEND_LIMIT.clear()
     yield
     live.change(dict.fromkeys(live.overrides()))
-    accounts.THROTTLE._failures.clear()
+    accounts.THROTTLE.clear()
     invitations.SEND_LIMIT.clear()
     for key in list(storage().all(invitations.INVITATIONS)):
         storage().delete(invitations.INVITATIONS, key)
@@ -165,9 +165,15 @@ def test_who_may_invite(app: Flask, admin: Client, operator: Client, mailbox: Fa
 def test_no_duplicate_invitations_or_accounts(admin: Client, mailbox: FakeMailer) -> None:
     client, headers = admin
     email = _address()
-    _invite(admin, email)
+    made = _invite(admin, email)
+    sent = len(mailbox.sent)
+    # asked for again at once (a second administrator, a second tab): the invitation made, no second e-mail
     twice = client.post("/api/v1/invitations", json={"email": email, "role": "viewer"}, headers=headers)
-    assert twice.status_code == 400
+    assert twice.status_code == 200 and twice.get_json()["data"]["id"] == made["id"]
+    assert twice.get_json()["meta"]["existing"] is True and len(mailbox.sent) == sent
+    storage().change(invitations.INVITATIONS, str(made["id"]), lambda found: {**found, "created": time.time() - 120})
+    later = client.post("/api/v1/invitations", json={"email": email, "role": "viewer"}, headers=headers)
+    assert later.status_code == 400  # invited earlier: send it again from the list
     taken = client.post("/api/v1/invitations", json={"email": "ada@example.com", "role": "viewer"}, headers=headers)
     assert taken.status_code == 400
 

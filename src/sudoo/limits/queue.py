@@ -17,7 +17,6 @@ starts. Its name counts as taken meanwhile (names()).
 from __future__ import annotations
 
 import logging
-import threading
 import time
 import uuid
 from collections.abc import Iterable, Mapping
@@ -25,11 +24,12 @@ from typing import Any
 
 from sudoo.config import settings
 from sudoo.core import audit
+from sudoo.core.shared import SharedLock
 from sudoo.storage import Document, storage
 
 COLLECTION = "capacity_queue"
 LOG = logging.getLogger(__name__)
-_LOCK = threading.RLock()
+_LOCK = SharedLock("capacity-queue")
 
 
 def enabled() -> bool:

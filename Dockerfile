@@ -30,6 +30,6 @@ RUN uv sync --frozen --no-dev
 COPY README.md ./documentation/README.md
 COPY docs ./documentation/docs
 
-# `sudoo.sh serve` starts gunicorn with one process (jobs, monitor and gateway share its memory), listening
+# `sudoo.sh serve` starts gunicorn with PANEL_WORKERS processes (1 by default; what they decide is shared), listening
 # where the exposure plugin needs it: 127.0.0.1 behind a tunnel, every interface when visitors connect directly.
 CMD ["sudoo.sh", "serve"]

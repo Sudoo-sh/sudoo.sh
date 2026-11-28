@@ -173,9 +173,9 @@ the small differences are within what the machine's load moves between runs.
 | gunicorn keeps its heartbeat file in `MEMORY_DIR` | On a container's disk a slow write can make gunicorn think its worker hangs. |
 
 SQLite already ran with write-ahead logging, `synchronous=NORMAL` and indexes for the audit log's filters; the
-lists have no N+1 queries left (each instance's state comes from memory). The worker model stays one process with
-32 threads: the jobs, the monitor, the gateway and the live events share their state in memory, and the live
-events and the gateway run on their own asyncio loop, so open streams cost no thread.
+lists have no N+1 queries left (each instance's state comes from memory). The worker model is one process with
+32 threads by default (`PANEL_WORKERS` for more): the live events and the gateway run on their own asyncio loop, so
+open streams cost no thread.
 
 ### Gateway
 

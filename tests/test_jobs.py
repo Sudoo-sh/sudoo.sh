@@ -76,6 +76,9 @@ def test_silent_step_releases_the_instance_lock() -> None:
         assert time.monotonic() < deadline, "the step outlived its timeout"
         time.sleep(0.02)
     assert job.status == "failed"
+    released = time.monotonic() + 2  # the end is recorded, then the lock is given back
+    while jobs.busy(NAME) and time.monotonic() < released:
+        time.sleep(0.02)
     assert not jobs.busy(NAME)
     assert NAME not in jobs.ACTIVE_JOB
 

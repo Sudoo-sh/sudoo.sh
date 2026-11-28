@@ -206,7 +206,7 @@ def for_caller(user: dict[str, str], event: Event, data: Any) -> Any:
     if topic in ("instance", "instance.deleted", "domains"):
         return data if access.sees_instance(user, key) else None
     if topic == "job":
-        job = jobs.JOBS.get(key)
+        job = jobs.find(key)
         instance = job.instance if job is not None else (data.get("instance") if isinstance(data, dict) else None)
         if not instance:  # a job whose instance is not known here (another server's): only for who sees everything
             return None

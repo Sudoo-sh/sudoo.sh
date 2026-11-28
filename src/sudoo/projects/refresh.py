@@ -137,7 +137,7 @@ def skip_reason(project: Mapping[str, Any], branch: str, name: str) -> str | Non
     production_branch = projects.branch_of(production) if production else None
     if production_branch and access.held(project, production_branch) is not None:
         return "production's branch is locked or closed by its client"
-    if jobs.busy(name):
+    if jobs.unfinished(name):  # a job queued a moment ago counts: it is not running yet
         return "it is busy with another job"
     refused = staging.rebuild_refusal(name)
     if refused:

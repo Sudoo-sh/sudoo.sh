@@ -31,12 +31,12 @@ from __future__ import annotations
 
 import copy
 import re
-import threading
 import time
 from collections.abc import Callable, Iterable, Mapping
 from typing import Any
 
 from sudoo.config import settings
+from sudoo.core.shared import SharedLock
 from sudoo.instances import stages
 from sudoo.instances.naming import slug
 from sudoo.storage import Document, storage
@@ -44,7 +44,9 @@ from sudoo.storage import Document, storage
 COLLECTION = "projects"
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
 ORIGINS = ("linked", "created", "adopted")
-LOCK = threading.RLock()  # reading and changing a project's branches and instances happen together
+LOCK = SharedLock(
+    "projects"
+)  # every worker process; reading and changing a project's branches and instances happen together
 
 OPTIONS: dict[str, str] = {
     "auto_development": "project_auto_development",

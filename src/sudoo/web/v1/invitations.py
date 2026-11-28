@@ -133,6 +133,12 @@ def invite() -> Response:
     _may_send()
     try:
         invitation_id, link = invitations.create(email, role, g.user["name"], names["first_name"], names["last_name"])
+    except invitations.AlreadyInvited as error:
+        if not error.recent:
+            abort(400, str(error))
+        # the same invitation asked for twice at the same moment (two administrators, two tabs): the one made
+        existing = invitations.get(error.invitation_id) or {}
+        return ok(resource(error.invitation_id, existing), meta={"existing": True})
     except ValueError as error:
         abort(400, str(error))
     invitation = invitations.get(invitation_id) or {}
@@ -255,15 +261,21 @@ def accept() -> Response:
     problem = accounts.password_problem(password, username, profile["email"], names)
     if problem:
         abort(400, problem)
-    used = invitations.use(token)  # atomic: a second acceptance of the same link gets nothing
-    if used is None:
-        accounts.THROTTLE.failed(ip, THROTTLE_KEY)
-        abort(410, "This invitation link does not work any more. Ask for a new one.")
-    role = str(used["role"])
-    try:
-        accounts.create(username, role, password, must_change=False, **profile)
-    except ValueError as error:
-        abort(400, str(error))
+    with invitations.ACCEPT:  # one acceptance at a time, in every process: the name is free when it is taken
+        chosen = username
+        username = accounts.username_for(profile["email"])  # another acceptance may have taken it meanwhile
+        if username != chosen and (problem := accounts.password_problem(password, username, profile["email"], names)):
+            abort(400, problem)
+        used = invitations.use(token)  # atomic: a second acceptance of the same link gets nothing
+        if used is None:
+            accounts.THROTTLE.failed(ip, THROTTLE_KEY)
+            abort(410, "This invitation link does not work any more. Ask for a new one.")
+        role = str(used["role"])
+        try:
+            accounts.create(username, role, password, must_change=False, **profile)
+        except ValueError as error:
+            invitations.give_back(_invitation_id, used)  # its link works again: nothing was made
+            abort(400, str(error))
     _join_projects(username, used)
     account = accounts.get(username) or {}
     accounts.record_sign_in(username)
@@ -276,4 +288,4 @@ def accept() -> Response:
         f"invited by {used.get('invited_by')} {int((time.time() - float(used.get('created', time.time()))) // 3600)} h ago",
     )
     g.user = {"name": username, "role": roles.normalize(role)}
-    return ok(me(), status=201)
+    return ok(me(), status=201, meta={"username": username})  # the name chosen for the account (it signs in with it)

@@ -35,16 +35,16 @@ import hashlib
 import hmac
 import json
 import secrets
-import threading
 import time
 import urllib.error
 import urllib.request
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from typing import Any
 from urllib.parse import urlencode
 
 from sudoo import accounts, invitations
 from sudoo.config import settings
+from sudoo.core.shared import SharedLock, SharedMap
 from sudoo.repos import github_app
 
 from . import methods
@@ -87,9 +87,8 @@ class GitHubUser:
     orgs: tuple[str, ...] = field(default=())
 
 
-_FLOWS: dict[str, Flow] = {}
-_LOCK = threading.Lock()
-_LINK_LOCK = threading.Lock()
+_FLOWS = SharedMap("github_sign_in_flows")  # state -> Flow: the callback may reach another worker process
+_LINK_LOCK = SharedLock("github-link")  # linking and finding accounts by GitHub id, for every process
 
 
 # ---------------------------------------------------------------- configuration
@@ -169,12 +168,11 @@ def start(purpose: str, panel_url: str, user: str | None = None) -> tuple[str, s
     state, verifier = secrets.token_urlsafe(32), secrets.token_urlsafe(64)
     redirect_uri = callback_url(panel_url)
     now = time.time()
-    with _LOCK:
-        for key in [k for k, flow in _FLOWS.items() if flow.expires < now]:
-            del _FLOWS[key]
-        while len(_FLOWS) >= MAX_FLOWS:  # a flood of starts: the oldest go first
-            del _FLOWS[min(_FLOWS, key=lambda k: _FLOWS[k].expires)]
-        _FLOWS[state] = Flow(verifier, redirect_uri, purpose, user, now + FLOW_SECONDS)
+    with _FLOWS.lock:
+        kept = _FLOWS.items()
+        for key in sorted(kept, key=lambda k: float(kept[k]["expires"]))[: max(0, len(kept) - MAX_FLOWS + 1)]:
+            _FLOWS.delete(key)  # a flood of starts: the oldest go first
+        _FLOWS.put(state, asdict(Flow(verifier, redirect_uri, purpose, user, now + FLOW_SECONDS)))
     query = urlencode(
         {
             "client_id": client_id,
@@ -192,11 +190,10 @@ def _take(state: str, expected: str) -> Flow:
     """The flow of `state`, used up; refused unless it is the one this browser started and it has not expired."""
     if not state or not expected or not hmac.compare_digest(state, expected):
         raise GitHubSignInError("This sign-in did not start in this browser. Start again.", 400)
-    with _LOCK:
-        flow = _FLOWS.pop(state, None)
-    if flow is None or flow.expires < time.time():
+    found = _FLOWS.take(state)
+    if found is None:  # unknown, used or expired
         raise GitHubSignInError("Signing in with GitHub took too long. Start again.", 400)
-    return flow
+    return Flow(**{name: found[name] for name in Flow.__dataclass_fields__})
 
 
 def _exchange(flow: Flow, code: str) -> str:
@@ -373,17 +370,23 @@ def _from_invitation(person: GitHubUser) -> str | None:
             continue
         if not (_expects(invitation, person) or _same_address(invitation, person)):
             continue
-        taken = invitations.take(invitation_id)
-        if taken is None:
-            continue
-        email = str(taken.get("email") or "") or person.email
-        role = str(taken.get("role") or "viewer")
-        if not methods.allows({"role": role}, "github"):
-            raise GitHubSignInError("Sign-in with GitHub is not offered for new accounts. Accept the e-mail.", 403)
-        name = accounts.username_for(email or f"{person.login.lower()}@github")
-        names = {k: str(taken[k]) for k in ("first_name", "last_name") if taken.get(k)} or _profile(person)
-        profile: dict[str, Any] = {**names, "email": email if not accounts.email_taken(email) else None}
-        accounts.create(name, role, "", None, **profile)
+        with invitations.ACCEPT:  # the name is chosen and the account made one acceptance at a time
+            taken = invitations.take(invitation_id)
+            if taken is None:
+                continue
+            email = str(taken.get("email") or "") or person.email
+            role = str(taken.get("role") or "viewer")
+            if not methods.allows({"role": role}, "github"):
+                invitations.give_back(invitation_id, taken)
+                raise GitHubSignInError("Sign-in with GitHub is not offered for new accounts. Accept the e-mail.", 403)
+            name = accounts.username_for(email or f"{person.login.lower()}@github")
+            names = {k: str(taken[k]) for k in ("first_name", "last_name") if taken.get(k)} or _profile(person)
+            profile: dict[str, Any] = {**names, "email": email if not accounts.email_taken(email) else None}
+            try:
+                accounts.create(name, role, "", None, **profile)
+            except ValueError:
+                invitations.give_back(invitation_id, taken)  # its link works again: nothing was made
+                raise
         accounts.update(name, invited_by=taken.get("invited_by"))
         return name
     return None

@@ -87,7 +87,8 @@ def test_a_token_is_for_one_instance_and_used_up_by_a_wrong_try() -> None:
 
 def test_tokens_are_kept_only_as_digests() -> None:
     token, _ = connect_as.issue("cdev", 7, "sam", "admin1")
-    assert token not in connect_as._GRANTS and connect_as._digest(token) in connect_as._GRANTS
+    kept = connect_as._GRANTS.items()
+    assert token not in kept and connect_as._digest(token) in kept
     assert connect_as.redeem("cdev", "") is None and connect_as.redeem("cdev", "x" * 500) is None
 
 
@@ -157,7 +158,7 @@ def test_viewers_and_developers_cannot_connect(viewer: Client, operator: Client)
     for client, headers in (viewer, operator):
         assert client.get("/api/v1/instances/cdev/odoo-users").status_code == 403
         assert client.post("/api/v1/instances/cdev/connect", json={"uid": 2}, headers=headers).status_code == 403
-    assert not connect_as._GRANTS
+    assert not connect_as._GRANTS.items()
 
 
 # ---------------------------------------------------------------- the gateway

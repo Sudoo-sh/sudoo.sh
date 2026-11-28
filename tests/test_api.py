@@ -25,7 +25,7 @@ def fresh_throttle() -> None:
     """Refused calls are counted per address (5 in 15 minutes block it); every test starts from zero."""
     from sudoo import accounts
 
-    accounts.THROTTLE._failures.clear()
+    accounts.THROTTLE.clear()
 
 
 class Caller:

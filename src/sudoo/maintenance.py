@@ -55,14 +55,15 @@ import re
 import threading
 import time
 import uuid
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from datetime import datetime, timedelta
 from datetime import time as clock
 from typing import Any
 
 from sudoo import accounts
 from sudoo.config import settings
-from sudoo.core import audit
+from sudoo.core import audit, vault
+from sudoo.core.shared import SharedLock
 from sudoo.storage import Document, storage
 
 log = logging.getLogger(__name__)
@@ -99,8 +100,8 @@ TITLES = {
     "restart": ("Restart", "إعادة تشغيل"),
     "custom": ("Maintenance work", "أعمال صيانة"),
 }
-_LOCK = threading.RLock()
-_RUNNING = threading.Lock()  # one item runs at a time
+_LOCK = SharedLock("maintenance")
+_RUNNING = SharedLock("maintenance-running", reentrant=False)  # one item runs at a time, in every process
 _WAKE = threading.Event()
 
 
@@ -453,7 +454,7 @@ def sync(claimed: Any, now: float | None = None) -> None:
         if status == "cancelled" and current.get("status") in CHOOSABLE:
             _cancel(current, now)
         elif status == "failed" and current.get("status") in CHOOSABLE:
-            _finish(current["id"], "failed", "Sudoo.sh marked it as failed.", now, report=False)
+            _finish(current["id"], "failed", "Sudoo.sh marked it as failed.", now, report=False, statuses=CHOOSABLE)
         elif raw.get("window_source") == "account" and current.get("status") in CHOOSABLE:
             _adopt_account_window(current, raw, now)
 
@@ -471,7 +472,14 @@ def _adopt_account_window(current: Document, raw: Mapping[str, Any], now: float)
     if not float(current["earliest_start"]) <= start <= float(current["deadline"]):
         return
     who = str(raw.get("chosen_by") or "the account's owner")[:200]
-    _set_window(current["id"], start, "account", who, now, report=False)
+
+    def still_older(doc: Document) -> bool:  # a choice made here meanwhile is the newer one
+        waiting = any(r.get("status") == "scheduled" for r in doc.get("outbox") or [])
+        return not waiting and float(doc.get("chosen_at") or 0) < changed_at
+
+    found = _set_window(current["id"], start, "account", who, now, report=False, still=still_older)
+    if found.get("window_source") != "account" or found.get("chosen_at") != now:
+        return
     audit.record(WHO, None, "maintenance window chosen on app.sudoo.sh", detail=f"{title(current)}: {when(start)}")
 
 
@@ -490,10 +498,12 @@ def _cancel(current: Document, now: float) -> None:
 
 
 def _set_window(item_id: str, start: float, source: str, chosen_by: str | None, now: float,
-                report: bool = True) -> Document:  # fmt: skip
+                report: bool = True, still: Callable[[Document], bool] | None = None) -> Document:  # fmt: skip
+    """`still(doc)`: judged on the item as it is stored now, whether the window is still to be set (a default or the
+    hub's choice is never set over a choice made meanwhile); the caller compares the result's chosen_at with `now`."""
 
     def apply(doc: Document | None) -> Document | None:
-        if doc is None or doc.get("status") not in CHOOSABLE:
+        if doc is None or doc.get("status") not in CHOOSABLE or (still is not None and not still(doc)):
             return doc
         changed = {
             **doc,
@@ -678,13 +688,14 @@ def _apply_default(doc: Document, now: float) -> None:
         elif doc.get("required"):
             start = now + int(settings.maintenance_lead_minutes) * 60  # past the deadline already: as soon as possible
         else:
-            _finish(doc["id"], "failed", "Nobody chose a time and the deadline passed.", now)
+            _finish(doc["id"], "failed", "Nobody chose a time and the deadline passed.", now, statuses=("proposed",))
             return
-    _set_window(doc["id"], start, "default", None, now)
+    # only while nobody chose (the tick read the item before; a choice made since stays, and nothing is announced)
+    found = _set_window(doc["id"], start, "default", None, now, still=lambda current: current["status"] == "proposed")
+    if found.get("window_source") != "default" or found.get("chosen_at") != now:
+        return
     audit.record(WHO, None, "maintenance window chosen by default", detail=f"{title(doc)}: {when(start)}")
-    found = get(doc["id"])
-    if found is not None:
-        _mail(found, "maintenance_reminder", default=True)
+    _mail(found, "maintenance_reminder", default=True)
 
 
 def reminder_hours() -> list[float]:
@@ -804,10 +815,9 @@ def _request_update(item: Document) -> Document | None:
     if _version_reached(version):
         return _finish(item["id"], "done", f"The panel runs version {version} already.", time.time(),
                        steps_status="done")  # fmt: skip
-    request_file = settings.manager_dir / REQUEST_FILE
-    request_file.write_text(
-        json.dumps({"version": version, "maintenance": item["id"], "requested_at": round(time.time())})
-    )
+    # moved into place whole: the host's updater never reads it half written
+    vault.write_private(settings.manager_dir / REQUEST_FILE,
+                        json.dumps({"version": version, "maintenance": item["id"], "requested_at": round(time.time())}))  # fmt: skip
     _step(
         item["id"], {"key": "update", "name": f"Waiting for the panel to be updated to {version}", "status": "running"}
     )
@@ -832,13 +842,25 @@ def _version_reached(version: str) -> bool:
 def _check_update(doc: Document, now: float) -> None:
     version = str(doc["version"])
     if _version_reached(version):
-        (settings.manager_dir / REQUEST_FILE).unlink(missing_ok=True)
+        _drop_request(str(doc["id"]))
         _finish(doc["id"], "done", f"The panel runs version {version}.", now, steps_status="done")
     elif now > float(doc.get("started_at") or now) + float(settings.maintenance_update_wait_hours) * 3600:
-        (settings.manager_dir / REQUEST_FILE).unlink(missing_ok=True)
+        _drop_request(str(doc["id"]))
         _finish(doc["id"], "failed",
                 f"The panel was not updated to {version} in time. Run sudoo-install update --version {version} on "
                 "the server.", now)  # fmt: skip
+
+
+def _drop_request(item_id: str) -> None:
+    """Remove the update request when it is this item's: a later item's request (another update, asked while this
+    one waited) stays for the host's updater."""
+    path = settings.manager_dir / REQUEST_FILE
+    try:
+        found = json.loads(path.read_text())
+    except (OSError, ValueError):
+        found = {}
+    if not isinstance(found, dict) or found.get("maintenance") in (None, item_id):
+        path.unlink(missing_ok=True)
 
 
 def _restart_panel(item: Document) -> Document | None:
@@ -955,10 +977,14 @@ def _wait(job: Any, limit_hours: float = 12) -> None:
 
 
 def _finish(item_id: str, status: str, detail: str, now: float, report: bool = True,
-            steps_status: str | None = None) -> Document | None:  # fmt: skip
+            steps_status: str | None = None, statuses: tuple[str, ...] | None = None) -> Document | None:  # fmt: skip
+    """`statuses`: finish only an item in one of them as it is stored now (the caller's decision was made on an
+    earlier read: an item that started running or was chosen meanwhile is left as it is)."""
 
     def apply(doc: Document | None) -> Document | None:
         if doc is None or doc.get("status") in ("done", "failed", "cancelled"):
+            return doc
+        if statuses is not None and doc.get("status") not in statuses:
             return doc
         steps = doc.get("steps") or []
         if steps_status:

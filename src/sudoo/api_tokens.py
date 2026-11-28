@@ -35,10 +35,10 @@ import re
 import secrets
 import threading
 import time
-from collections import deque
 from typing import Any
 
 from sudoo.core import vault
+from sudoo.core.shared import SharedLock, SharedMap
 from sudoo.storage import storage
 
 SCOPES = {
@@ -51,9 +51,9 @@ ACTING_FOR_RE = re.compile(r"^[A-Za-z0-9._@+-]{1,120}$")
 TOKEN_RE = re.compile(r"^sudoo_([0-9a-f]{12})_([A-Za-z0-9_-]{43})$")
 NAME_RE = re.compile(r"^[A-Za-z0-9 ._-]{3,40}$")
 MAX_CLOCK_SKEW_SECONDS = 300
-_LOCK = threading.Lock()
-_NONCES: set[str] = set()  # nonces seen within the last 2 * MAX_CLOCK_SKEW_SECONDS
-_NONCE_ORDER: deque[tuple[float, str]] = deque()  # (time it may be forgotten, nonce), oldest first
+_LOCK = SharedLock("api-tokens")  # a unique name: the check and the new token together, for every process
+_NONCES = SharedMap("api_nonces")  # nonces seen within the last 2 * MAX_CLOCK_SKEW_SECONDS, for every process
+_LAST_LOCK = threading.Lock()
 LAST_USED_EVERY_SECONDS = 60  # "last used" is written at most this often per token, not on every call
 _LAST_WRITTEN: dict[str, float] = {}
 
@@ -171,23 +171,24 @@ def verify(
 
 
 def _remember_nonce(nonce: str) -> None:
-    """Refuse a nonce seen before (a replayed request). Nonces are forgotten once their timestamp would be refused:
-    they expire in the order they arrived, so forgetting costs nothing per call however many there are."""
+    """Refuse a nonce seen before (a replayed request), by any worker process: checked and recorded in one write.
+    Nonces are forgotten once their timestamp would be refused."""
     now = time.time()
-    with _LOCK:
-        while _NONCE_ORDER and _NONCE_ORDER[0][0] < now:
-            _NONCES.discard(_NONCE_ORDER.popleft()[1])
-        if nonce in _NONCES:
+
+    def first_time(seen: dict[str, Any] | None) -> dict[str, Any]:
+        if seen is not None:
             raise PermissionError("This request was already received (X-Sudoo-Nonce used before).")
-        _NONCES.add(nonce)
-        _NONCE_ORDER.append((now + 2 * MAX_CLOCK_SKEW_SECONDS, nonce))
+        return {"expires": now + 2 * MAX_CLOCK_SKEW_SECONDS}
+
+    _NONCES.change(nonce, first_time)
+    _NONCES.prune()
 
 
 def _mark_used(token_id: str) -> None:
     """Record when the token was last used, to the minute: a write on every call would serialise all API calls on
     the storage's write lock."""
     now = time.time()
-    with _LOCK:
+    with _LAST_LOCK:
         if now - _LAST_WRITTEN.get(token_id, 0) < LAST_USED_EVERY_SECONDS:
             return
         _LAST_WRITTEN[token_id] = now

@@ -1154,13 +1154,13 @@ def connect_repository(job: Job, name: str, repo: str, branch: str, install_modu
         entry.rename(addons / entry.name)
     clone.rmdir()
     env = store.read_env(name)
-    env.pop("SOURCE", None)
-    env["GIT_BRANCH"] = branch
     from sudoo import projects  # late: projects/ reads instances' files through this package
 
     project = projects.for_repository(str(github.repo_name(repo)), env["ODOO_VERSION"], env["EDITION"], job.user)
-    env["PROJECT"] = project["id"]  # it joins its repository's project
-    store.write_env(name, env)
+    # it joins its repository's project: one step with any other change of .env made meanwhile
+    store.change_env(name, lambda found: {**{k: v for k, v in found.items() if k != "SOURCE"},
+                                          "GIT_BRANCH": branch, "PROJECT": project["id"]})  # fmt: skip
+    env = store.read_env(name)
     if not (project.get("branches") or {}).get(branch, {}).get("stage"):
         projects.record_branch(project["id"], branch, stage=stages.of(env), changed_by=job.user)
     STATE.update(name, branch_missing=False)

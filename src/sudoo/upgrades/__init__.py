@@ -27,12 +27,12 @@ see resource(). The subscription code is never stored: it lives in the job's mem
 from __future__ import annotations
 
 import re
-import threading
 import time
 from collections.abc import Callable
 from typing import Any
 
 from sudoo.config import settings
+from sudoo.core.shared import SharedLock
 from sudoo.instances import odoo, stages, store
 from sudoo.storage import Document, storage
 
@@ -42,7 +42,7 @@ TERMS_URL = "https://www.odoo.com/documentation/18.0/legal/terms/enterprise.html
 """Odoo's Enterprise Subscription Agreement, Upgrade Services: shown (and accepted) before Odoo's service is used."""
 STATES = ("checked", "testing", "tested", "test_failed", "promoting", "promoted", "promotion_failed", "rolled_back")
 HISTORY_KEPT = 50
-LOCK = threading.RLock()
+LOCK = SharedLock("upgrades")
 
 
 class Secret:

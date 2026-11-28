@@ -1052,8 +1052,7 @@ def run(name: str, action: str) -> Response:
                 log("Start (waiting for capacity)", instance=name)
                 return _queued(waiting)
         job = jobs.start(name, title, kind, fn, *args, user=g.user["name"], details=build,
-                         holds_slot=True if action in STARTING_ACTIONS else None)  # fmt: skip
-        job.request_key = key
+                         holds_slot=True if action in STARTING_ACTIONS else None, request_key=key)  # fmt: skip
     log(title, instance=name)
     return _accepted(job)
 

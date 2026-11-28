@@ -106,6 +106,7 @@ class Job:
         self._request_key: str | None = None
         self.remote = False  # a job of another worker process, read from the shared record (_from_record)
         self.shared = False  # registered by start(): its record is kept for every worker process
+        self._share_lock = threading.Lock()  # its record is written one change at a time, each with its latest state
 
     @property
     def request_key(self) -> str | None:
@@ -115,6 +116,8 @@ class Job:
     @request_key.setter
     def request_key(self, key: str | None) -> None:
         self._request_key = key
+        if key and self.shared and not self.remote:
+            _claim_request(key, self)
         _share(self)
 
     def expect(self, steps: int) -> None:
@@ -365,6 +368,7 @@ def start(
     details: dict[str, Any] | None = None,
     holds_slot: bool | None = None,
     prepare: Callable[[], None] | None = None,
+    request_key: str | None = None,
 ) -> Job:
     """Run fn(job, *args) in the background for `instance` and return the Job.
 
@@ -387,6 +391,8 @@ def start(
         if prepare is not None:
             prepare()
         job.shared = True  # from now on every worker process sees it (_share)
+        if request_key:  # claimed before the job starts (the caller holds quotas.LOCK): same_request finds it
+            job.request_key = request_key
         with _JOBS_LOCK:
             JOBS[job.id] = job
             if holds:
@@ -626,9 +632,31 @@ def any_unfinished() -> bool:
     return bool(ACTIVE_JOB) or bool(_live_jobs())
 
 
+_REQUESTS = shared.SharedMap("job_requests")  # request key -> {"job": id}: claimed when the job is registered
+REQUEST_SECONDS = 7 * 86400  # a claim outlives any job; it counts only while its job is queued or running
+
+
+def _claim_request(key: str, job: Job) -> None:
+    """Record that `job` is the job of request `key`, in the panel's storage (every worker process sees it)."""
+    _REQUESTS.put(key, {"job": job.id, "expires": time.time() + REQUEST_SECONDS})
+
+
 def same_request(key: str) -> Job | None:
     """The job started by the same request (web/v1/instances.py request_key) that is queued or running, in any worker
-    process: a request sent twice (two tabs, a double click, a client that retries) answers with that job."""
+    process: a request sent twice (two tabs, a double click, a client that retries) answers with that job. The claim
+    is written when the job is registered, under quotas.LOCK like this check, so two requests at once find it."""
+    claim = _REQUESTS.get(key)
+    if claim is not None:
+        job_id = str(claim.get("job") or "")
+        with _JOBS_LOCK:
+            local = JOBS.get(job_id) or _HELD.get(job_id)
+        if local is not None:
+            if local.status in ("queued", "running"):
+                return local
+        else:
+            record = storage().get(LIVE, job_id)
+            if record is not None and _alive(record.get("owner")):
+                return _from_record(record["job"])
     return next((j for j in _live_jobs() if j.request_key == key), None)
 
 
@@ -694,6 +722,11 @@ def _share(job: Job) -> None:
     or running on an instance, a creation, the same request sent twice). Never fails the job."""
     if not job.shared or job.remote:
         return
+    with job._share_lock:  # one write at a time, each with the job as it is then: an older copy never wins
+        _write_record(job)
+
+
+def _write_record(job: Job) -> None:
     try:
         record = {name: getattr(job, name) for name in _FIELDS}
         record["details"] = _json_safe(job.details) or {}

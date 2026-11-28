@@ -312,20 +312,22 @@ def test_one_process_runs_the_background_work_and_another_takes_it_over(tmp_path
     ran = tmp_path / "leader"
     lead_file = f"leader-{uuid.uuid4().hex[:6]}.lock"
     code = f"""
-import os, sys, time
+import os, sys, threading, time
 from sudoo.core import shared
 shared.LEADER_RETRY_SECONDS = 0.2
 shared.LEADER_FILE = {lead_file!r}  # not the test session's own leadership
+led = threading.Event()
 def work():
     with open({str(ran)!r}, "a") as fh:
         fh.write(str(os.getpid()) + "\\n")
+    led.set()
 print("ready", flush=True)
 sys.stdin.readline()
 shared.when_leader(work)
-print(os.getpid(), flush=True)
-time.sleep(1.5)
+led.wait(20)  # the one that leads first ends a moment after; the other then takes the work over
+time.sleep(0.5)
 """
-    first, second = child(code), child(code.replace("time.sleep(1.5)", "time.sleep(4)"))
+    first, second = child(code), child(code)
     try:
         for proc in (first, second):
             assert proc.stdout is not None and proc.stdout.readline().strip() == "ready"
@@ -333,8 +335,8 @@ time.sleep(1.5)
             assert proc.stdin is not None
             proc.stdin.write("go\n")
             proc.stdin.flush()
-        first.wait(30)
-        second.wait(30)
+        first.wait(40)
+        second.wait(40)
     finally:
         for proc in (first, second):
             if proc.poll() is None:

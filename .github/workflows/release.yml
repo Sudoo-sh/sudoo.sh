@@ -37,7 +37,7 @@ concurrency:
 
 env:
   # Sudoo-sh/sudoo-installer, main with the F-08 join token sweep (f0b40635)
-  INSTALLER_REF: f0b40635ac0bdd2ec516669f09acf1ae5836abf0
+  INSTALLER_REF: 4032d1c432779cad489b9d15e03e11096917b3fc
 
 jobs:
   version:

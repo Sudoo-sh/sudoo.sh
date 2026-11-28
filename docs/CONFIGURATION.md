@@ -486,6 +486,7 @@ with `EXPOSURE=direct`. Every value here can be changed on the Settings page exc
 | Setting | Type | Default | Applies | Meaning |
 | :--- | :--- | :--- | :--- | :--- |
 | `PANEL_PORT` | int | `9000` | `.env` only | Port of the panel: the web app (container `sudoo-web`) listens here. |
+| `PANEL_WORKERS` | int | `1` | `.env` only | Worker processes of the backend (gunicorn), 1 to 16, each with 32 threads. Everything that decides correctness (sign-in limits, jobs, one-time codes, settings, locks) is shared by them; one at a time runs the background work, the gateway link and the live events, and another takes over when it stops. |
 | `API_PORT` | int | `9002` | `.env` only | Port of the backend (container `sudoo-panel`), on 127.0.0.1 only; the web app forwards `/api`, `/hooks` and `/docs` to it. |
 | `EVENTS_PORT` | int | `9001` | `.env` only | Port of the live event stream (`/api/v1/events`), on 127.0.0.1 only. |
 | `GATEWAY_PORT_START` | int | `8069` | `.env` only | First gateway port (one per instance). |

@@ -32,6 +32,7 @@ from typing import Any
 
 from sudoo.config import settings
 from sudoo.core import events, vault
+from sudoo.core.shared import SharedLock
 from sudoo.storage import storage
 
 COLLECTION = "domains"
@@ -43,7 +44,7 @@ CERTS = "certs"
 SERVER_CERT = "_server"  # certs/_server.pem: the panel's own certificate (panel_address.py), never a domain
 CHALLENGES = "acme-challenge"
 
-_LOCK = threading.RLock()
+_LOCK = SharedLock("custom-domains")
 WAKE = threading.Event()  # set when something changed that the domains package's worker should look at now
 _CACHE: dict[str, dict[str, Any]] | None = None
 

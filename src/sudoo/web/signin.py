@@ -58,7 +58,7 @@ def restriction(account: dict[str, Any], first: str = "password", skip_second: b
 
 
 def _refuse_if_throttled(ip: str, name: str) -> None:
-    wait = accounts.THROTTLE.seconds_to_wait(ip, name)
+    wait = accounts.THROTTLE.try_now(ip, name)  # reserved: guesses sent together count like one after another
     if wait:
         audit.record(name, ip, "sign-in refused (too many attempts)", ok=False)
         abort(429, f"Too many failed attempts. Try again in {max(1, wait // 60)} minutes.")

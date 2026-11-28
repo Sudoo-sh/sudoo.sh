@@ -24,10 +24,10 @@ ORIGIN = {"Origin": "http://localhost"}
 
 @pytest.fixture(autouse=True)
 def clean() -> Iterator[None]:
-    accounts.THROTTLE._failures.clear()
+    accounts.THROTTLE.clear()
     yield
     live.change(dict.fromkeys(live.overrides()))
-    accounts.THROTTLE._failures.clear()
+    accounts.THROTTLE.clear()
 
 
 def _user(role: str = "admin") -> tuple[str, str]:

@@ -262,7 +262,10 @@ def opened(
                      detail=f"{project['id']} #{number} {facts['repository']}")  # fmt: skip
         return {"preview": None, "reason": "pull requests from forks get no preview in this project"}
     with quotas.LOCK, projects.LOCK:
-        project = projects.get(str(project["id"])) or project
+        current = projects.get(str(project["id"]))
+        if current is None:  # deleted meanwhile (web/v1/projects.py delete_project holds the same locks)
+            return {"preview": None, "reason": "the project was deleted"}
+        project = current
         known = records(project).get(str(number))
         name = (known or {}).get("instance")
         if name and (store.exists(name) or jobs.creating(name)):

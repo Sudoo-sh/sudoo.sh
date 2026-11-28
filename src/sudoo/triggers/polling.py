@@ -14,6 +14,7 @@ import time
 from flask import Blueprint
 
 from sudoo.config import Settings
+from sudoo.core import jobs
 from sudoo.core.shell import capture
 from sudoo.core.state import STATE
 from sudoo.instances import store
@@ -37,8 +38,19 @@ class Polling:
         while True:
             time.sleep(self.settings.poll_minutes * 60)
             for name in store.names():
-                if self.has_new_commits(name):
+                if self.idle_and_new(name):
                     request_update(name, "new code on GitHub")
+
+    def idle_and_new(self, name: str) -> bool:
+        """has_new_commits(), only while no job works on the instance, and holding its lock while git fetches: a
+        fetch never runs in a checkout a job is fetching, resetting or removing. A busy instance is polled next time."""
+        lock = jobs.INSTANCE_LOCKS[name]
+        if jobs.unfinished(name) or not lock.acquire(blocking=False):
+            return False
+        try:
+            return self.has_new_commits(name)
+        finally:
+            lock.release()  # before the update is asked for: it runs as a job that takes this lock
 
     @staticmethod
     def has_new_commits(name: str) -> bool:

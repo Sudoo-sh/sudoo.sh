@@ -71,6 +71,8 @@ class EventBus:
         self._subscribers: set[Subscription] = set()
         self._presenters: dict[str, Presenter] = {}
         self._listeners: list[tuple[frozenset[str], Listener]] = []
+        # hands an event over to the process that serves the stream (core/event_bridge.py), when this one does not
+        self.forward: Callable[[str, str, Any], None] | None = None
 
     def listen(self, topics: frozenset[str], listener: Listener) -> None:
         """Call `listener(event)` in the publishing thread for every event of `topics` (its data may be None: build it
@@ -81,8 +83,10 @@ class EventBus:
         """Build the data of `topic` events from their key, when the publisher gives none."""
         self._presenters[topic] = presenter
 
-    def publish(self, topic: str, key: str = "", data: Any = None) -> Event | None:
-        """Send an event to every subscriber. Safe from any thread; never raises (a failing presenter is logged)."""
+    def publish(self, topic: str, key: str = "", data: Any = None, forwarded: bool = False) -> Event | None:
+        """Send an event to every subscriber. Safe from any thread; never raises (a failing presenter is logged).
+        `forwarded`: published in another worker process (core/event_bridge.py), whose listeners have had it: only
+        the subscribers here get it."""
         if data is None and topic in self._presenters and self._subscribers:  # with no one listening, it is
             try:  # built later, only if a client that reconnects asks for it (data_of)
                 data = self._presenters[topic](key)
@@ -94,7 +98,9 @@ class EventBus:
             self._next_id += 1
             self._recent.append(event)
             subscribers = list(self._subscribers)
-        for topics, listener in self._listeners:
+        if not forwarded and self.forward is not None:
+            self.forward(topic, key, data)
+        for topics, listener in self._listeners if not forwarded else ():
             if topic in topics:
                 try:
                     listener(event)

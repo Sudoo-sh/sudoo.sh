@@ -35,7 +35,7 @@ def developer(app: Flask, admin: Client) -> Caller:
 
 @pytest.fixture(autouse=True)
 def clean(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
-    accounts.THROTTLE._failures.clear()
+    accounts.THROTTLE.clear()
     monkeypatch.setattr(quotas, "claim", lambda user: None)
     _instance(SHOP)
     yield
@@ -45,7 +45,7 @@ def clean(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     for key in list(storage().all(projects.COLLECTION)):
         projects.remove(key)
     live.change(dict.fromkeys(live.overrides()))
-    accounts.THROTTLE._failures.clear()
+    accounts.THROTTLE.clear()
 
 
 @pytest.fixture

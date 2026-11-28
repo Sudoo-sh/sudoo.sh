@@ -143,9 +143,8 @@ def test(name: str) -> Response:
     if existing and store.read_env(existing).get("ODOO_VERSION") == target:
         # the test instance is overwritten: the caller needs to be able to restore it (its branch's access and lock)
         refuse_unless("instances.restore", f"run the upgrade test of {name} again on {existing}", instance=existing)
-        if jobs.busy(existing):
-            abort(409, f"{existing} is busy; try again when its job has finished.")
         with quotas.LOCK:  # the test instance is started again: its own owner and stage count
+            instances_api.refuse_busy(existing, f"{existing} is busy; try again when its job has finished.")
             instances_api.admit_start(existing, f"upgrade test of {name} refused (running instances)")
             job = jobs.start(existing, f"Run the Odoo {target} upgrade test again", "upgrade-test", upgrade_run.rerun,
                              existing, name, code, user=g.user["name"], holds_slot=True)  # fmt: skip
@@ -163,6 +162,8 @@ def _create_test(name: str, target: str, doc: dict[str, Any], code: Secret | Non
     if project is not None:  # an instance of the upgrade branch: the caller's access in that branch
         instances_api._refuse_in_branch("instances.create", project, str(branch), f"test the upgrade of {name}")
     with quotas.LOCK:  # from the limits until the test instance's job is registered: two tests cannot both pass
+        if (upgrades.get(name) or {}).get("state") in BUSY_STATES:  # one started a moment ago (sent twice)
+            abort(409, "A test or an upgrade of this instance is running already.")
         instances_api._refuse_over_capacity(
             "upgrade test refused (running instances)", stages.STAGING, g.user["name"], queued=False
         )  # the answer is needed now: an upgrade test does not wait in the capacity queue
@@ -220,9 +221,8 @@ def promote(name: str) -> Response:
     instances_api.refuse_unlinked("upgrading instances", f"upgrade of {name} refused (panel not linked)")
     _refuse_production_branch(name, str(doc.get("branch") or ""))
     code = _code(name, data)
-    if jobs.busy(name):
-        abort(409, f"{name} is busy; try again when its job has finished.")
-    with quotas.LOCK:
+    with quotas.LOCK:  # the busy check where jobs are registered: an upgrade sent twice starts once
+        instances_api.refuse_busy(name, f"{name} is busy; try again when its job has finished.")
         instances_api.admit_start(name, f"upgrade of {name} refused (running instances)")
         job = jobs.start(name, f"Upgrade to Odoo {target}", "db-upgrade", upgrade_run.promote, name, code,
                          user=g.user["name"], holds_slot=True)  # fmt: skip
@@ -255,9 +255,8 @@ def cancel(name: str) -> Response:
     if not upgrades.rollback_open(upgrades.get(name)):
         abort(409, "There is no upgrade of this instance that can still be cancelled.")
     _confirm_production(name, data, "cancel its upgrade (its data goes back to before the upgrade)")
-    if jobs.busy(name):
-        abort(409, f"{name} is busy; try again when its job has finished.")
-    with quotas.LOCK:
+    with quotas.LOCK:  # the busy check where jobs are registered: a cancel sent twice runs once
+        instances_api.refuse_busy(name, f"{name} is busy; try again when its job has finished.")
         instances_api.admit_start(name, f"cancel of the upgrade of {name} refused (running instances)")
         job = jobs.start(name, "Cancel the Odoo upgrade", "db-upgrade", upgrade_run.cancel, name, "",
                          user=g.user["name"], holds_slot=True)  # fmt: skip

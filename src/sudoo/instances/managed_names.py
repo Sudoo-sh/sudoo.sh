@@ -103,7 +103,7 @@ def moving(name: str) -> bool:
     from sudoo.core import jobs
 
     return any(
-        j.kind == "move" and j.instance == name and j.status in ("queued", "running") for j in list(jobs.JOBS.values())
+        j.kind == "move" and j.instance == name and j.status in ("queued", "running") for j in jobs.all_jobs(name)
     )
 
 

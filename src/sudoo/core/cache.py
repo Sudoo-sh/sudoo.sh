@@ -1,7 +1,7 @@
 """Small in-process caches for what the panel reads again and again: files, the output of slow commands, answers.
 
-The panel is one process (docs/ARCHITECTURE.md), so these caches need no server and are always consistent with
-each other. Each says exactly when its value stops being valid:
+Each worker process has its own (core/shared.py keeps what must be the same in every process); none decides
+correctness, so they need no server. Each says exactly when its value stops being valid:
 
     FileMemo       a value read from a file, kept while the file is the same one, with the same size and the same
                    modification time; a file changed in the last second is read every time ("racy": the file

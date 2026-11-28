@@ -73,7 +73,6 @@ Everything is in the audit log, scoped to the project (core/audit.py), and the c
 from __future__ import annotations
 
 import secrets
-import threading
 import time
 from collections.abc import Iterable, Mapping
 from typing import Any
@@ -81,6 +80,7 @@ from typing import Any
 from sudoo import accounts, roles
 from sudoo.config import settings
 from sudoo.core import audit, events
+from sudoo.core.shared import SharedLock
 from sudoo.storage import Document, storage
 
 STATES = ("open", "closed", "timed")
@@ -96,7 +96,7 @@ MAX_PASSES = 100
 FORGET_REQUESTS_DAYS = 90  # answered requests stay listed this long
 TOPIC = "client"  # live events: a project's client part or its requests changed (key: the project's id)
 _BASE = frozenset({"instances.view", "instances.logs"})
-_LOCK = threading.RLock()
+_LOCK = SharedLock("clients")
 
 
 class ClientError(Exception):
@@ -352,6 +352,13 @@ def add_client(project_id: str, name: str, by: str, backups: bool = False, shell
     """Make the client account `name` a client of the project, or change what it is given."""
     from sudoo import projects
 
+    with projects.LOCK:  # the checks and the change together: two additions at once stay within the limits
+        return _add_client(project_id, name, by, backups, shell)
+
+
+def _add_client(project_id: str, name: str, by: str, backups: bool, shell: bool) -> Document:
+    from sudoo import projects
+
     account = accounts.get(name)
     if account is None or roles.normalize(str(account.get("role"))) != roles.CLIENT:
         raise ClientError(f"{name} is not a client account.", 400)
@@ -382,6 +389,13 @@ def add_client(project_id: str, name: str, by: str, backups: bool = False, shell
 
 
 def remove_client(project_id: str, name: str, by: str) -> Document:
+    from sudoo import projects
+
+    with projects.LOCK:  # two removals at once never leave a closed project without its client
+        return _remove_client(project_id, name, by)
+
+
+def _remove_client(project_id: str, name: str, by: str) -> Document:
     from sudoo import projects
 
     project = projects.get(project_id)

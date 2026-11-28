@@ -30,6 +30,7 @@ from flask import Response, abort, jsonify, request
 from sudoo.config import Settings
 from sudoo.core.state import STATE
 from sudoo.repos import github_app
+from sudoo.triggers import deliveries
 from sudoo.triggers.github_webhook import GitHubWebhook
 
 
@@ -54,6 +55,13 @@ class GitHubAppWebhook(GitHubWebhook):
         payload: dict[str, Any] = request.get_json(silent=True) or {}
         if event == "ping":
             return jsonify(ok=True, message="Webhook received. Pushes will update the matching instances.")
+        return deliveries.once(  # the same delivery (or the same push sent by a webhook too) is handled once
+            deliveries.keys_of(request.headers.get("X-GitHub-Delivery"), event, payload),
+            lambda: self.handle(event, payload),
+            lambda: jsonify(ok=True, duplicate=True, message="Delivered already: it was handled once."),
+        )
+
+    def handle(self, event: str, payload: dict[str, Any]) -> Response:
         if event == "push":
             return self.push(payload)
         if event in ("create", "delete") and payload.get("ref_type") == "branch":

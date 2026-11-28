@@ -34,12 +34,12 @@ import re
 import secrets
 import threading
 import time
-from collections import deque
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from typing import Any
 
 from sudoo.config import settings
 from sudoo.core import vault
+from sudoo.core.shared import SharedLock
 from sudoo.roles import LABELS
 from sudoo.storage import Document, storage
 
@@ -107,7 +107,7 @@ SEQUENCES = (  # a password containing five characters in a row of one of these 
 _SCRYPT = {"n": 2**15, "r": 8, "p": 1}  # 32 MB of memory and about 0.1 s per hash
 _MAXMEM = 64 * 1024 * 1024
 _ALGORITHM = "scrypt-peppered"
-_LOCK = threading.Lock()
+_LOCK = SharedLock("accounts")  # every worker process: the last super admin, first-run setup
 REASON_MAX = 300  # characters of the reason an account is disabled or enabled for (kept whole)
 
 
@@ -223,14 +223,57 @@ def _change(username: str, **values: Any) -> Document:
     return storage().change(USERS, username, apply) or {}
 
 
+EMAIL_TAKEN = "Another account already uses this e-mail address."
+
+
 def update(username: str, **values: Any) -> Document:
-    """Change fields of an account (email, second factors, ...); None removes a field."""
+    """Change fields of an account (email, second factors, ...); None removes a field. A new e-mail address another
+    account uses is refused inside the write (ValueError), so two changes at once cannot share one."""
 
     def apply(user: Document | None) -> Document:
         if user is None:
             raise ValueError("No such account.")
+        if values.get("email") and email_taken(values["email"], other_than=username):
+            raise ValueError(EMAIL_TAKEN)
         merged = {**user, **values}
         return {key: value for key, value in merged.items() if value is not None}
+
+    return storage().change(USERS, username, apply) or {}
+
+
+def update_factors(
+    username: str,
+    before: Mapping[str, Any],
+    fields: Mapping[str, Any],
+    refuse: Callable[[Document], str | None] | None = None,
+) -> Document:
+    """update() for a second factor set up, replaced or removed: `fields` were worked out from the account as it
+    was (`before`), so their "second_factors" is applied as the change it makes (each factor added, replaced or
+    removed) onto the factors stored now, never as the whole set: a factor removed or a code used meanwhile (an
+    administrator's reset, a sign-in) stays as it is. `refuse(account after)` names a reason to change nothing
+    (ValueError), judged on the stored account."""
+    old = dict(before.get("second_factors") or {})
+    new = dict(fields.get("second_factors") or {})
+    others = {key: value for key, value in fields.items() if key != "second_factors"}
+
+    def apply(user: Document | None) -> Document:
+        if user is None:
+            raise ValueError("No such account.")
+        if others.get("email") and email_taken(others["email"], other_than=username):
+            raise ValueError(EMAIL_TAKEN)
+        factors = dict(user.get("second_factors") or {})
+        if "second_factors" in fields:
+            for name in set(old) | set(new):
+                if name not in new:
+                    factors.pop(name, None)
+                elif old.get(name) != new[name]:
+                    factors[name] = new[name]
+        merged = {**user, **others, "second_factors": factors}
+        changed = {key: value for key, value in merged.items() if value is not None}
+        reason = refuse(changed) if refuse is not None else None
+        if reason:
+            raise ValueError(reason)
+        return changed
 
     return storage().change(USERS, username, apply) or {}
 
@@ -244,7 +287,13 @@ def check_password(username: str, password: str) -> dict[str, Any] | None:
     if not verify_password(password, user["hash"]):
         return None
     if _needs_rehash(user["hash"]):
-        _change(username, hash=hash_password(password))
+        verified, renewed = user["hash"], hash_password(password)
+
+        def rehash(current: Document | None) -> Document | None:
+            # only the hash just verified is replaced: a password set meanwhile (a reset) stays
+            return {**current, "hash": renewed} if current is not None and current.get("hash") == verified else current
+
+        storage().change(USERS, username, rehash)
     return user
 
 
@@ -390,16 +439,18 @@ def create(
     problem = profile_problem(fields)
     if problem:
         raise ValueError(problem)
-    if email_taken(fields.get("email")):
-        raise ValueError("Another account already uses this e-mail address.")
     generated = password is None
     password = generate_password() if password is None else password
     if must_change is None:
         must_change = generated
 
+    hashed = hash_password(password) if password else None  # slow on purpose: outside the transaction
+
     def add(existing: Document | None) -> Document:
         if existing is not None:
             raise ValueError("An account with this name already exists.")
+        if email_taken(fields.get("email")):  # inside the write: two creations at once cannot share an address
+            raise ValueError(EMAIL_TAKEN)
         account: Document = {
             "role": role,
             "session_version": new_session_version(),
@@ -409,8 +460,8 @@ def create(
         }
         if must_change and password:
             account["must_change_password"] = True
-        if password:
-            account["hash"] = hash_password(password)
+        if hashed:
+            account["hash"] = hashed
         return account
 
     storage().change(USERS, username, add)
@@ -508,14 +559,28 @@ def delete(username: str) -> None:
         storage().delete(USERS, username)
 
 
-def set_password(username: str, password: str, must_change: bool = False) -> int:
+class SessionEnded(Exception):
+    """The session a change was asked from was ended meanwhile (by an administrator, a password reset, a sign-out
+    everywhere): nothing was changed, and that session stays ended."""
+
+
+def _still(user: Document, keep: int | None) -> None:
+    """Raise SessionEnded when `keep` (the version of the session asking) is no longer the account's."""
+    if keep is not None and user.get("session_version") != keep:
+        raise SessionEnded("Your session has ended. Please sign in again.")
+
+
+def set_password(username: str, password: str, must_change: bool = False, keep: int | None = None) -> int:
     """Store a new password and return the new session version (ending all other sessions). With must_change
-    (a password generated for someone else), its owner must replace it at the next sign-in."""
+    (a password generated for someone else), its owner must replace it at the next sign-in. `keep`: the version of
+    the session that asks and continues; when every session was ended meanwhile, SessionEnded and nothing changes
+    (a reset made at the same moment wins)."""
     new_hash = hash_password(password)  # slow on purpose: outside the transaction
 
     def apply(user: Document | None) -> Document:
         if user is None:
             raise ValueError("No such account.")
+        _still(user, keep)
         changed = {**user, "hash": new_hash, "session_version": new_session_version(user["session_version"])}
         changed["password_changed"] = time.time()
         changed.pop("must_change_password", None)
@@ -526,12 +591,15 @@ def set_password(username: str, password: str, must_change: bool = False) -> int
     return int((storage().change(USERS, username, apply) or {})["session_version"])
 
 
-def end_sessions(username: str) -> int:
-    """End every session of the account (e.g. after its second factors changed); returns the new version."""
+def end_sessions(username: str, keep: int | None = None) -> int:
+    """End every session of the account (e.g. after its second factors changed); returns the new version. `keep`:
+    the version of the session that asks and continues with the new one; when that session was ended meanwhile,
+    SessionEnded and nothing changes (it must not come out of it with a valid version)."""
 
     def bump(user: Document | None) -> Document:
         if user is None:
             raise ValueError("No such account.")
+        _still(user, keep)
         return {**user, "session_version": new_session_version(user["session_version"])}
 
     return int((storage().change(USERS, username, bump) or {})["session_version"])
@@ -632,58 +700,160 @@ class SignInThrottle:
     """Refuses sign-ins after too many failures: per account and address, and per address (an IPv6 address counts as its
     /64, rate_key).
 
-    Only failures are kept, and only for WINDOW_SECONDS: asking about an address that never failed stores nothing,
-    so a flood of sign-ins under made-up names or from many addresses cannot fill the panel's memory."""
+    Kept in the panel's storage (one record per address, collection `collection`), so every worker process counts the
+    same tries. Only failures are kept, and only for WINDOW_SECONDS, plus the tries being checked right now: asking
+    about an address that never failed stores nothing, and a flood under made-up names stops at MAX_PER_ADDRESS
+    failures of that address.
+
+    A try is counted from the moment it is allowed, not when its answer is known: try_now() reserves it (the slow
+    password check runs after), failed() turns the reservation into a failure, succeeded() and the end of the
+    request (end_request, web/__init__.py) give it back; seconds_to_wait() only counts. Guesses sent at the same
+    moment, to one worker or several, are therefore limited like guesses sent one after another. A reservation not
+    given back lapses after RESERVED_SECONDS."""
 
     WINDOW_SECONDS = 15 * 60
     MAX_PER_ACCOUNT_AND_ADDRESS = 5
     MAX_PER_ADDRESS = 20
+    RESERVED_SECONDS = 60
+    SWEEP_SECONDS = 60
 
-    def __init__(self) -> None:
-        self._lock = threading.Lock()
-        self._failures: dict[tuple[str, str | None], deque[float]] = {}
+    def __init__(self, collection: str = "sign_in_throttle") -> None:
+        self.collection = collection
+        self._mine = threading.local()  # (address, username, token) of the reservations of this thread's request
         self._swept = 0.0
 
-    def _recent(self, key: tuple[str, str | None], now: float) -> int:
-        failures = self._failures.get(key)
-        if failures is None:
-            return 0
-        while failures and now - failures[0] > self.WINDOW_SECONDS:
-            failures.popleft()
-        if not failures:
-            del self._failures[key]
-            return 0
-        return len(failures)
+    # one record per address: {"all": part, "accounts": {username: part}}; part = {"failed": [t], "reserved": {tok: t}}
+
+    def _part(self, part: Mapping[str, Any] | None, now: float) -> dict[str, Any]:
+        part = part or {}
+        return {
+            "failed": [t for t in part.get("failed") or [] if now - float(t) <= self.WINDOW_SECONDS],
+            "reserved": {
+                k: t for k, t in (part.get("reserved") or {}).items() if now - float(t) < self.RESERVED_SECONDS
+            },
+        }
+
+    def _clean(self, doc: Document | None, now: float) -> dict[str, Any]:
+        doc = doc or {}
+        accounts_ = {name: self._part(part, now) for name, part in (doc.get("accounts") or {}).items()}
+        return {
+            "all": self._part(doc.get("all"), now),
+            "accounts": {name: part for name, part in accounts_.items() if part["failed"] or part["reserved"]},
+        }
+
+    @staticmethod
+    def _stored(doc: dict[str, Any]) -> Document | None:
+        return doc if doc["accounts"] or doc["all"]["failed"] or doc["all"]["reserved"] else None
+
+    def _wait(self, doc: dict[str, Any], username: str, now: float, with_reserved: bool) -> int:
+        account = doc["accounts"].get(username) or {"failed": [], "reserved": {}}
+        for part, limit in ((account, self.MAX_PER_ACCOUNT_AND_ADDRESS), (doc["all"], self.MAX_PER_ADDRESS)):
+            failed = part["failed"]
+            if len(failed) >= limit:
+                return int(self.WINDOW_SECONDS - (now - float(failed[0]))) + 1
+            if with_reserved and len(failed) + len(part["reserved"]) >= limit:
+                return 60  # tries still being checked fill the allowance: their answers decide
+        return 0
 
     def _sweep(self, now: float) -> None:
-        """Forget every key without a recent failure (at most once a minute)."""
-        if now - self._swept < 60:
+        """Forget every address without a recent failure or reservation (at most once a minute)."""
+        if now - self._swept < self.SWEEP_SECONDS:
             return
         self._swept = now
-        for key in list(self._failures):
-            self._recent(key, now)
+        for key in list(storage().all(self.collection)):
+            storage().change(self.collection, key, lambda doc: self._stored(self._clean(doc, now)))
 
     def seconds_to_wait(self, ip: str, username: str) -> int:
+        """How long to wait before trying again (0: now), counting the failures only: for checks that are fast,
+        such as an API call's signature."""
         ip = rate_key(ip)
         now = time.time()
-        with self._lock:
-            self._sweep(now)
-            for key, limit in (((ip, username), self.MAX_PER_ACCOUNT_AND_ADDRESS), ((ip, None), self.MAX_PER_ADDRESS)):
-                if self._recent(key, now) >= limit:
-                    return int(self.WINDOW_SECONDS - (now - self._failures[key][0])) + 1
+        self._sweep(now)
+        found = storage().get(self.collection, ip)
+        return self._wait(self._clean(found, now), username, now, with_reserved=False) if found else 0
+
+    def try_now(self, ip: str, username: str) -> int:
+        """0, with one try reserved for the caller, or how long to wait before trying again: for a slow check (a
+        password, a code) that guesses sent together could otherwise all pass before the first one failed."""
+        ip = rate_key(ip)
+        now = time.time()
+        self._sweep(now)
+        token = secrets.token_hex(8)
+        waits: list[int] = []
+
+        def reserve(found: Document | None) -> Document | None:
+            doc = self._clean(found, now)
+            wait = self._wait(doc, username, now, with_reserved=True)
+            waits.append(wait)
+            if wait:
+                return self._stored(doc)
+            doc["all"]["reserved"][token] = now
+            doc["accounts"].setdefault(username, {"failed": [], "reserved": {}})["reserved"][token] = now
+            return doc
+
+        storage().change(self.collection, ip, reserve)
+        if waits and waits[-1]:
+            return waits[-1]
+        self._held().append((ip, username, token))
         return 0
+
+    def _held(self) -> list[tuple[str, str, str]]:
+        held: list[tuple[str, str, str]] | None = getattr(self._mine, "held", None)
+        if held is None:
+            held = self._mine.held = []
+        return held
+
+    def _mine_for(self, ip: str, username: str) -> str | None:
+        held = self._held()
+        found = next((item for item in held if item[0] == ip and item[1] == username), None)
+        if found is None:
+            return None
+        held.remove(found)
+        return found[2]
+
+    def _record(self, ip: str, username: str, token: str | None, failed: bool, forget: bool = False) -> None:
+        now = time.time()
+
+        def apply(found: Document | None) -> Document | None:
+            doc = self._clean(found, now)
+            account = doc["accounts"].setdefault(username, {"failed": [], "reserved": {}})
+            if token is not None:
+                doc["all"]["reserved"].pop(token, None)
+                account["reserved"].pop(token, None)
+            if failed:
+                doc["all"]["failed"].append(now)
+                account["failed"].append(now)
+            if forget:
+                account["failed"] = []
+            if not account["failed"] and not account["reserved"]:
+                doc["accounts"].pop(username, None)
+            return self._stored(doc)
+
+        storage().change(self.collection, ip, apply)
 
     def failed(self, ip: str, username: str) -> None:
         ip = rate_key(ip)
-        now = time.time()
-        with self._lock:
-            for key in ((ip, username), (ip, None)):
-                self._failures.setdefault(key, deque()).append(now)
+        self._record(ip, username, self._mine_for(ip, username), failed=True)
 
     def succeeded(self, ip: str, username: str) -> None:
         ip = rate_key(ip)
-        with self._lock:
-            self._failures.pop((ip, username), None)
+        self._record(ip, username, self._mine_for(ip, username), failed=False, forget=True)
+
+    def end_request(self) -> None:
+        """Give back the tries this thread reserved and neither failed nor succeeded (the request ended otherwise)."""
+        held = self._held()
+        while held:
+            ip, username, token = held.pop()
+            self._record(ip, username, token, failed=False)
+
+    def clear(self) -> None:
+        """Forget every failure and reservation (tests)."""
+        for key in list(storage().all(self.collection)):
+            storage().delete(self.collection, key)
+
+    def stored(self) -> dict[str, Document]:
+        """The records kept now, by address."""
+        return storage().all(self.collection)
 
 
 THROTTLE = SignInThrottle()

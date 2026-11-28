@@ -44,6 +44,7 @@ from urllib.parse import urlencode
 
 from sudoo import entitlements
 from sudoo.config import settings
+from sudoo.core.shared import SharedLock
 from sudoo.storage import storage
 
 from . import client, crypto
@@ -58,8 +59,13 @@ BLOCKING = ("integrity_violation", "installation_suspended")  # hub answers that
 PANEL = "/api/v1/installations"  # the hub's panel contract (sudoo-hub README, "Panel contract"), all signed
 ODOO_VERSION_RE = re.compile(r"^(saas-)?\d{1,2}\.\d{1,2}$")
 
-_LOCK = threading.Lock()
-_HEARTBEAT_LOCK = threading.Lock()
+_LOCK = SharedLock("marketplace")
+_HEARTBEAT_LOCK = SharedLock("marketplace-heartbeat")  # the panel's workers and the CLI: one at a time
+HANDS_JOBS_OVER = False
+"""True in a process that must not run jobs (the command line: its jobs would end with it). Its heartbeat then leaves
+what starts a job (a command, the premium sync) to the panel's next heartbeat: the hub sends an unacknowledged
+command again, and the sync is checked after every lease."""
+
 _LEASE_SEEN: dict[str, float] = {}  # "iat" of the lease received in this process -> time.monotonic() then
 _WAKE = threading.Event()
 
@@ -384,7 +390,8 @@ def _heartbeat_once() -> dict[str, Any]:
     plugin_manager.apply_lease(verified)
     from sudoo.premium import loader as premium_loader
 
-    premium_loader.after_lease()  # installs or updates the premium features the plan includes (a job)
+    if not HANDS_JOBS_OVER:
+        premium_loader.after_lease()  # installs or updates the premium features the plan includes (a job)
     commands = answer.get("commands")
     carry_out(commands if isinstance(commands, list) else [], verified)
     from sudoo import maintenance
@@ -512,6 +519,9 @@ def carry_out(commands: list[Any], verified: crypto.Lease | None = None) -> None
             acknowledge(command_id, previous["status"], previous.get("detail"))
             continue
         if kind == "remove_paid_plugins":
+            if HANDS_JOBS_OVER:  # a job: the panel carries it out at its next heartbeat (the hub sends it again)
+                log.info("marketplace: command %s left for the panel's next heartbeat", command_id)
+                continue
             plugin_manager.start_command(command_id, command["payload"])
         elif kind == "maintenance":  # recorded here (the allow-list may refuse it); it runs at the chosen time
             from sudoo import maintenance

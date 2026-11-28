@@ -32,6 +32,7 @@ from typing import Any
 from sudoo import plugins
 from sudoo.config import Settings, settings
 from sudoo.core import resilience
+from sudoo.core.shared import SharedLock
 
 log = logging.getLogger("sudoo.plugins")
 
@@ -48,6 +49,9 @@ LABELS = {
 }
 
 _LOCK = threading.Lock()
+_PERSIST = SharedLock(
+    "plugin-failures"
+)  # a switch-off and a switch-on are kept in storage in the order they happen in memory
 _STATE: dict[tuple[str, str], dict[str, Any]] = {}  # (group, name) -> failures, last error, switched off
 _PERSISTED: dict[str, dict[str, Any]] | None = None  # the switched-off plugins kept in storage (read once)
 _RESETS: dict[str, list[Callable[[], None]]] = {}  # group -> what forgets the created plugin (functools caches)
@@ -74,15 +78,20 @@ def _key(group: str, name: str) -> str:
     return f"{group}:{name}"
 
 
+PERSISTED_SECONDS = 5.0  # how long the switched-off plugins read from storage are trusted (other worker processes)
+_PERSISTED_AT = [0.0]
+
+
 def _persisted() -> dict[str, dict[str, Any]]:
-    """The plugins switched off in an earlier run; {} when storage cannot be read (they are retried, and fail
-    again, which the panel survives)."""
+    """The plugins switched off (in an earlier run, or by another worker process: read again every
+    PERSISTED_SECONDS); {} when storage cannot be read (they are retried, and fail again, which the panel survives)."""
     global _PERSISTED
-    if _PERSISTED is None:
+    if _PERSISTED is None or time.monotonic() - _PERSISTED_AT[0] > PERSISTED_SECONDS:
         try:
             from sudoo.storage import storage
 
             _PERSISTED = dict(storage().all(COLLECTION))
+            _PERSISTED_AT[0] = time.monotonic()
         except Exception:  # noqa: BLE001 - storage that cannot be read is listed by its own guard
             log.exception("plugins: cannot read the switched-off plugins")
             return {}
@@ -120,6 +129,18 @@ def disabled(group: str, name: str) -> bool:
     """Whether the plugin was switched off after failing too often (in this run or an earlier one)."""
     with _LOCK:
         state = _STATE.get((group, name))
+    switched_on_elsewhere = (  # by an administrator, in another worker process
+        state is not None
+        and state.get("disabled")
+        and group != plugins.STORAGE_GROUP
+        and _key(group, name) not in _persisted()
+    )
+    if switched_on_elsewhere:
+        with _LOCK:
+            if _STATE.get((group, name)) is state:
+                _STATE.pop((group, name), None)
+        _reset(group)
+        return False
     if state is not None:
         return bool(state.get("disabled"))
     return group != plugins.STORAGE_GROUP and bool(_persisted().get(_key(group, name), {}).get("disabled"))
@@ -148,7 +169,11 @@ def failed(group: str, name: str, stage: str, error: BaseException) -> bool:
         resilience.report("plugin", _key(group, name), f"{what} was switched off after {limit} failures in a row; "
                           "the built-in default is used until an administrator switches it on again", detail)  # fmt: skip
         _audit("plugin switched off (kept failing)", f"{group} {name}: {detail}")
-        _persist(group, name, snapshot)
+        with _PERSIST:
+            with _LOCK:  # an administrator switched it on again meanwhile: that is what is kept
+                still = _STATE.get((group, name)) is state and state["disabled"]
+            if still:
+                _persist(group, name, snapshot)
         _reset(group)
     else:
         verb = "could not be loaded; the built-in default is used" if stage == "load" else "failed"
@@ -173,10 +198,11 @@ def succeeded(group: str, name: str) -> None:
 def enable(group: str, name: str, user: str) -> bool:
     """An administrator switches a failed plugin on again: it is loaded again at its next use. False when it was
     neither failed nor switched off."""
-    with _LOCK:
-        state = _STATE.pop((group, name), None)
-    known = state is not None or _key(group, name) in _persisted()
-    _persist(group, name, None)
+    with _PERSIST:
+        with _LOCK:
+            state = _STATE.pop((group, name), None)
+        known = state is not None or _key(group, name) in _persisted()
+        _persist(group, name, None)
     resilience.resolve("plugin", _key(group, name))
     if known:
         try:

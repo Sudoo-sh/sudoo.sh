@@ -118,7 +118,10 @@ def branch_created(repository: str, branch: str, user: str = "system", github_id
     if project is None or not branch:
         return None
     with quotas.LOCK, projects.LOCK:
-        project = projects.get(project["id"]) or project
+        current = projects.get(project["id"])
+        if current is None:  # deleted meanwhile (web/v1/projects.py delete_project holds the same locks)
+            return None
+        project = current
         known = _seen(project, branch)
         if branch in known:
             return None  # handled already (the webhook and the branch check both report it)
@@ -188,7 +191,7 @@ def branch_deleted(repository: str, branch: str, user: str = "system") -> list[s
             action = "keep" if stage == stages.PRODUCTION else wanted
             if stage == stages.STAGING and action == "delete":
                 action = "archive"  # staging may hold work of testers: never deleted for this
-            if action != "keep" and jobs.busy(name):
+            if action != "keep" and jobs.unfinished(name):  # a job queued a moment ago too (a second delivery)
                 action = "keep"  # it is busy: left as it is, the warning shows that the branch is gone
             if action != "keep" and access.held(project, branch) is not None:
                 action = "keep"  # a locked branch: nothing is done to its instances automatically

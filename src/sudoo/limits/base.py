@@ -1,6 +1,6 @@
 """The interface of a rate-limiter plugin: where request counts are kept.
 
-Built in: "memory" (memory.py), right for one panel process. Several panels behind one address would share counts
+Built in: "memory" (memory.py): in memory for one panel process, in the panel's storage with PANEL_WORKERS > 1. Several panels behind one address would share counts
 through a plugin for Redis or similar, registered under "sudoo.rate_limiters".
 """
 

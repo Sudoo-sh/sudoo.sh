@@ -172,8 +172,8 @@ def notices() -> Response:
 
 def _install_blocked() -> str | None:
     """Why a plugin cannot be installed right now (jobs running, a restart coming), or None."""
-    if jobs.ACTIVE_JOB:
-        running = ", ".join(sorted(j.instance for j in jobs.ACTIVE_JOB.values()))
+    if jobs.any_unfinished():  # in every worker process
+        running = ", ".join(sorted({j.instance for j in jobs.all_jobs() if j.status in ("queued", "running")}))
         return f"Jobs are running ({running}). Install when they have finished: the panel restarts afterwards."
     if plugin_manager.restart_pending():
         return "The panel is about to restart. Try again in a minute."
@@ -249,7 +249,7 @@ def uninstall(plugin_id: str) -> Response:
         abort(400, f'To uninstall, send {{"confirm": "{rec["id"]}"}}.')
     if needed_by := plugin_manager.dependents(rec["id"]):
         abort(409, f"Uninstall {', '.join(needed_by)} first: it needs this plugin.")
-    if jobs.ACTIVE_JOB:
+    if jobs.any_unfinished():
         abort(409, "Jobs are running. Uninstall when they have finished: the panel restarts afterwards.")
     log("plugin uninstall requested", detail=rec["id"])
     job = jobs.start(

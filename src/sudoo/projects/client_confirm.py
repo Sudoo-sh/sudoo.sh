@@ -26,6 +26,7 @@ code); this module adds the link and the action that waits.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import hmac
 import logging
@@ -141,7 +142,8 @@ def pending(project_id: str, client: str) -> list[Document]:
         if found.get("project") != project_id or found.get("client") != client or found.get("status") != "pending":
             continue
         if float(found.get("expires") or 0) <= now:
-            _end(found, "expired")
+            with contextlib.suppress(ConfirmError):  # confirmed or cancelled meanwhile: not waiting either way
+                _end(found, "expired")
             continue
         shown.append(found)
     return sorted(shown, key=lambda f: -float(f.get("created") or 0))
@@ -199,7 +201,20 @@ def cancel(confirmation_id: str, client: str) -> None:
 
 
 def _end(found: Mapping[str, Any], status: str) -> None:
-    storage().put(COLLECTION, str(found["id"]), {**found, "status": status, "ended_at": time.time()})
+    """End a pending confirmation (cancelled, expired): only while it is still pending as stored now, so one confirmed
+    meanwhile (its action ran) is never recorded as cancelled."""
+    ended: list[bool] = []
+
+    def apply(current: Document | None) -> Document | None:
+        if current is None or current.get("status") != "pending":
+            return current
+        ended.append(True)
+        return {**current, "status": status, "ended_at": time.time()}
+
+    storage().change(COLLECTION, str(found["id"]), apply)
+    if not ended:
+        raise ConfirmError(f"This was {(storage().get(COLLECTION, str(found['id'])) or {}).get('status', 'ended')} "
+                           "already.", 410)  # fmt: skip
     audit.record(str(found.get("client")), None, f"client action not confirmed ({status})",
                  detail=f"{found.get('project')}: {found.get('summary')}"[:300])  # fmt: skip
 

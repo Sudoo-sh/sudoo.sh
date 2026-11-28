@@ -61,6 +61,7 @@ from typing import Any
 from sudoo.config import settings
 from sudoo.core import audit, events, jobs
 from sudoo.core.jobs import Job, JobError
+from sudoo.core.shared import SharedLock
 from sudoo.hub import HubRefused, HubUnavailable, client, crypto, marketplace
 from sudoo.storage import storage
 
@@ -360,7 +361,7 @@ def schedule_restart(reason: str) -> bool:
 
     def wait_and_stop() -> None:
         time.sleep(2)
-        while jobs.ACTIVE_JOB:
+        while jobs.any_unfinished():  # in every worker process: a restart would end their jobs
             time.sleep(2)
         audit.record("system", None, "panel restarted", detail=reason)
         stop_backend()
@@ -772,7 +773,8 @@ def _unpack(job: Job, archive: zipfile.ZipFile, manifest: dict[str, Any], detail
     shutil.rmtree(final, ignore_errors=True)
     partial.rename(final)
     now = time.time()
-    rec = {
+    hashed = tree_hash(final)
+    new = {
         "id": plugin_id,
         "name": str(manifest.get("name") or detail.get("name") or plugin_id),
         "version": version,
@@ -784,18 +786,26 @@ def _unpack(job: Job, archive: zipfile.ZipFile, manifest: dict[str, Any], detail
         "requires": [{"id": i, "version": v} for i, v in _requirements(manifest)],
         "entry_points": manifest["entry_points"],
         "modules": sorted(_top_level_modules(archive.infolist())),
-        "enabled": previous.get("enabled", True) if previous else True,
         "tampered": False,
-        "standing": (previous or {}).get("standing"),
-        "licence": (previous or {}).get("licence"),
-        "switched_off": (previous or {}).get("switched_off"),
-        "notified": (previous or {}).get("notified") or {},
-        "tree_hash": tree_hash(final),
-        "installed_at": (previous or {}).get("installed_at") or now,
-        "installed_by": (previous or {}).get("installed_by") or user,
+        "tree_hash": hashed,
         "updated_at": now,
     }
-    storage().put(COLLECTION, plugin_id, rec)
+
+    def install(current: dict[str, Any] | None) -> dict[str, Any]:
+        # what the administrators and the marketplace decided is taken from the record as it is now, in the same
+        # write: a disable (or a heartbeat's licence) made while the files were unpacked is kept
+        return {
+            **new,
+            "enabled": (current or {}).get("enabled", True),
+            "standing": (current or {}).get("standing"),
+            "licence": (current or {}).get("licence"),
+            "switched_off": (current or {}).get("switched_off"),
+            "notified": (current or {}).get("notified") or {},
+            "installed_at": (current or {}).get("installed_at") or now,
+            "installed_by": (current or {}).get("installed_by") or user,
+        }
+
+    storage().change(COLLECTION, plugin_id, install)
     if previous and previous.get("version") != version:
         shutil.rmtree(base / previous["version"], ignore_errors=True)
         job.write(f"Removed version {previous['version']}\n")
@@ -962,7 +972,7 @@ def watch(start_job: Callable[..., Job] = jobs.start) -> None:
     lease_valid = marketplace.lease() is not None
     ending = False
     for plugin_id, rec in records().items():
-        if plugin_id in (LOADED or set()) and not verify_files(rec):
+        if plugin_id in (LOADED or set()) and not _verified_now(plugin_id):
             continue
         ok, reason = allowed(rec, now, lease_valid)
         if not _paid(rec):
@@ -991,6 +1001,20 @@ def watch(start_job: Callable[..., Job] = jobs.start) -> None:
         schedule_restart("plugins changed (licences or marketplace)")
 
 
+def _verified_now(plugin_id: str) -> bool:
+    """verify_files() of the plugin's record as it is now, while no plugin job changes files: an install, update or
+    removal running now holds the plugin jobs' lock, and its files are checked at the next pass instead (they are
+    being replaced: comparing them would report a fresh update as changed by hand)."""
+    lock = jobs.INSTANCE_LOCKS[JOB_INSTANCE]
+    if not lock.acquire(blocking=False):
+        return True
+    try:
+        rec = record(plugin_id)
+        return rec is None or verify_files(rec)
+    finally:
+        lock.release()
+
+
 def _job_running(plugin_id: str) -> bool:
     current = jobs.ACTIVE_JOB.get(JOB_INSTANCE)
     return current is not None and current.kind == "plugin-expired" and plugin_id in current.action
@@ -1009,21 +1033,29 @@ def watch_forever() -> None:
 # ---------------------------------------------------------------- the hub's command: remove paid plugins
 
 _COMMANDS: set[str] = set()  # commands being carried out in this process
+_COMMAND_LOCK = SharedLock("plugin-commands")  # the check and the start together, for every process
 
 
 def start_command(command_id: str, payload: dict[str, Any]) -> None:
-    """Start removing the paid plugins a remove_paid_plugins command lists (a job), unless it already runs."""
-    with _LOCK:
-        if command_id in _COMMANDS:
+    """Start removing the paid plugins a remove_paid_plugins command lists (a job), unless it already runs (in any
+    worker process: the job carries the command as its request key)."""
+    key = f"command:{command_id}"
+    with _COMMAND_LOCK:
+        if command_id in _COMMANDS or jobs.same_request(key) is not None:
             return
         _COMMANDS.add(command_id)
+        _start_command(command_id, payload, key)
+
+
+def _start_command(command_id: str, payload: dict[str, Any], key: str) -> None:
     listed = [str(p) for p in payload.get("plugins") or [] if isinstance(p, str) and PLUGIN_ID_RE.match(p)]
     reason = str(payload.get("reason") or "unlinked")
     marketplace.record_command(command_id, kind="remove_paid_plugins", status="running", at=time.time(),
                                plugins=listed, reason=reason)  # fmt: skip
     marketplace._save(linked=None)  # the hub sends it when this server was unlinked (or its key revoked)
-    jobs.start(JOB_INSTANCE, "Remove paid plugins (logged out of the account)", "plugin-remove-paid",
-               remove_paid_plugins, command_id, listed, reason)  # fmt: skip
+    job = jobs.start(JOB_INSTANCE, "Remove paid plugins (logged out of the account)", "plugin-remove-paid",
+                     remove_paid_plugins, command_id, listed, reason)  # fmt: skip
+    job.request_key = key
 
 
 def remove_paid_plugins(job: Job, command_id: str, listed: list[str], reason: str) -> None:

@@ -62,6 +62,7 @@ from sudoo import plugin_manager
 from sudoo.config import settings
 from sudoo.core import audit, events, jobs
 from sudoo.core.jobs import Job, JobError
+from sudoo.core.shared import SharedLock
 from sudoo.hub import HubRefused, HubUnavailable, client, crypto, marketplace
 from sudoo.storage import storage
 
@@ -84,7 +85,7 @@ ROUTE_RE = re.compile(r"^/[a-z0-9][a-z0-9/-]{0,60}$")
 SLOT_RE = re.compile(r"^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*){1,3}$")
 EXPORT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,60}$")
 
-_LOCK = threading.RLock()
+_LOCK = SharedLock("premium")
 LOADED: set[str] | None = None  # ids of the packages this process put on sys.path (None: not activated yet)
 _WAKE = threading.Event()
 
@@ -927,6 +928,19 @@ def forget_agent_packages() -> bool:
 # ---------------------------------------------------------------- the integrity pass
 
 
+def _verified_now(package_id: str) -> bool:
+    """verify_files() of the package's record as it is now, while no premium job changes files: a sync running now
+    holds the premium jobs' lock, and the files it is replacing are checked at the next pass."""
+    lock = jobs.INSTANCE_LOCKS[JOB_INSTANCE]
+    if not lock.acquire(blocking=False):
+        return True
+    try:
+        rec = record(package_id)
+        return rec is None or verify_files(rec)
+    finally:
+        lock.release()
+
+
 def watch() -> None:
     """One integrity pass: files, signature, binding and plan of every package; a restart when what should run
     differs from what runs."""
@@ -934,7 +948,7 @@ def watch() -> None:
     wanted = included_ids()
     should: set[str] = set()
     for package_id, rec in records().items():
-        if package_id in loaded and not verify_files(rec):
+        if package_id in loaded and not _verified_now(package_id):
             continue
         ok, why = runs(rec, wanted)
         if ok:

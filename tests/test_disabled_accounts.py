@@ -32,7 +32,7 @@ def clean_up() -> Iterator[None]:
         if accounts.get(name):
             accounts.update(name, disabled=None, disabled_at=None, disabled_by=None)
             accounts.delete(name)
-    accounts.THROTTLE._failures.clear()
+    accounts.THROTTLE.clear()
 
 
 @pytest.fixture

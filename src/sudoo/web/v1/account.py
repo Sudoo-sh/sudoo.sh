@@ -39,7 +39,7 @@ from sudoo.mail import MailError
 
 from .. import signin
 from .. import validation as check
-from ..security import client_ip, log
+from ..security import client_ip, log, own_session_version
 from .github import panel_address
 from .responses import iso, no_content, ok
 
@@ -67,8 +67,8 @@ EMAIL_TAKEN = "Another account already uses this e-mail address."
 
 
 def _end_other_sessions() -> None:
-    """End every other session of the signed-in account; this one continues."""
-    session["version"] = accounts.end_sessions(g.user["name"])
+    """End every other session of the signed-in account; this one continues, unless it was ended meanwhile."""
+    session["version"] = accounts.end_sessions(g.user["name"], keep=own_session_version())
 
 
 @blueprint.get("/account")
@@ -151,7 +151,10 @@ def change_profile() -> Response:
     if values.get("email") and accounts.email_taken(values["email"], other_than=g.user["name"]):
         abort(400, EMAIL_TAKEN)
     before = str(_account().get("email") or "").lower()
-    accounts.update(g.user["name"], **{key: (value or None) for key, value in values.items()})
+    try:  # the address is checked again inside the write: another account may have taken it meanwhile
+        accounts.update(g.user["name"], **{key: (value or None) for key, value in values.items()})
+    except ValueError as error:
+        abort(400, str(error))
     if "email" in values and str(values["email"] or "").lower() != before:
         _end_other_sessions()  # people sign in with this address
     log("own profile changed", detail=", ".join(sorted(values)))
@@ -204,7 +207,7 @@ def _plugin(name: str) -> auth.SecondFactor:
 def _confirm_password(what: str) -> None:
     """Refuse unless the body carries the account's current password. Wrong passwords count like wrong sign-ins."""
     name, ip = g.user["name"], client_ip()
-    if accounts.THROTTLE.seconds_to_wait(ip, name):
+    if accounts.THROTTLE.try_now(ip, name):
         abort(429, "Too many wrong passwords. Try again in 15 minutes.")
     if auth.authenticator().authenticate(name, check.secret(check.body(), "password")) is None:
         accounts.THROTTLE.failed(ip, name)
@@ -248,7 +251,10 @@ def finish(name: str) -> Response:
     email_changed = "email" in fields and str(fields["email"] or "").lower() != str(account.get("email") or "").lower()
     if email_changed and accounts.email_taken(fields["email"], other_than=g.user["name"]):
         abort(400, EMAIL_TAKEN)
-    accounts.update(g.user["name"], **fields)
+    try:  # onto the factors stored now (a reset meanwhile stays); the address checked again inside the write
+        accounts.update_factors(g.user["name"], account, fields)
+    except ValueError as error:
+        abort(400, str(error))
     session.pop("replacing_factor", None)
     if replacing or email_changed:
         _end_other_sessions()
@@ -270,9 +276,17 @@ def remove(name: str) -> Response:
     _confirm_password(f"second factor removal ({name})")
     if not plugin.enrolled(account):
         abort(404, "This second factor is not set up.")
+    required = "A second factor is required for your account: set up another one before removing this one."
     if auth.must_use_second_factor(account) and auth.enrolled(account) == [name]:
-        abort(400, "A second factor is required for your account: set up another one before removing this one.")
-    accounts.update(g.user["name"], **plugin.remove(account))
+        abort(400, required)
+
+    def last_one(after: dict[str, Any]) -> str | None:  # judged on the stored account: two removals at once leave one
+        return required if auth.must_use_second_factor(after) and not auth.enrolled(after) else None
+
+    try:
+        accounts.update_factors(g.user["name"], account, plugin.remove(account), refuse=last_one)
+    except ValueError as error:
+        abort(400, str(error))
     _end_other_sessions()
     log(f"second factor removed ({name})")
     return no_content()

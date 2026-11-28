@@ -109,6 +109,9 @@ def marketplace(args: argparse.Namespace) -> None:
         audit.record("command line", None, "marketplace keys forgotten (repin)")
         print("The hub's keys are forgotten; the next heartbeat starts again from the root keys.")
     if args.action in ("heartbeat", "repin"):
+        # one heartbeat at a time with the panel (an flock, hub/marketplace.py); what would start a job (it would end
+        # with this command) is left to the panel's next heartbeat
+        hub.HANDS_JOBS_OVER = True
         try:
             hub.heartbeat()
         except (HubRefused, HubUnavailable) as error:
@@ -123,12 +126,13 @@ def marketplace(args: argparse.Namespace) -> None:
 
 
 def serve(_: argparse.Namespace) -> None:
-    """Start gunicorn: one process (jobs, monitor and gateway share its memory), on 127.0.0.1:API_PORT. Visitors
-    reach it through the web service (web/, container sudoo-web), which listens on PANEL_PORT."""
+    """Start gunicorn: PANEL_WORKERS processes (1 by default; what they decide is shared, core/shared.py), on
+    127.0.0.1:API_PORT. Visitors reach it through the web service (web/, container sudoo-web), which listens on
+    PANEL_PORT."""
     bind = f"127.0.0.1:{settings.api_port}"
     # the worker's heartbeat file in memory (MEMORY_DIR, /dev/shm): on a container's disk, a slow write can make
     # gunicorn think the worker hangs
-    os.execvp("gunicorn", ["gunicorn", "--workers", "1", "--threads", "32", "--timeout", "120",
+    os.execvp("gunicorn", ["gunicorn", "--workers", str(settings.panel_workers), "--threads", "32", "--timeout", "120",
                            "--worker-tmp-dir", str(settings.memory_dir), "--bind", bind, "sudoo.wsgi:app"])  # fmt: skip
 
 

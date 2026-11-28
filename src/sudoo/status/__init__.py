@@ -27,7 +27,6 @@ are UTC days.
 
 from __future__ import annotations
 
-import threading
 import time
 import uuid
 from collections.abc import Callable, Iterable, Mapping
@@ -35,6 +34,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from sudoo.config import settings
+from sudoo.core.shared import SharedLock
 from sudoo.storage import Document, storage
 
 MINUTES = "status_minutes"
@@ -49,7 +49,7 @@ HOUR, DAY = 3600, 86400
 WINDOWS = {"day": DAY, "week": 7 * DAY, "month": 30 * DAY}
 SERVER = "server"
 
-_LOCK = threading.RLock()
+_LOCK = SharedLock("status-pages")
 
 
 @dataclass(frozen=True)

@@ -213,22 +213,26 @@ def commit_recorded(project_id: str, branch: str, instance: str, sha: str) -> bo
     "nothing"): a "commit" entry, once per commit. True when it was recorded now."""
     if not project_id or not branch or not sha:
         return False
-    entries = history(project_id, branch)
-    if any(e["type"] in ("commit", "build") and (e.get("commit") or {}).get("full_sha") == sha for e in entries[:20]):
-        return False
-    _add(
-        {
-            "type": "commit",
-            "project": project_id,
-            "branch": branch,
-            "instance": instance,
-            "by": "system",
-            "commit": {"sha": sha[:7], "full_sha": sha, "subject": "", "author": "", "when": ""},
-            "status": "skipped",
-            "result": NOT_BUILT,
-        }
-    )
-    return True
+    entry = {
+        "id": uuid.uuid4().hex[:12],
+        "at": time.time(),
+        "type": "commit",
+        "project": project_id,
+        "branch": branch,
+        "instance": instance,
+        "by": "system",
+        "commit": {"sha": sha[:7], "full_sha": sha, "subject": "", "author": "", "when": ""},
+        "status": "skipped",
+        "result": NOT_BUILT,
+    }
+
+    def once(entries: list[Document]) -> list[Document]:  # checked in the same write: two reports record it once
+        newest = entries[-20:]
+        if any(e["type"] in ("commit", "build") and (e.get("commit") or {}).get("full_sha") == sha for e in newest):
+            return entries
+        return [*entries, entry]
+
+    return bool(_change_branch(project_id, branch, once))
 
 
 # ---------------------------------------------------------------- builds from jobs

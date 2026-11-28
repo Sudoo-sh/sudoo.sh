@@ -277,7 +277,7 @@ def test_a_busy_instance_applies_at_its_next_start(
     admin: Client, project: dict[str, Any], started: list[Any], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     client, headers = admin
-    monkeypatch.setattr(jobs, "busy", lambda name: name == "pr-qa")
+    monkeypatch.setattr(jobs, "unfinished", lambda name: name == "pr-qa")  # a job queued or running
     url = f"/api/v1/projects/{project['id']}/resources"
     data = client.put(url, json={"stage": "staging", "limits": {"odoo_workers": 1}}, headers=headers).get_json()["data"]
     assert data["waiting"] == ["pr-qa"] and not started

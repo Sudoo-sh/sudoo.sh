@@ -38,8 +38,11 @@ each part was chosen.
 | **Settings** | Every setting, typed and checked (pydantic-settings). Almost all can be changed on the Settings page while the panel runs, kept on top of `.env` with secrets encrypted. | `sudoo/config.py` |
 | **Instances** | One Docker Compose project per instance: an `odoo` container (official image) and a `db` container (PostgreSQL 16), two volumes. | `/opt/odoo/instances/<name>/` |
 
-The backend (API, live events, background work, jobs) runs in **one container** and **one process**
-(`sudoo-panel`), so they share their state in memory without a message queue; the web app is a second, separate
+The backend (API, live events, background work, jobs) runs in **one container** (`sudoo-panel`), as one process by
+default or `PANEL_WORKERS` gunicorn processes. What decides correctness is shared by all of them in the panel's
+storage and in lock files of the host (`sudoo/core/shared.py`: sign-in limits, jobs and the same request sent twice,
+one-time codes, tickets and nonces, settings, the locks around every check-then-change); one process at a time runs
+the background work, the gateway link and the live events, and the others hand their events to it. The web app is a second, separate
 container (`sudoo-web`) that holds no state. The gateways run in a third container, `sudoo-gateway`, so that
 visitors keep reaching the instances while the backend restarts or is down (next section). All three use the
 server's network (`network_mode: host`), so `127.0.0.1` means the same inside and outside them; only the backend
@@ -374,9 +377,11 @@ Each decision lists what was chosen, why, what it costs, and the alternatives th
   panel (a server to run and back up for little data; possible later as a plugin).
 
 ### No Redis
-- **Chosen:** caches, rate-limit counters and live events stay in the panel's memory.
-- **Why:** the panel is one process on one server; memory is faster than any network cache and costs nothing to
-  run. Redis earns its place only when several panel processes must share counters and events; the rate limiter
+- **Chosen:** caches stay in each process's memory; what several worker processes must agree on (sign-in limits,
+  jobs, one-time codes, the live events handed to the process that serves them) is in the panel's SQLite storage
+  and in flock files, on one server.
+- **Why:** the panel runs on one server; SQLite and flock already give atomic changes across its processes and cost
+  nothing to run. Redis earns its place only when several servers must share counters and events; the rate limiter
   and event bus are small interfaces, so a Redis plugin can be added then.
 
 ### Second factors as plugins, required for administrators

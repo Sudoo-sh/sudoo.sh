@@ -148,13 +148,13 @@ def gh(fake: type[FakeGitHub], passwords: dict[str, str]) -> Iterator[type[FakeG
     live.change({"github_sign_in": True})
     for attribute in ("codes", "users", "emails", "orgs", "permissions"):
         getattr(fake, attribute).clear()
-    accounts.THROTTLE._failures.clear()
+    accounts.THROTTLE.clear()
     email_sign_in.SEND_LIMIT.clear()
     email_sign_in.ACCOUNT_SEND_LIMIT.clear()
     yield fake
     live.change(dict.fromkeys(live.overrides()))
     github_app.disconnect()
-    accounts.THROTTLE._failures.clear()
+    accounts.THROTTLE.clear()
 
 
 def _person(fake: type[FakeGitHub], key: str, *, user_id: int, email: str | None = None, verified: bool = True,
@@ -490,10 +490,10 @@ def mailbox(monkeypatch: pytest.MonkeyPatch) -> Iterator[Mailbox]:
     monkeypatch.setattr(email_sign_in, "_deliver", lambda job: job())
     email_sign_in.SEND_LIMIT.clear()
     email_sign_in.ACCOUNT_SEND_LIMIT.clear()
-    accounts.THROTTLE._failures.clear()
+    accounts.THROTTLE.clear()
     yield fake
     live.change(dict.fromkeys(live.overrides()))
-    accounts.THROTTLE._failures.clear()
+    accounts.THROTTLE.clear()
 
 
 def test_email_code_sign_in(app: Flask, mailbox: Mailbox, admin: Any) -> None:
@@ -624,7 +624,7 @@ def test_wrong_tries_of_one_ipv6_64_share_the_throttle() -> None:
         accounts.THROTTLE.failed(f"2001:db8:9:9::{number + 1}", "someone")
     assert accounts.THROTTLE.seconds_to_wait("2001:db8:9:9:1234::1", "someone") > 0
     assert accounts.THROTTLE.seconds_to_wait("2001:db8:9:a::1", "someone") == 0
-    accounts.THROTTLE._failures.clear()
+    accounts.THROTTLE.clear()
 
 
 def test_the_email_code_is_not_a_second_factor_after_an_email_code(app: Flask, mailbox: Mailbox) -> None:

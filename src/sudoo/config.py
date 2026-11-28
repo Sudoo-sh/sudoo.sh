@@ -17,8 +17,11 @@ the web service and the containers read it too.
 
 from __future__ import annotations
 
+import fcntl
 import json
+import os
 import threading
+import time
 from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any, Literal, cast
@@ -508,7 +511,9 @@ class Settings(BaseSettings):
     )
 
     # ------------------------------------------------------------------ limits
-    rate_limiter: str = Field("memory", description='Where request counts are kept: "memory".')
+    rate_limiter: str = Field(
+        "memory", description='Where request counts are kept: "memory" (the panel\'s storage with PANEL_WORKERS > 1).'
+    )
     rate_limit_reads_per_minute: int = Field(
         600, ge=0, description="Requests that read, per minute, per signed-in user or address; 0: no limit."
     )
@@ -926,6 +931,13 @@ class Settings(BaseSettings):
     # ------------------------------------------------------------------ ports
     panel_port: int = Field(9000, description="Port of the panel: the web service (sudoo-web) listens here.")
     api_port: int = Field(9002, description="Port of the backend (127.0.0.1 only); the web service forwards to it.")
+    panel_workers: int = Field(
+        1,
+        ge=1,
+        le=16,
+        description="Worker processes of the backend (gunicorn), each with 32 threads. One of them runs the "
+        "background work, the gateway link and the live events; the others hand their events to it.",
+    )
     events_port: int = Field(9001, description="Port of the live event stream (127.0.0.1 only).")
     gateway_port_start: int = Field(8069, description="First gateway port (one per instance).")
     odoo_port_start: int = Field(28069, description="First Odoo port (one per instance, 127.0.0.1 only).")
@@ -2709,7 +2721,13 @@ class LiveSettings:
     constructor) sees changes at once. Each change builds a new, validated, frozen Settings object. Secrets are
     stored encrypted with the vault key and decrypted when first read (the vault itself needs these settings to
     find its key, so it cannot be used while they load).
+
+    Several worker processes (and the command line) share settings.json: a change is made under an flock on
+    settings.lock onto the file as it is then (a change another process made stays), and every process reads the
+    file again within RELOAD_SECONDS of it changing (its listeners are called as for its own changes).
     """
+
+    RELOAD_SECONDS = 1.0
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
@@ -2733,6 +2751,52 @@ class LiveSettings:
         self._current, replaced = self._tolerant(plain)
         self._overrides = {k: getattr(self._current, k) for k in plain if k not in replaced}
         self._started = self._current  # what the plugins were created with
+        self._seen = self._signature()
+        self._checked = time.monotonic()
+        self._frozen = False  # use(): values given by the main panel, not read from a file
+
+    def _signature(self) -> tuple[int, int, int] | None:
+        try:
+            found = os.stat(self._file)
+        except OSError:
+            return None
+        return found.st_ino, found.st_size, found.st_mtime_ns
+
+    def _maybe_reload(self) -> None:
+        """Read settings.json again when another process changed it (checked at most every RELOAD_SECONDS)."""
+        now = time.monotonic()
+        if self._frozen or now - self._checked < self.RELOAD_SECONDS:
+            return
+        self._checked = now
+        if self._signature() != self._seen:
+            self._reload()
+
+    def _reload(self) -> None:
+        signature = self._signature()
+        try:
+            saved = _migrated(json.loads(self._file.read_text())) if signature is not None else {}
+        except (OSError, ValueError):
+            return  # being replaced, or broken: the values in use stay; tried again
+        from sudoo.core import vault
+
+        encrypted = {k: v["encrypted"] for k, v in saved.items() if k in SECRET and isinstance(v, dict)
+                     and "encrypted" in v}  # fmt: skip
+        values = {k: v for k, v in saved.items() if k in _CHANGEABLE and k not in encrypted}
+        try:
+            values.update({k: vault.decrypt(v, f"setting:{k}") for k, v in encrypted.items()})
+        except Exception:  # noqa: BLE001 - a secret that cannot be read keeps its current value
+            return
+        current, replaced = self._tolerant(values)
+        with self._lock:
+            before = dict(self._overrides)
+            self._overrides = {k: getattr(current, k) for k in values if k not in replaced}
+            self._encrypted = {}
+            self._current = current
+            self._seen = signature
+        changed = {k: self._overrides.get(k) for k in set(before) | set(self._overrides)
+                   if before.get(k) != self._overrides.get(k)}  # fmt: skip
+        if changed:
+            self.notify(changed)
 
     def _tolerant(self, values: dict[str, Any]) -> tuple[Settings, set[str]]:
         """Settings from `.env` and `values`, a setting with a wrong value taking its default: the panel starts
@@ -2764,6 +2828,8 @@ class LiveSettings:
         return dict(self._problems)
 
     def __getattr__(self, name: str) -> Any:
+        if not name.startswith("_"):
+            self._maybe_reload()
         if name in SECRET and self._encrypted:
             self._decrypt_secrets()
         return getattr(self._current, name)
@@ -2806,17 +2872,25 @@ class LiveSettings:
         self._decrypt_secrets()
         from sudoo.core import vault
 
-        with self._lock:
-            overrides = {**self._overrides, **values}
-            overrides = {k: v for k, v in overrides.items() if v is not None}
-            current = Settings(**overrides)  # pydantic.ValidationError is a ValueError
-            self._overrides = {k: getattr(current, k) for k in overrides}
-            self._current = current
-            stored = {
-                k: {"encrypted": vault.encrypt(str(v), f"setting:{k}")} if k in SECRET else v
-                for k, v in self._overrides.items()
-            }
-            vault.write_private(self._file, json.dumps(stored, indent=1))
+        lock = os.open(self._env.manager_dir / "settings.lock", os.O_CREAT | os.O_RDWR | os.O_CLOEXEC, 0o600)
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX)  # every process: the file as it is now, then the change, then the write
+            if not self._frozen and self._signature() != self._seen:
+                self._reload()
+            with self._lock:
+                overrides = {**self._overrides, **values}
+                overrides = {k: v for k, v in overrides.items() if v is not None}
+                current = Settings(**overrides)  # pydantic.ValidationError is a ValueError
+                self._overrides = {k: getattr(current, k) for k in overrides}
+                self._current = current
+                stored = {
+                    k: {"encrypted": vault.encrypt(str(v), f"setting:{k}")} if k in SECRET else v
+                    for k, v in self._overrides.items()
+                }
+                vault.write_private(self._file, json.dumps(stored, indent=1))
+                self._seen = self._signature()
+        finally:
+            os.close(lock)  # releases the flock
         self.notify(values)  # each listener on its own: one that fails never undoes the change or stops the others
 
     def use(self, values: Mapping[str, Any]) -> None:
@@ -2825,6 +2899,7 @@ class LiveSettings:
         a value is not valid; nothing changes then."""
         current = Settings(**dict(values))
         with self._lock:
+            self._frozen = True  # from now on these values, never settings.json
             self._overrides = {k: getattr(current, k) for k in values}
             self._encrypted = {}
             self._current = current

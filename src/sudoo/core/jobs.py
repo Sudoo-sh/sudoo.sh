@@ -17,6 +17,7 @@ reports progress, adds a note or ends.
 from __future__ import annotations
 
 import contextlib
+import json
 import logging
 import os
 import queue
@@ -32,15 +33,17 @@ from collections.abc import Callable
 from typing import Any
 
 from sudoo.config import settings
-from sudoo.core import events, failure, slots
+from sudoo.core import events, failure, shared, slots
 from sudoo.core.hints import friendly_hint
 from sudoo.core.shell import redact
+from sudoo.storage import storage
 
 JOBS: OrderedDict[str, Job] = OrderedDict()
 _HELD: dict[str, Job] = {}  # jobs whose instance still counts as running (see starting())
 _JOBS_LOCK = threading.Lock()
 log = logging.getLogger("sudoo.jobs")
-INSTANCE_LOCKS: defaultdict[str, threading.Lock] = defaultdict(threading.Lock)
+# one job at a time per instance, in every worker process of the panel (core/shared.py: a thread lock and an flock)
+INSTANCE_LOCKS = shared.KeyedLocks("instance-")
 ACTIVE_JOB: dict[str, Job] = {}  # instance name -> the job currently running on it
 _GENERATIONS: defaultdict[str, int] = defaultdict(int)  # instance name -> jobs started or ended on it
 _KEEP = 300
@@ -100,6 +103,22 @@ class Job:
         self.expected_steps: int | None = None  # set by operations that know how many steps they take
         self.details: dict[str, Any] = {}  # what the caller knows in advance (a creation's plan, without secrets)
         self._masked: list[str] = []  # secrets never written to the log (mask)
+        self._request_key: str | None = None
+        self.remote = False  # a job of another worker process, read from the shared record (_from_record)
+        self.shared = False  # registered by start(): its record is kept for every worker process
+        self._share_lock = threading.Lock()  # its record is written one change at a time, each with its latest state
+
+    @property
+    def request_key(self) -> str | None:
+        """The API request that started it (same_request: a request sent twice answers with this job)."""
+        return self._request_key
+
+    @request_key.setter
+    def request_key(self, key: str | None) -> None:
+        self._request_key = key
+        if key and self.shared and not self.remote:
+            _claim_request(key, self)
+        _share(self)
 
     def expect(self, steps: int) -> None:
         """Announce how many steps this job will take, so its progress can be shown as a percentage."""
@@ -117,7 +136,8 @@ class Job:
         return min(99, round(100 * done / max(self.expected_steps, len(self.steps))))
 
     def changed(self) -> None:
-        """Tell connected clients that this job changed."""
+        """Tell connected clients that this job changed (and every worker process: the shared record)."""
+        _share(self)
         events.publish("job", self.id)
 
     def mask(self, secret: str) -> None:
@@ -348,6 +368,7 @@ def start(
     details: dict[str, Any] | None = None,
     holds_slot: bool | None = None,
     prepare: Callable[[], None] | None = None,
+    request_key: str | None = None,
 ) -> Job:
     """Run fn(job, *args) in the background for `instance` and return the Job.
 
@@ -369,6 +390,9 @@ def start(
     try:
         if prepare is not None:
             prepare()
+        job.shared = True  # from now on every worker process sees it (_share)
+        if request_key:  # claimed before the job starts (the caller holds quotas.LOCK): same_request finds it
+            job.request_key = request_key
         with _JOBS_LOCK:
             JOBS[job.id] = job
             if holds:
@@ -471,33 +495,29 @@ def on_end(listener: Callable[[Job], None]) -> None:
         _END_LISTENERS.append(listener)
 
 
-def creating(instance: str) -> Job | None:
-    """The job creating `instance` while it is queued or running; None otherwise."""
+def _live_jobs() -> list[Job]:
+    """The queued and running jobs of this process and of every other worker process."""
     with _JOBS_LOCK:
-        found = [j for j in JOBS.values() if j.instance == instance and j.kind == "create"]
-    return next((j for j in reversed(found) if j.status in ("queued", "running")), None)
+        local = [j for j in [*JOBS.values(), *_HELD.values()] if j.status in ("queued", "running")]
+    seen = {j.id for j in local}
+    return [*local, *(j for j in _others_live() if j.id not in seen)]
+
+
+def creating(instance: str) -> Job | None:
+    """The job creating `instance` while it is queued or running (in any worker process); None otherwise."""
+    found = [j for j in _live_jobs() if j.instance == instance and j.kind == "create"]
+    return max(found, key=lambda j: j.started) if found else None
 
 
 def being_created() -> list[str]:
-    """Names of the instances whose creation is queued or running."""
-    with _JOBS_LOCK:
-        return sorted(
-            {
-                j.instance
-                for j in JOBS.values()
-                if j.kind == "create" and j.status in ("queued", "running") and not is_panel_job(j.instance)
-            }
-        )
+    """Names of the instances whose creation is queued or running (in any worker process)."""
+    return sorted({j.instance for j in _live_jobs() if j.kind == "create" and not is_panel_job(j.instance)})
 
 
 def pending_creations() -> list[tuple[str, str]]:
-    """(instance, user) of each creation that is queued or running."""
-    with _JOBS_LOCK:
-        return [
-            (j.instance, j.user)
-            for j in JOBS.values()
-            if j.kind == "create" and j.status in ("queued", "running") and not is_panel_job(j.instance)
-        ]
+    """(instance, user) of each creation that is queued or running (in any worker process)."""
+    found = {j.id: j for j in _live_jobs() if j.kind == "create" and not is_panel_job(j.instance)}
+    return [(j.instance, j.user) for j in found.values()]
 
 
 def _publish_end(job: Job) -> None:
@@ -597,17 +617,69 @@ def unsettled() -> list[str]:
 
 
 def busy(instance: str) -> bool:
+    """A job runs on `instance` now, in this or another worker process (it holds the instance's lock)."""
     return INSTANCE_LOCKS[instance].locked()
 
 
 def unfinished(instance: str) -> bool:
-    """A job of this panel process for `instance` that is queued or running, or that holds the instance's lock: it
-    may read the instance's settings while it runs. Jobs of another process are not seen."""
+    """A job for `instance` that is queued or running, in any worker process, or that holds the instance's lock: it
+    may read the instance's settings while it runs."""
+    return INSTANCE_LOCKS[instance].locked() or any(j.instance == instance for j in _live_jobs())
+
+
+def any_unfinished() -> bool:
+    """Whether any job is queued or running, in any worker process (a restart waits for them)."""
+    return bool(ACTIVE_JOB) or bool(_live_jobs())
+
+
+_REQUESTS = shared.SharedMap("job_requests")  # request key -> {"job": id}: claimed when the job is registered
+REQUEST_SECONDS = 7 * 86400  # a claim outlives any job; it counts only while its job is queued or running
+
+
+def _claim_request(key: str, job: Job) -> None:
+    """Record that `job` is the job of request `key`, in the panel's storage (every worker process sees it)."""
+    _REQUESTS.put(key, {"job": job.id, "expires": time.time() + REQUEST_SECONDS})
+
+
+def same_request(key: str) -> Job | None:
+    """The job started by the same request (web/v1/instances.py request_key) that is queued or running, in any worker
+    process: a request sent twice (two tabs, a double click, a client that retries) answers with that job. The claim
+    is written when the job is registered, under quotas.LOCK like this check, so two requests at once find it."""
+    claim = _REQUESTS.get(key)
+    if claim is not None:
+        job_id = str(claim.get("job") or "")
+        with _JOBS_LOCK:
+            local = JOBS.get(job_id) or _HELD.get(job_id)
+        if local is not None:
+            if local.status in ("queued", "running"):
+                return local
+        else:
+            record = storage().get(LIVE, job_id)
+            if record is not None and _alive(record.get("owner")):
+                return _from_record(record["job"])
+    return next((j for j in _live_jobs() if j.request_key == key), None)
+
+
+def find(job_id: str) -> Job | None:
+    """The job `job_id` of this process, or as another worker process recorded it; None when unknown or too old."""
     with _JOBS_LOCK:
-        live = [*JOBS.values(), *_HELD.values()]
-    return INSTANCE_LOCKS[instance].locked() or any(
-        j.instance == instance and j.status in ("queued", "running") for j in live
-    )
+        local = JOBS.get(job_id) or _HELD.get(job_id)
+    if local is not None:
+        return local
+    record = storage().get(LIVE, job_id) or storage().get(ENDED, job_id)
+    return _from_record(record["job"]) if record else None
+
+
+def all_jobs(instance: str | None = None) -> list[Job]:
+    """Every job kept, of this process and the others, newest first; optionally of one instance."""
+    with _JOBS_LOCK:
+        found = {j.id: j for j in JOBS.values()}
+    for collection in (ENDED, LIVE):
+        for job_id, record in storage().all(collection).items():
+            if job_id not in found and record.get("owner") != _me():
+                found[job_id] = _from_record(record["job"])
+    jobs = sorted(found.values(), key=lambda j: j.started, reverse=True)
+    return [j for j in jobs if instance is None or j.instance == instance]
 
 
 def generation(instance: str) -> int:
@@ -617,10 +689,106 @@ def generation(instance: str) -> int:
 
 
 def recent(instance: str | None = None, limit: int = 30) -> list[dict[str, Any]]:
-    """Summaries of the most recent jobs, optionally for one instance only."""
-    with _JOBS_LOCK:
-        jobs = [j for j in reversed(JOBS.values()) if instance is None or j.instance == instance]
-    return [j.summary() for j in jobs[:limit]]
+    """Summaries of the most recent jobs (of every worker process), optionally for one instance only."""
+    return [j.summary() for j in all_jobs(instance)[:limit]]
+
+
+# ---------------------------------------------------------------- the jobs of every worker process
+
+LIVE = "jobs_live"  # queued and running jobs, by id: {"owner": slots owner id, "job": {...}}
+ENDED = "jobs_ended"  # ended jobs, by id; the newest KEEP_SHARED are kept
+KEEP_SHARED = 600
+_FIELDS = ("id", "instance", "action", "kind", "user", "status", "steps", "notes", "hint", "failure", "started",
+           "finished", "expected_steps")  # fmt: skip
+_ENDS = [0]
+
+
+def _me() -> str | None:
+    try:
+        return slots.owner()
+    except slots.Unavailable:
+        return None
+
+
+def _json_safe(value: Any) -> Any:
+    try:
+        return json.loads(json.dumps(value, default=str))
+    except (TypeError, ValueError):
+        return None
+
+
+def _share(job: Job) -> None:
+    """Keep the job's record for the other worker processes (what the API shows, and what they check: a job queued
+    or running on an instance, a creation, the same request sent twice). Never fails the job."""
+    if not job.shared or job.remote:
+        return
+    with job._share_lock:  # one write at a time, each with the job as it is then: an older copy never wins
+        _write_record(job)
+
+
+def _write_record(job: Job) -> None:
+    try:
+        record = {name: getattr(job, name) for name in _FIELDS}
+        record["details"] = _json_safe(job.details) or {}
+        record["request_key"] = job.request_key
+        doc = _json_safe({"owner": _me(), "job": record})
+        if job.status in ("queued", "running"):
+            storage().put(LIVE, job.id, doc)
+            return
+        storage().put(ENDED, job.id, doc)
+        storage().delete(LIVE, job.id)
+        _ENDS[0] += 1
+        if _ENDS[0] % 50 == 0:
+            _prune_ended()
+    except Exception as exc:  # noqa: BLE001 - the job runs whether or not its record could be kept
+        log.warning("job %s: its shared record could not be written (%r)", job.id, exc)
+
+
+def _prune_ended() -> None:
+    ended = storage().all(ENDED)
+    if len(ended) <= KEEP_SHARED:
+        return
+    oldest = sorted(ended, key=lambda k: float(ended[k]["job"].get("finished") or 0))
+    for job_id in oldest[: len(ended) - KEEP_SHARED]:
+        storage().delete(ENDED, job_id)
+
+
+def _from_record(record: dict[str, Any]) -> Job:
+    job = Job(str(record["instance"]), str(record["action"]), str(record["kind"]), str(record["user"]))
+    for name in _FIELDS:
+        if name in record:
+            setattr(job, name, record[name])
+    job.details = dict(record.get("details") or {})
+    job._request_key = record.get("request_key")
+    job.remote = True
+    return job
+
+
+def _alive(owner_id: str | None) -> bool:
+    """Whether the process that recorded a job still runs (it keeps an flock on its owner file, core/slots.py)."""
+    if not owner_id:
+        return False
+    with slots._dead(owner_id) as dead:
+        return dead is False
+
+
+def _others_live() -> list[Job]:
+    """The queued and running jobs other worker processes recorded. A job of a process that ended (a restart, a
+    crash) is recorded as failed and left out."""
+    me = _me()
+    found = []
+    for job_id, record in storage().all(LIVE).items():
+        owner = record.get("owner")
+        if me is not None and owner == me:
+            continue  # this process's own: JOBS has them
+        if _alive(owner):
+            found.append(_from_record(record["job"]))
+            continue
+        ended = {**record["job"], "status": "failed", "finished": record["job"].get("finished") or time.time(),
+                 "hint": "The panel process that ran this job stopped (a restart or a crash)."}  # fmt: skip
+        storage().put(ENDED, job_id, {**record, "job": ended})
+        storage().delete(LIVE, job_id)
+    return found
 
 
 def _forget_in_child() -> None:

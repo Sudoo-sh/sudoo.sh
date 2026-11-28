@@ -43,6 +43,7 @@ from typing import Any
 import markdown
 
 from sudoo.config import settings
+from sudoo.core.shared import SharedLock
 from sudoo.storage import storage
 
 log = logging.getLogger("sudoo.licence")
@@ -61,7 +62,7 @@ SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 ACCEPT_STATEMENT = "I have read and accept the Sudoo.sh Licence Agreement, version {version}."
 COMPANY_STATEMENT = "I accept it on behalf of my company, and I am authorised to bind it."
 
-_LOCK = threading.Lock()
+_LOCK = SharedLock("licence")
 _ACCEPTED: dict[str, tuple[int, ...] | None] = {}  # cache of the newest accepted version, by collection
 
 
@@ -271,11 +272,16 @@ def latest() -> dict[str, Any] | None:
     return max(found, key=lambda doc: (version_key(str(doc["version"])), doc["ts"]))
 
 
+ACCEPTED_SECONDS = 2.0  # an acceptance given in another worker process counts here within this time
+_ACCEPTED_AT: dict[str, float] = {}
+
+
 def _accepted_key() -> tuple[int, ...] | None:
     with _LOCK:
-        if COLLECTION not in _ACCEPTED:
+        if COLLECTION not in _ACCEPTED or time.monotonic() - _ACCEPTED_AT.get(COLLECTION, 0) > ACCEPTED_SECONDS:
             newest = latest()
             _ACCEPTED[COLLECTION] = version_key(newest["version"]) if newest else None
+            _ACCEPTED_AT[COLLECTION] = time.monotonic()
         return _ACCEPTED[COLLECTION]
 
 

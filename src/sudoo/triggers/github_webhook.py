@@ -28,6 +28,7 @@ from sudoo.config import Settings
 from sudoo.instances import store
 from sudoo.repos import github
 from sudoo.repos.gitrepo import origin_url
+from sudoo.triggers import deliveries
 from sudoo.triggers.base import RequestUpdate
 
 
@@ -65,7 +66,12 @@ class GitHubWebhook:
             return jsonify(ok=True, message="Webhook received. Push events will update the matching instances.")
         if event != "push":
             return jsonify(ok=True, message=f"Ignored the {event or 'unknown'} event; only push events are used.")
-        return self.push(request.get_json(silent=True) or {})
+        payload: dict[str, Any] = request.get_json(silent=True) or {}
+        return deliveries.once(
+            deliveries.keys_of(request.headers.get("X-GitHub-Delivery"), event, payload),
+            lambda: self.push(payload),
+            lambda: jsonify(ok=True, instances=[], duplicate=True, message="Delivered already: it was handled once."),
+        )
 
     def push(self, payload: dict[str, Any]) -> Response:
         """Update the instances that follow the pushed repository and branch. A push that creates or deletes a

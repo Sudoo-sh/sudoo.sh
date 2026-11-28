@@ -187,7 +187,7 @@ def _apply(
     save()
     started, waiting = [], []
     for name in changed:
-        if jobs.busy(name) or access.instance_refusal(g.user, "projects.resources", name):
+        if jobs.unfinished(name) or access.instance_refusal(g.user, "projects.resources", name):
             waiting.append(name)
             continue
 

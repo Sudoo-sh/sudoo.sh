@@ -2,7 +2,8 @@
 
 1. Someone with instances.credentials asks the panel for a link (POST /api/v1/instances/<name>/connect, web/v1/
    connect.py), naming an active internal Odoo user. The panel issues a token: random, single-use, valid for
-   TOKEN_SECONDS, bound to that instance and that Odoo user, kept only as its SHA-256 in this process's memory.
+   TOKEN_SECONDS, bound to that instance and that Odoo user, kept only as its SHA-256 in the panel's storage
+   (core/shared.py: issued by any worker process, redeemed by the one that serves the gateway).
    The request is audit-logged (who, instance, which Odoo user); production also needs a typed confirmation.
 2. The browser opens <instance address>/__sudoo/connect?token=... . The gateway (gateway.py) passes the token to
    connect(): it is used up whatever happens next; when it was valid, a session for the user is written into the
@@ -23,11 +24,11 @@ from __future__ import annotations
 import hashlib
 import secrets
 import subprocess
-import threading
 import time
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 
 from sudoo.core import audit
+from sudoo.core.shared import SharedMap
 from sudoo.instances import odoo, store
 
 TOKEN_SECONDS = 60
@@ -94,8 +95,7 @@ class Grant:
     expires: float
 
 
-_LOCK = threading.Lock()
-_GRANTS: dict[str, Grant] = {}  # SHA-256 of the token -> grant
+_GRANTS = SharedMap("connect_as_grants")  # SHA-256 of the token -> grant
 _USERS: dict[str, tuple[float, list[dict[str, object]]]] = {}  # instance -> (read at, users)
 
 
@@ -108,12 +108,11 @@ def issue(instance: str, uid: int, login: str, user: str, now: float | None = No
     now = time.time() if now is None else now
     token = secrets.token_urlsafe(32)
     grant = Grant(instance, uid, login, user, now + TOKEN_SECONDS)
-    with _LOCK:
-        for key in [key for key, kept in _GRANTS.items() if kept.expires <= now]:
-            del _GRANTS[key]
-        while len(_GRANTS) >= MAX_TOKENS:
-            del _GRANTS[next(iter(_GRANTS))]
-        _GRANTS[_digest(token)] = grant
+    with _GRANTS.lock:
+        kept = _GRANTS.items()
+        for key in sorted(kept, key=lambda k: float(kept[k]["expires"]))[: max(0, len(kept) - MAX_TOKENS + 1)]:
+            _GRANTS.delete(key)
+        _GRANTS.put(_digest(token), asdict(grant))
     return token, grant.expires
 
 
@@ -122,9 +121,11 @@ def redeem(instance: str, token: str, now: float | None = None) -> Grant | None:
     instance (it is used up in every case: a token is tried once)."""
     if not token or len(token) > 200:
         return None
-    with _LOCK:
-        grant = _GRANTS.pop(_digest(token), None)
-    if grant is None or grant.instance != instance:
+    found = _GRANTS.take(_digest(token), now)
+    if found is None:  # (expired: gone as well)
+        return None
+    grant = Grant(**{field: found[field] for field in Grant.__dataclass_fields__})
+    if grant.instance != instance:
         return None
     return grant if (time.time() if now is None else now) < grant.expires else None
 

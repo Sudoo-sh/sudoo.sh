@@ -42,6 +42,7 @@ from urllib.parse import quote, urlsplit
 
 from sudoo.config import settings
 from sudoo.core import audit
+from sudoo.core.shared import SharedLock
 from sudoo.storage import Document, storage
 
 from . import access_gate, geoip, stages, store
@@ -74,7 +75,7 @@ SAMPLE_PATHS = (
 )
 """Paths the preview tries, so people see what a rule set blocks and what stays open."""
 
-_LOCK = threading.Lock()
+_LOCK = SharedLock("access-rules")
 
 
 class RuleError(ValueError):

@@ -42,25 +42,26 @@ _LAST_PRUNE = 0.0
 # ---------------------------------------------------------------- what is checked
 
 
-def production_instances(project_id: str) -> list[tuple[str, str]]:
-    """(instance, branch) of each production instance of the project on this server."""
+def production_instances(project_id: str, known: Mapping[str, list[str]] | None = None) -> list[tuple[str, str]]:
+    """(instance, branch) of each production instance of the project on this server (`known`: projects.index(),
+    when every project is looked at in a row)."""
     from sudoo import projects
     from sudoo.instances import stages, store
 
     found = []
-    for name in projects.instances(project_id):
+    for name in projects.instances(project_id, known):
         if store.exists(name) and stages.is_production(store.read_env(name)):
             found.append((name, projects.branch_of(name)))
     return found
 
 
-def targets(project_id: str) -> list[dict[str, str]]:
+def targets(project_id: str, known: Mapping[str, list[str]] | None = None) -> list[dict[str, str]]:
     """The targets a project's status shows: each production instance, its backups (and off-site copies), the
     server. {"id", "kind", "name", "branch"?}"""
     from . import offsite_last
 
     found: list[dict[str, str]] = []
-    for name, branch in production_instances(project_id):
+    for name, branch in production_instances(project_id, known):
         found.append({"id": f"instance:{name}", "kind": "instance", "name": name, "branch": branch})
         found.append({"id": f"backups:{name}", "kind": "backups", "name": name, "branch": branch})
         if settings.offsite_backups and offsite_last is not None:
@@ -206,8 +207,9 @@ def run_once(now: float | None = None) -> list[Change]:
     now = time.time() if now is None else now
     changes = [record(SERVER, check_server(now), now)]
     checked: set[str] = {SERVER}
+    known = projects.index()  # every project's instances from one look, not one look per project
     for project in projects.all_projects():
-        for target in targets(project["id"]):
+        for target in targets(project["id"], known):
             if target["id"] in checked:
                 continue
             checked.add(target["id"])

@@ -129,6 +129,9 @@ def write_env(name: str, env: Mapping[str, object]) -> None:
     with integrity.writing(name, ".env"):
         path.touch(mode=0o600)
         path.write_text("".join(f"{key}={value}\n" for key, value in env.items()))
+    from sudoo import projects  # late: projects/ imports this module
+
+    projects.forget_reading_index()  # the project an instance belongs to may have changed
 
 
 def update_env(name: str, **values: object) -> None:

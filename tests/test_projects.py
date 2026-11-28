@@ -198,6 +198,63 @@ def test_list_and_read_projects(admin: Client, viewer: Client, started: list[Any
     assert client.get("/api/v1/instances/plain-one").get_json()["data"]["project"] is None
 
 
+def _count_scans(monkeypatch: pytest.MonkeyPatch) -> list[int]:
+    """Counts the looks at every instance of the server (premium/servers.names) from now on."""
+    from sudoo.premium import servers
+
+    seen = [0]
+    real = servers.names
+
+    def counted() -> list[str]:
+        seen[0] += 1
+        return real()
+
+    monkeypatch.setattr(servers, "names", counted)
+    return seen
+
+
+def test_the_project_list_looks_at_every_instance_once(
+    admin: Client, developer: Client, started: list[Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A list asked for a project's instances once per project, branch and access check, each time looking at every
+    instance: with 1,000 projects and instances, two minutes for an administrator and hours of processor for 50
+    developers. Now one look per answer, with the same answer."""
+    _existing_instances()
+    adopt.adopt()
+    erp = projects.by_repository("acme/erp")
+    assert erp
+    expected = {p["id"]: projects.instances(p["id"]) for p in projects.all_projects()}
+    assert projects.index() == {key: value for key, value in expected.items() if value}
+    for client, _ in (admin, developer):
+        scans = _count_scans(monkeypatch)
+        answer = client.get("/api/v1/projects").get_json()
+        assert scans[0] <= 2  # the index, and the instances outside every project (meta.standalone)
+        assert {p["id"]: p["instances"]["names"] for p in answer["data"]} == expected
+        assert next(p for p in answer["data"] if p["id"] == erp["id"])["production_branches"] == ["main"]
+        monkeypatch.undo()
+
+
+def test_a_reading_request_keeps_one_index_and_drops_it_when_an_env_changes(app: Flask) -> None:
+    _instance("erp-main", "production", "Acme/ERP")
+    _instance("erp-dev", None, "Acme/ERP", "feature-x")
+    adopt.adopt()
+    erp = projects.by_repository("acme/erp")
+    assert erp
+    assert projects.instances(erp["id"]) == ["erp-dev", "erp-main"]
+    with app.test_request_context("/api/v1/projects", method="GET"):
+        assert projects.instances(erp["id"]) == ["erp-dev", "erp-main"]
+        _instance("erp-old", "development", "Acme/ERP", PROJECT=erp["id"])  # written during the read: seen
+        assert projects.instances(erp["id"]) == ["erp-dev", "erp-main", "erp-old"]
+        store.update_env("erp-dev", PROJECT="")
+        assert projects.instances(erp["id"]) == ["erp-main", "erp-old"]
+    with app.test_request_context("/api/v1/projects", method="POST"):  # a change never keeps a copy
+        assert projects.instances(erp["id"]) == ["erp-main", "erp-old"]
+        (store.folder("erp-old") / ".env").unlink()
+        assert projects.instances(erp["id"]) == ["erp-main"]
+    # outside a request (background work): every call looks again
+    assert projects.instances(erp["id"]) == ["erp-main"]
+
+
 def test_link_a_repository(admin: Client, developer: Client) -> None:
     client, headers = admin
     HEADS["https://github.com/Acme/Portal"] = {"main": "d" * 40, "dev": "e" * 40}

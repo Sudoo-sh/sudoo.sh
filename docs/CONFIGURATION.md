@@ -384,6 +384,8 @@ SMTP_PASSWORD=...
 | `RATE_LIMITER` | str | `memory` | **restart** | Where request counts are kept: `memory`. |
 | `RATE_LIMIT_READS_PER_MINUTE` | int | `600` | **live** | Requests that read, per minute, per signed-in user or API token (per address before signing in); 0: no limit. |
 | `RATE_LIMIT_CHANGES_PER_MINUTE` | int | `60` | **live** | Requests that change something, per minute, counted the same way; 0: no limit. |
+| `MAX_CONCURRENT_REQUESTS` | int | `8` | **live** | Requests the panel works on at once; the next ones wait their turn (0 to 64; 0: no limit). The panel is one process: more at once only makes each slower. |
+| `REQUEST_QUEUE_SECONDS` | float | `10` | **live** | Seconds a request waits for its turn before it is answered 503 "busy, try again" with `Retry-After`, nothing done (1 to 120). `/healthz` and following a log never wait. |
 | `MAX_INSTANCES` | int | `0` | **live** | Instances on this server at most, those being created included; 0: no limit. |
 | `MAX_INSTANCES_PER_USER` | int | `0` | **live** | Instances one person or API token may have created (or be creating) and not yet deleted; 0: no limit. |
 | `CREATE_COOLDOWN_MINUTES` | float | `0` | **live** | Minutes one person or token must wait between two creations, for example `60`; 0: no wait. |

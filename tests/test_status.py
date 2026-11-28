@@ -218,6 +218,33 @@ def test_instance_is_checked_through_its_gateway(production: dict[str, Any]) -> 
     assert checks.check_instance("watched-main").state == DEGRADED
 
 
+def test_a_round_looks_at_every_instance_once_whatever_the_number_of_projects(
+    production: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Each project asked for its own instances, each time looking at all of them: with 1,000 projects a round took
+    minutes of processor, so the checks ran without a pause and slowed every answer of the panel."""
+    from sudoo import projects
+    from sudoo.premium import servers
+
+    others = [
+        projects.create(repository=f"Acme/other-{n}", odoo_version="18.0", edition="community", origin="linked",
+                        user="admin1")["id"]
+        for n in range(5)
+    ]  # fmt: skip
+    monkeypatch.setattr(checks, "check_server", lambda now: Result(UP))
+    monkeypatch.setattr(checks, "check_backups", lambda name, now: Result(UP))
+    scans = [0]
+    real = servers.names
+    monkeypatch.setattr(servers, "names", lambda: scans.__setitem__(0, scans[0] + 1) or real())
+    try:
+        changes = checks.run_once(T0)
+        assert scans[0] == 1
+        assert {change.target for change in changes} >= {"instance:watched-main", "backups:watched-main"}
+    finally:
+        for key in others:
+            projects.remove(key)
+
+
 def test_a_round_records_and_notifies_production_down_and_up(
     production: dict[str, Any], monkeypatch: pytest.MonkeyPatch
 ) -> None:

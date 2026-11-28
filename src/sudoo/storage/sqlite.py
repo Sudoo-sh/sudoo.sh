@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from sudoo.config import Settings
+from sudoo.core import request_memo
 
 from .base import Document
 
@@ -87,19 +88,37 @@ class SqliteStorage:
 
     # ------------------------------------------------------------ documents
 
-    def get(self, collection: str, key: str) -> Document | None:
+    # Within a request that only reads, each document is read from the file once (core/request_memo.py): the access
+    # checks of a list ask for the same project or team documents once per row. The text is kept, so every caller
+    # still gets its own copy to change; a write of the same thread forgets what was kept of its collection.
+
+    def _row(self, collection: str, key: str) -> str | None:
         row = (
             self._db()
             .execute("SELECT data FROM documents WHERE collection = ? AND key = ?", (collection, key))
             .fetchone()
         )
-        return json.loads(row[0]) if row else None
+        return str(row[0]) if row else None
+
+    def get(self, collection: str, key: str) -> Document | None:
+        text = request_memo.remember(("storage", collection, key), lambda: self._row(collection, key))
+        return json.loads(text) if text is not None else None
 
     def all(self, collection: str) -> dict[str, Document]:
-        rows = self._db().execute("SELECT key, data FROM documents WHERE collection = ?", (collection,))
+        rows = request_memo.remember(
+            ("storage", collection),
+            lambda: self._db()
+            .execute("SELECT key, data FROM documents WHERE collection = ?", (collection,))
+            .fetchall(),
+        )
         return {key: json.loads(data) for key, data in rows}
 
+    @staticmethod
+    def _changed(collection: str) -> None:
+        request_memo.forget(lambda key: isinstance(key, tuple) and key[:2] == ("storage", collection))
+
     def put(self, collection: str, key: str, document: Document) -> None:
+        self._changed(collection)
         with self._connection(write=True) as db:
             db.execute(
                 "INSERT OR REPLACE INTO documents (collection, key, data) VALUES (?, ?, ?)",
@@ -107,10 +126,12 @@ class SqliteStorage:
             )
 
     def delete(self, collection: str, key: str) -> bool:
+        self._changed(collection)
         with self._connection(write=True) as db:
             return db.execute("DELETE FROM documents WHERE collection = ? AND key = ?", (collection, key)).rowcount > 0
 
     def change(self, collection: str, key: str, fn: Callable[[Document | None], Document | None]) -> Document | None:
+        self._changed(collection)
         with self._connection(write=True) as db:
             row = db.execute(
                 "SELECT data FROM documents WHERE collection = ? AND key = ?", (collection, key)

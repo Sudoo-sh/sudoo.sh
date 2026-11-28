@@ -28,7 +28,8 @@ def post_worker_init(worker: Any) -> None:  # noqa: ARG001 - gunicorn's signatur
         # rounded as the monitor rounds its own samples (instances/monitor.py, metrics.py)
         metrics._SERVER_HISTORY.append(
             {"t": t, "cpu_percent": round(random.uniform(5, 60), 1), "memory_percent": round(random.uniform(30, 70), 1),
-             "disk_percent": 41.5, "load_1m": round(random.uniform(0.1, 3), 2), "instances_running": len(names) // 2}
+             "disk_percent": 41.5, "load_1m": round(random.uniform(0.1, 3), 2), "instances_running": len(names) // 2,
+             "panel_cpu_percent": round(random.uniform(0.5, 8), 2), "panel_memory_bytes": random.randint(150, 400) * 2**20}
         )  # fmt: skip
         for name in names:
             metrics._INSTANCE_HISTORY[name].append(

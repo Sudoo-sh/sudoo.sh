@@ -232,7 +232,12 @@ def production_keys() -> list[str]:
     from sudoo.instances import stages
     from sudoo.premium import servers
 
-    keys = {f"{p['id']}/{branch}" for p in projects.all_projects() for branch in projects.production_branches(p)}
+    known = projects.index()  # once, not once per project
+    keys = {
+        f"{p['id']}/{branch}"
+        for p in projects.all_projects()
+        for branch in projects.production_branches(p, projects.by_branch(p["id"], known))
+    }
     if servers.is_agent():  # every server's, as the main panel last counted them
         keys |= {str(key) for key in servers.PANEL.get("production_keys") or ()}
     for name in stages.production_instances():

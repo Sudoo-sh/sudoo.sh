@@ -13,7 +13,7 @@ import { Monogram } from "@/components/InstanceCard";
 import { JobSteps } from "@/components/JobDrawer";
 import { Page, useCan } from "@/components/Shell";
 import { WhyItFailed } from "@/components/WhyItFailed";
-import { Button, Callout, Progress, Skeleton, Status, Tag } from "@/components/app/basics";
+import { Button, Callout, LoadFailed, Progress, Skeleton, Status, Tag } from "@/components/app/basics";
 import { useT } from "@/i18n";
 import instanceWords from "@/i18n/instance";
 import { jobTitle } from "@/i18n/jobs";
@@ -146,7 +146,7 @@ export function CreationFailed({ name, job, instance }: { name: string; job: Job
 }
 
 /** GET answered 404: a creation that failed and left nothing shows its job; anything else does not exist. */
-export function MissingInstance({ name, error }: { name: string; error: unknown }) {
+export function MissingInstance({ name, error, onRetry }: { name: string; error: unknown; onRetry: () => unknown }) {
   const notFound = error instanceof ApiError && error.status === 404;
   const client = useQueryClient();
   const { data: jobs, isPending } = useJobs(name, notFound);
@@ -156,7 +156,15 @@ export function MissingInstance({ name, error }: { name: string; error: unknown 
     // the creation was accepted just after the page asked: ask again, it answers with the instance being created
     if (starting) client.invalidateQueries({ queryKey: keys.instance(name) });
   }, [starting, client, name]);
-  if (!notFound) return <NotFoundPage />;
+  if (!notFound)
+    // busy (503), a server error or no network: the instance may well exist, so never "this page does not exist"
+    return (
+      <Page>
+        <div className="card">
+          <LoadFailed error={error} onRetry={onRetry} />
+        </div>
+      </Page>
+    );
   if (latest?.kind === "create" && latest.status === "failed") return <CreationFailed name={name} job={latest} />;
   if (isPending || starting)
     return (

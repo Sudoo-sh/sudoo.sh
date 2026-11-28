@@ -329,7 +329,16 @@ const TABS: { id: TabId; groups: Group[] }[] = [
         id: "invitations",
         keys: ["invitation_hours", "invitation_password_fallback", "invitations_per_hour", "access_request_domains"],
       },
-      { id: "requests", keys: ["rate_limit_reads_per_minute", "rate_limit_changes_per_minute", "rate_limiter"] },
+      {
+        id: "requests",
+        keys: [
+          "rate_limit_reads_per_minute",
+          "rate_limit_changes_per_minute",
+          "rate_limiter",
+          "max_concurrent_requests",
+          "request_queue_seconds",
+        ],
+      },
       {
         id: "webShell",
         keys: [

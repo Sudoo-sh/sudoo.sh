@@ -3,10 +3,11 @@
 // page names the permission it needs; the backend checks it again on every request.
 
 import type { ComponentType } from "react";
-import { createBrowserRouter } from "react-router";
+import { createBrowserRouter, type RouteObject } from "react-router";
 import type { Permission } from "./api/types";
 import { RequirePermission, RequireSession } from "./components/Session";
 import { Spinner } from "./components/app/basics";
+import { RouteError } from "./components/Problems";
 import { GitHubReturnPage, LoginPage } from "./pages/Login";
 
 function page<M>(load: () => Promise<M>, pick: (module: M) => ComponentType, permission?: Permission) {
@@ -31,7 +32,8 @@ const loading = (
   </div>
 );
 
-export const router = createBrowserRouter([
+// every page that fails to load or draw shows the error screen (components/Problems.tsx), never a blank page
+const routes: RouteObject[] = [
   { path: "/login", element: <LoginPage /> },
   // where GitHub sends the browser back after "Continue with GitHub" or linking a GitHub account (auth/github.py)
   { path: "/login/github", element: <GitHubReturnPage /> },
@@ -278,4 +280,6 @@ export const router = createBrowserRouter([
       },
     ],
   },
-]);
+];
+
+export const router = createBrowserRouter(routes.map((route) => ({ errorElement: <RouteError />, ...route })));

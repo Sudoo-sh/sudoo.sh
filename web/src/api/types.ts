@@ -1747,6 +1747,36 @@ export interface PluginNotice {
   date: string | null;
 }
 
+/** GET /health: what is wrong with the panel right now (administrators). */
+export interface PanelProblem {
+  kind: "config" | "plugin" | "startup" | "background" | string;
+  key: string;
+  title: string;
+  detail: string;
+  level: "warning" | "danger";
+  since: string | null;
+  last: string | null;
+  count: number;
+}
+
+export interface FailedPlugin {
+  group: string;
+  name: string;
+  label: string;
+  failures: number;
+  stage: "load" | "call" | null;
+  error: string;
+  disabled: boolean;
+  since: string | null;
+  last: string | null;
+}
+
+export interface PanelHealth {
+  status: "ok" | "degraded";
+  problems: PanelProblem[];
+  plugins: FailedPlugin[];
+}
+
 export interface MarketplaceStatus {
   enabled: boolean;
   hub_url: string;

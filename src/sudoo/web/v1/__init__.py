@@ -45,6 +45,7 @@ role (roles.py), and the same permission checks apply.
     docs.py        the documentation, for the web app's Help pages
     plan.py        the panel's Sudoo.sh plan: entitlements, usage, where to manage it
     plugins.py     installed plugins and the marketplace (catalogue, purchases, linking)
+    health.py      what is wrong with the panel right now, for the administrators; switching failed plugins on
     shell.py       the web shell: tickets, open and past shells, recordings
     events.py      the live event stream (Server-Sent Events), served on the asyncio loop
     shell_socket.py  the web shell's WebSocket, served on the same loop
@@ -58,7 +59,7 @@ from flask import Blueprint, Flask
 
 from sudoo.config import live
 from sudoo.core import events as bus
-from sudoo.core import jobs
+from sudoo.core import jobs, resilience
 
 from . import (
     access_requests,
@@ -74,6 +75,7 @@ from . import (
     domains,
     explain,
     github,
+    health,
     help_panel,
     imports,
     instances,
@@ -159,6 +161,7 @@ def register(app: Flask) -> None:
         docs,
         help_panel,
         plugins,
+        health,
         shell,
         teams,
         clients,
@@ -166,7 +169,7 @@ def register(app: Flask) -> None:
         premium,
     ):
         api.register_blueprint(module.blueprint)
-    premium.register_packages(api, app)
+    resilience.attempt("premium packages' pages", premium.register_packages, api, app)
     app.register_blueprint(api)
     app.register_blueprint(premium.files)
     bus.present("instance", instance_resource)

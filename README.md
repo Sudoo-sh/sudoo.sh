@@ -98,11 +98,12 @@ environment at all.
 A typical team runs Sudoo.sh on a single rented server with a few gigabytes of memory: the instances in use run,
 the rest wait paused, and the monthly cost stays the server's price however many branches there are.
 
-**Made for:** Odoo partners and integrators (a demo per prospect), in-house Odoo teams (every branch tested before
-production), trainers and schools (an instance per class or student), and freelancers.
+**Made for:** Odoo partners and integrators, in-house Odoo teams (every branch tested before production, and
+production itself), trainers and schools (an instance per class or student), and freelancers.
 
-**Not for:** production databases. Keep live company data on a production host; Sudoo.sh is for everything around
-it (development, demos, tests and training).
+**Production:** supported. A branch in the Production stage is your company's live Odoo: every update to it is backed
+up first, updates are tested on a staging copy before they reach it, and nothing removes a production instance on its
+own. For live company data, use a server sized for it and turn on off-site backups.
 
 ### Sudoo.sh and Odoo.sh
 
@@ -200,7 +201,7 @@ a name yet, their gateway ports, over https) and SSH for administrators; the web
 | **Exposure plugins** (`direct` for new installations; `proxy`, `tunnel`) | Give the panel and every instance a public https address. | Direct serves fixed addresses with certificates from Let's Encrypt on the server's own ports 80 and 443; proxy fits behind an existing reverse proxy; tunnel works without any open port. See [Public addresses](docs/concepts/PUBLIC_ADDRESSES.md). |
 | **Python 3.12+** with type hints | The panel's language. | Same language as Odoo, so every Odoo developer can read and fix it; type hints checked by mypy catch mistakes before they run. |
 | **uv** | Installs the dependencies, from a lock file. | Fast, and every installation (servers, CI, developers) gets exactly the same versions. |
-| **pydantic-settings** | Reads and checks the settings. | Every setting typed and documented in one class; a wrong value stops the panel at start-up with a clear message. |
+| **pydantic-settings** | Reads and checks the settings. | Every setting typed and documented in one class; a wrong value is named at start-up and takes its default. |
 | **Entry-point plugins** | How instances are reached, where Enterprise comes from, what starts updates. | Nothing is forced: each server chooses, and new options are added as plugins without changing the panel. See [Plugins](docs/PLUGINS.md). |
 | **Flask** | The panel's pages and JSON API. | Small, well known, signed session cookies built in. |
 | **Gunicorn** | Serves the Flask app. | Production web server; threads let long actions run without blocking the page. |

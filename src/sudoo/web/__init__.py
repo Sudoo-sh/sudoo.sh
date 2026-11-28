@@ -9,6 +9,7 @@ v1/             the API (/api/v1) and the live event stream
 
 from __future__ import annotations
 
+import secrets
 from datetime import timedelta
 from http import HTTPStatus
 from typing import cast
@@ -19,7 +20,7 @@ from werkzeug.exceptions import HTTPException
 
 from sudoo import accounts, background, exposure, link_deadline, triggers
 from sudoo.config import settings
-from sudoo.core import slots
+from sudoo.core import resilience, slots
 
 from . import docs, security, v1
 
@@ -37,17 +38,40 @@ def default_password_warning() -> str | None:
     )
 
 
+def _https() -> bool:
+    return bool(exposure.provider().https)
+
+
+def health() -> ResponseReturnValue:
+    """GET /healthz, for the container's health check and the web app: 200 "ok", 200 "degraded" while something
+    is wrong that the panel works around (a plugin, a setting, a background job: GET /api/v1/health says what),
+    503 when the panel's own storage cannot be read, so it can serve nothing useful."""
+    try:
+        from sudoo.storage import storage
+
+        storage().get("plugin_failures", "health-check")
+    except Exception:  # noqa: BLE001 - that is the answer
+        return Response("unavailable", status=503, mimetype="text/plain")
+    return Response("degraded" if resilience.problems() else "ok", mimetype="text/plain")
+
+
 def create_app() -> Flask:
-    """Build the panel and start the background work (monitor, gateway, connectors, scheduled jobs)."""
+    """Build the panel and start the background work (monitor, gateway, connectors, scheduled jobs).
+
+    It always returns a panel that answers /healthz, the sign-in and the API: a step that fails (a plugin, a
+    dependency that is down, a setting with a wrong value) is listed for the administrators instead
+    (core/resilience.py), and background work that fails is started again."""
     # a new ODOO_ROOT: the panel's own folder holds its keys and data, readable by root only
-    settings.manager_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    resilience.attempt("panel folder", settings.manager_dir.mkdir, 0o700, True, True)
     app = Flask(__name__, static_folder=None)
     app.config.update(
-        SECRET_KEY=accounts.session_secret(),
+        # a key for this run when the kept one cannot be read or written: sign-ins then last until a restart
+        SECRET_KEY=resilience.attempt("session key", accounts.session_secret, default=secrets.token_hex(64)),
         SESSION_COOKIE_NAME="sudoo_session",
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Strict",
-        SESSION_COOKIE_SECURE=exposure.provider().https,  # https only, when the panel is reached over https
+        # https only, when the panel is reached over https (also when that cannot be told: never sent in clear)
+        SESSION_COOKIE_SECURE=resilience.attempt("exposure", _https, default=True),
         # the cookie's own lifetime; sessions end sooner, as SESSION_MAX_HOURS says now (security.user_of_session)
         PERMANENT_SESSION_LIFETIME=timedelta(days=31),
         MAX_CONTENT_LENGTH=64 * 1024,  # every request is a small JSON object
@@ -59,12 +83,12 @@ def create_app() -> Flask:
     security.install(app)
     from sudoo.premium import servers
 
-    servers.install(app)  # several servers: requests about another server's instances go to its agent
+    resilience.attempt("several servers", servers.install, app)  # requests about another server's instances
     app.register_blueprint(docs.blueprint)
     v1.register(app)
-    app.add_url_rule("/healthz", "health", lambda: "ok")
+    app.add_url_rule("/healthz", "health", health)
     for webhook in triggers.blueprints():  # endpoints of the enabled update triggers, under /hooks/
-        app.register_blueprint(webhook)
+        resilience.attempt("update trigger webhooks", app.register_blueprint, webhook)
 
     @app.errorhandler(HTTPException)
     def http_error(error: HTTPException) -> ResponseReturnValue:
@@ -90,23 +114,27 @@ def create_app() -> Flask:
 
     @app.errorhandler(Exception)
     def unexpected_error(error: Exception) -> ResponseReturnValue:
-        app.logger.exception("unexpected error")
+        """Anything a view (or a plugin it called) raised: a clean answer with the request's id, which the
+        server's log carries next to the error; the worker goes on serving."""
+        from .v1.responses import request_id
+
+        app.logger.exception("unexpected error (request %s)", request_id())
         if request.path.startswith(security.API_PREFIX):
             return v1.problem(500, "Something unexpected went wrong on the server. Quote the request_id.")
-        return jsonify(error="Something unexpected went wrong on the server."), 500
+        return jsonify(error="Something unexpected went wrong on the server.", request_id=request_id()), 500
 
     @app.after_request
     def api_request_id(response: Response) -> Response:
         """Every API answer carries X-Request-ID, also errors raised before a view ran."""
         return v1.add_request_id(response) if request.path.startswith(security.API_PREFIX) else response
 
-    if servers.is_agent():  # a server's agent: no web page, no event stream; the panel passes requests on
-        background.start()
+    if resilience.attempt("several servers", servers.is_agent, default=False):  # a server's agent: no web page,
+        resilience.attempt("background work", background.start)  # no event stream; the panel passes requests on
         return app
-    link_deadline.first_run()  # recorded once, the first time the panel runs (link_deadline.py)
-    background.start()
-    v1.stream.start(app)
-    _start_support_channel(app)
+    resilience.attempt("link deadline", link_deadline.first_run)  # recorded once, the first time the panel runs
+    resilience.attempt("background work", background.start)
+    resilience.attempt("live events", v1.stream.start, app)
+    resilience.attempt("support channel", _start_support_channel, app)
     return app
 
 

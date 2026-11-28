@@ -13,9 +13,9 @@ from typing import Any
 
 from flask import Blueprint
 
-from sudoo import plugins
+from sudoo import plugin_guard, plugins
 from sudoo.config import settings
-from sudoo.core import jobs
+from sudoo.core import jobs, resilience
 from sudoo.instances import operations, store
 from sudoo.triggers.base import RequestUpdate, UpdateTrigger
 
@@ -54,9 +54,14 @@ def _take_pusher(name: str) -> dict[str, str] | None:
 
 @cache
 def enabled() -> list[UpdateTrigger]:
-    """The configured update triggers, each created once."""
+    """The configured update triggers, each created once. One that cannot be loaded is left out (and shown to the
+    administrators, plugin_guard.py); the others work."""
     names = [name.strip() for name in settings.update_triggers.split(",") if name.strip()]
-    return [plugins.load(plugins.UPDATE_TRIGGER_GROUP, name, settings) for name in names]
+    loaded = [plugin_guard.load_safely(plugins.UPDATE_TRIGGER_GROUP, name, settings) for name in names]
+    return [trigger for trigger in loaded if trigger is not None]
+
+
+plugin_guard.on_reset(plugins.UPDATE_TRIGGER_GROUP, enabled.cache_clear)
 
 
 def request_update(name: str, reason: str) -> None:
@@ -116,11 +121,21 @@ def request_update(name: str, reason: str) -> None:
         audit.record("system", None, "automatic update skipped (running limit)", name, ok=False, detail=str(why)[:200])
 
 
+def _name(trigger: UpdateTrigger) -> str:
+    return str(getattr(trigger, "name", "") or type(trigger).__name__)
+
+
 def start_all() -> None:
+    """Start each trigger; one that fails to start is shown to the administrators and never stops the others."""
     for trigger in enabled():
-        trigger.start(request_update)
+        resilience.attempt(f"update trigger {_name(trigger)}", trigger.start, request_update)
 
 
 def blueprints() -> list[Blueprint]:
-    """The HTTP endpoints of the enabled triggers (webhooks)."""
-    return [blueprint for trigger in enabled() if (blueprint := trigger.blueprint()) is not None]
+    """The HTTP endpoints of the enabled triggers (webhooks); a trigger whose endpoint cannot be made has none."""
+    found = []
+    for trigger in enabled():
+        blueprint = resilience.attempt(f"webhook of update trigger {_name(trigger)}", trigger.blueprint)
+        if blueprint is not None:
+            found.append(blueprint)
+    return found

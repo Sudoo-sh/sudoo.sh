@@ -10,7 +10,7 @@ from __future__ import annotations
 from functools import cache
 from typing import Any
 
-from sudoo import plugins
+from sudoo import plugin_guard, plugins
 from sudoo.config import settings
 
 from .base import Mailer, MailError
@@ -20,8 +20,20 @@ __all__ = ["MailError", "Mailer", "mailer", "send"]
 
 @cache
 def mailer() -> Mailer:
-    plugin: Mailer = plugins.load(plugins.MAILER_GROUP, settings.mailer, settings)
+    """The MAILER plugin; the default mailer when it cannot be loaded. An unexpected error from a mailer plugin
+    becomes a MailError, which every sender handles (plugin_guard.py)."""
+    plugin: Mailer = plugin_guard.load_safely(
+        plugins.MAILER_GROUP, settings.mailer, settings, plugin_guard.default_of("mailer"),
+        passthrough=(MailError,), wrap=MailError,
+    )  # fmt: skip
+    if plugin is None:
+        from .none import NoMail
+
+        return NoMail(settings)
     return plugin
+
+
+plugin_guard.on_reset(plugins.MAILER_GROUP, mailer.cache_clear)
 
 
 def send(to: str, key: str, **values: Any) -> None:

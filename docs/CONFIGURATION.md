@@ -21,8 +21,9 @@ A change made in `.env` itself (any class) applies when the containers are recre
 `cd /opt/odoo/manager && docker compose up -d`. A value changed on the Settings page wins over `.env` until it is
 reset with **Use .env**.
 
-* Names are not case sensitive. A wrong value (for example `IDLE_HOURS=soon`) stops the panel at start-up with a
-  message naming the setting; on the Settings page it is refused with the same message.
+* Names are not case sensitive. A wrong value in `.env` (for example `IDLE_HOURS=soon`) does not stop the panel: that
+  setting takes its default, and the administrators see a banner naming the setting and why (never the value). On the
+  Settings page a wrong value is refused with the same message.
 * See what the panel actually uses: `docker exec sudoo-panel sudoo.sh config`.
 * The settings are defined in `src/sudoo/config.py` (the lists `EDITABLE`, `RESTART` and `SECRET`); a test fails when
   one of them is missing here.
@@ -745,6 +746,18 @@ Records what an instance's Odoo workers spend their time on, for up to a few min
 | Setting | Type | Default | Applies | Meaning |
 | :--- | :--- | :--- | :--- | :--- |
 | `AUDIT_EXPORT_MAX_ROWS` | int | `100000` | **live** | Most entries one export of the audit log (CSV or XLSX) contains (100 to 1000000). An export covers a year at most; each export is itself in the audit log. |
+
+### Staying up
+
+What the panel does when something fails: [ADMIN_GUIDE.md, When something fails](ADMIN_GUIDE.md#when-something-fails).
+
+| Setting | Type | Default | Applies | Meaning |
+| :--- | :--- | :--- | :--- | :--- |
+| `PLUGIN_FAILURE_LIMIT` | int | `5` | **live** | Failures in a row after which a plugin is switched off and the built-in default of its group is used instead (also after a restart), until an administrator switches it on again from the health banner. A success resets the count. 0: never switched off. Storage is never switched off while the panel runs. |
+| `BACKGROUND_RESTART_SECONDS` | float | `5` | **live** | Seconds before a background job (monitor, backups, heartbeat, ...) that raised is started again; the pause doubles after each failure in a row (1 to 600). |
+| `BACKGROUND_RESTART_MAX_SECONDS` | float | `300` | **live** | Longest pause before a background job that keeps failing is started again (5 to 86400). |
+| `BACKGROUND_QUEUE_MAX` | int | `10000` | **live** | Alerts and notifications waiting to be delivered, at most (100 to 1000000); beyond that the one due last is dropped and logged, so a mail server or webhook that is down never fills the memory. |
+| `JOB_COMMAND_MAX_HOURS` | float | `24` | **live** | Hours a command of a job (docker, git, a backup) may run when it has no time limit of its own; then it is stopped and the job fails, so a stuck job never holds its instance. 0: no limit. |
 
 ---
 

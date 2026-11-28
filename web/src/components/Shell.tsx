@@ -49,6 +49,7 @@ import { Button, Callout } from "./app/basics";
 import { BackToTop } from "./BackToTop";
 import { CommandButton, CommandPalette } from "./CommandPalette";
 import { HelpButton } from "./HelpPanel";
+import { PanelProblems } from "./Problems";
 import { PageMotion } from "./PageMotion";
 import { PlanBanner } from "./PlanSettings";
 import { MaintenanceBanner } from "./Maintenance";
@@ -574,6 +575,7 @@ export function Shell() {
       <div className="main">
         <Topbar onMenu={() => setMenuOpen(true)} />
         <Reconnecting sync={sync} />
+        <PanelProblems />
         <PluginNotices />
         <RecoveryCodesNotice />
         <PremiumSlot name="shell.banner" />

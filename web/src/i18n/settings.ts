@@ -249,6 +249,10 @@ const en = {
       title: "Monitoring",
       text: "How often figures are measured, and the image of the Cloudflare connector",
     },
+    stayingUp: {
+      title: "When something fails",
+      text: "When a failing plugin is switched off, how soon background work that failed starts again, and the limits that keep a stuck job or a full queue from holding the panel",
+    },
   },
   webhook: (n: number) => `Webhook ${n}`,
   webhookFirst:
@@ -502,6 +506,11 @@ const en = {
     poll_minutes: "Check GitHub every, minutes",
     github_webhook_secret: "GitHub webhook secret",
     metrics_interval_seconds: "Measure every, seconds",
+    plugin_failure_limit: "Switch a plugin off after failures in a row",
+    background_restart_seconds: "First pause before restarting background work, seconds",
+    background_restart_max_seconds: "Longest pause before restarting background work, seconds",
+    background_queue_max: "Alerts and notifications waiting, at most",
+    job_command_max_hours: "Longest command of a job, hours",
     cloudflared_image: "Cloudflare connector image",
     admin_contact_name: "Contact name",
     admin_contact_email: "Contact e-mail",
@@ -1105,6 +1114,15 @@ const en = {
     admin_contact_phone: "Phone number of the contact.",
     admin_contact_email: "E-mail address of the contact.",
     metrics_interval_seconds: "Seconds between two measurements of the server and the instances.",
+    plugin_failure_limit:
+      "Failures in a row after which a plugin is switched off and the panel uses its built-in default instead, until an administrator switches the plugin on again (the banner shown to administrators); 0: never switched off.",
+    background_restart_seconds:
+      "Seconds before a background job that failed is started again; the pause doubles after each failure in a row.",
+    background_restart_max_seconds: "Longest pause before a background job that keeps failing is started again.",
+    background_queue_max:
+      "Alerts and notifications waiting to be delivered, at most; beyond that the oldest waiting one is dropped (and logged), so a mail server or webhook that is down never fills the memory.",
+    job_command_max_hours:
+      "Hours a command of a job (docker, git, a backup) may run when it has no time limit of its own; then it is stopped and the job fails, so a stuck job never holds its instance for good. 0: no limit.",
     daily_backups:
       "Back up every instance that was used since its last daily backup, once a day; each keeps only its latest daily backup.",
     daily_backup_time: "When the daily backups run (HH:MM, 24 hours).",
@@ -1545,6 +1563,10 @@ const ar: typeof en = {
       text: "كيف تصل الشيفرة الجديدة إلى البيئات: كم مرة يُفحص GitHub، وما الذي يبدأ التحديث أيضًا",
     },
     monitoring: { title: "المراقبة", text: "كم مرة تُقاس الأرقام، وصورة موصل Cloudflare" },
+    stayingUp: {
+      title: "عند حدوث عطل",
+      text: "متى تُوقَف الإضافة التي تتعطل، ومتى يُعاد تشغيل عمل الخلفية الذي فشل، والحدود التي تمنع مهمة عالقة أو قائمة انتظار ممتلئة من تعطيل اللوحة",
+    },
   },
   webhook: (n) => `Webhook ${n}`,
   webhookFirst:
@@ -1798,6 +1820,11 @@ const ar: typeof en = {
     poll_minutes: "فحص GitHub كل، بالدقائق",
     github_webhook_secret: "سرّ webhook في GitHub",
     metrics_interval_seconds: "القياس كل، بالثواني",
+    plugin_failure_limit: "إيقاف الإضافة بعد عدد من الأعطال المتتالية",
+    background_restart_seconds: "أول مهلة قبل إعادة تشغيل عمل الخلفية، بالثواني",
+    background_restart_max_seconds: "أطول مهلة قبل إعادة تشغيل عمل الخلفية، بالثواني",
+    background_queue_max: "أقصى عدد للتنبيهات والإشعارات المنتظرة",
+    job_command_max_hours: "أطول مدة لأمر في مهمة، بالساعات",
     cloudflared_image: "صورة موصل Cloudflare",
     admin_contact_name: "اسم جهة التواصل",
     admin_contact_email: "بريد جهة التواصل",
@@ -2382,6 +2409,14 @@ const ar: typeof en = {
     admin_contact_phone: "هاتف جهة التواصل.",
     admin_contact_email: "بريد جهة التواصل.",
     metrics_interval_seconds: "الثواني بين قياسين للخادم والبيئات.",
+    plugin_failure_limit:
+      "عدد الأعطال المتتالية التي تُوقَف بعدها الإضافة وتستخدم اللوحة بدلاً منها الإضافة المدمجة، حتى يعيد مسؤول تشغيلها؛ 0: لا تُوقَف أبداً.",
+    background_restart_seconds: "الثواني قبل إعادة تشغيل عمل خلفية فشل؛ وتتضاعف المهلة بعد كل فشل متتالٍ.",
+    background_restart_max_seconds: "أطول مهلة قبل إعادة تشغيل عمل خلفية يستمر في الفشل.",
+    background_queue_max:
+      "أقصى عدد للتنبيهات والإشعارات التي تنتظر الإرسال؛ وما زاد عليه يُحذف أقدمها (ويُسجَّل ذلك)، كي لا يملأ خادم بريد أو Webhook متوقف الذاكرة.",
+    job_command_max_hours:
+      "الساعات التي يُسمح بها لأمر في مهمة (docker أو git أو نسخة احتياطية) ليس له حد زمني خاص؛ ثم يُوقَف وتفشل المهمة، كي لا تحجز مهمة عالقة بيئتها إلى الأبد. 0: بلا حد.",
     daily_backups:
       "انسخ احتياطيًا مرة في اليوم كل بيئة استُخدمت منذ آخر نسخة يومية لها؛ وتحتفظ كل بيئة بآخر نسخة يومية فقط.",
     daily_backup_time: "وقت تشغيل النسخ الاحتياطية اليومية (HH:MM، بنظام 24 ساعة).",

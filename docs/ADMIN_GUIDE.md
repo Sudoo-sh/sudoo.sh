@@ -557,8 +557,10 @@ comments is `.env.example`. To see what the panel is actually using, and which p
 docker exec sudoo-panel sudoo.sh config
 ```
 
-A wrong value in `.env` (for example `IDLE_HOURS=soon`) or an unknown plugin name stops the panel at start-up, and
-`docker logs sudoo-panel` names the setting. The Settings page checks every value before saving it.
+A wrong value in `.env` (for example `IDLE_HOURS=soon`) or an unknown plugin name does not stop the panel: the
+setting takes its default (a plugin, its group's built-in one), and administrators see a banner naming it
+([When something fails](#when-something-fails)); `docker logs sudoo-panel` names it too. The Settings page checks
+every value before saving it.
 
 While `ODOO_ADMIN_PASSWORD` is still the well-known `admin` (a setup made by hand; the installer sets a random
 one), the panel warns in its log at start-up, shows admins a standing alert in the bell (with a link to the setting
@@ -1187,7 +1189,8 @@ After installing or updating:
 | The panel's link does not open | The link changed after a restart | `docker exec sudoo-panel sudoo.sh urls` |
 | No link at all | `sudoo-panel` or the connector is not running | `docker ps -a`, `docker logs sudoo-panel`, then `cd /opt/odoo/manager && docker compose up -d` |
 | The link opens but shows an error, or nothing | `sudoo-web` is not running or not starting | `docker logs sudoo-web`, then `cd /opt/odoo/manager && docker compose up -d` |
-| `sudoo-panel` keeps restarting | A wrong value in `.env`, or an unknown plugin name | `docker logs sudoo-panel` names the setting; fix it in `.env` and run `docker compose up -d` in `/opt/odoo/manager` |
+| A red or yellow banner "Something is wrong with the panel" | A plugin failed, a setting has a wrong value, part of the panel did not start or a background job keeps failing; the panel works around it | The banner says what and why ([When something fails](#when-something-fails)); fix the cause, then **Switch on again** for a plugin that was switched off |
+| `sudoo-panel` is "unhealthy" | `/healthz` answers 503: the panel's own storage (`/opt/odoo/manager`) cannot be read | `docker logs sudoo-panel`; check the disk (`df -h`) and the folder's permissions |
 | The setup code was lost | It is only printed once by the installer | `docker exec sudoo-panel sudoo.sh setup-code` |
 | The setup page refuses even the right code | 5 wrong setup codes within 15 minutes blocked the address | Wait 15 minutes; check the code with `sudoo.sh setup-code` |
 | Nobody can sign in (password lost, last super admin locked out) | | `sudoo.sh reset-password NAME`, or `sudoo.sh create-user NAME super_admin` ([section 11](#11-accounts-from-the-command-line)) |
@@ -1222,6 +1225,26 @@ After installing or updating:
 | The browser warns about the panel's certificate | `EXPOSURE=direct` without a name for the panel: it uses its own certificate | Point a name at the server and set **Panel's name** (`PANEL_DOMAIN`) |
 | The panel's name has no certificate | Port 80 is closed, or the name does not point at the server | Open TCP 80 and 443; check the name's A/AAAA records; **Settings, Addresses and domains** shows the reason |
 
+
+### When something fails
+
+The panel is built to stay up whatever goes wrong inside it, and to say what went wrong:
+
+| What fails | What the panel does |
+| :--- | :--- |
+| A plugin cannot be imported or created (sign-in, second factor, storage, e-mail, rate limits, exposure, Enterprise add-on source, update trigger) | It is marked failed with the error (passwords and tokens removed), logged and written to the audit log. The built-in default is used instead: the panel's own accounts, its own storage, the default mailer, the built-in rate limiter, the default exposure. A failed Enterprise source turns only Enterprise off; a failed update trigger or second factor leaves only itself out. |
+| A second-factor plugin fails | It is still asked for (shown as "not available right now"): an account that set it up is never let in without a second factor because it broke. It signs in with another factor it set up, or a recovery code. |
+| A plugin raises on a call | Counted and shown the same way. Sign-in and rate limits are answered by the built-in default for that call; an e-mail plugin's error is an e-mail error the panel already handles. After `PLUGIN_FAILURE_LIMIT` failures in a row (5) it is switched off until an administrator clicks **Switch on again** in the banner. |
+| A setting has a wrong value | That setting takes its default; the banner names it. |
+| Docker, the database, the mail server or the hub do not answer when the panel starts | The panel starts anyway (health check, sign-in, the banner); the work that needs them is tried again with growing pauses until they answer. |
+| A request raises | A clean error with a `request_id`; the same id is in `docker logs sudoo-panel` next to the error. The panel goes on serving. |
+| A background job raises (monitor, backups, heartbeat, ...) | It is started again after `BACKGROUND_RESTART_SECONDS`, doubling up to `BACKGROUND_RESTART_MAX_SECONDS`; the other jobs never notice. |
+| A job's command hangs | It is stopped after `JOB_COMMAND_MAX_HOURS` when it has no limit of its own, and the job fails. |
+| The panel's process exits | Docker starts it again (`restart: unless-stopped`). |
+
+`GET /api/v1/health` (super admins and administrators) lists the same problems. `/healthz`, which Docker's health
+check calls, answers `ok`, `degraded` (the panel works around a problem: see the banner) or, with 503,
+`unavailable` when the panel's own storage cannot be read.
 
 ### Installer checks
 

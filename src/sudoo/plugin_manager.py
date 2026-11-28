@@ -563,6 +563,15 @@ def check_package(archive: zipfile.ZipFile, plugin_id: str, version: str) -> dic
     return manifest
 
 
+def plugin_id_of(entry: Any) -> str | None:
+    """The id of the installed plugin providing `entry`, or None when the entry point comes from the panel's own
+    environment (a built-in package, a premium package or one added to it)."""
+    for plugin_id in records():
+        if _belongs_to(entry, plugin_id) and plugin_id in (LOADED or set()):
+            return plugin_id
+    return None
+
+
 def _belongs_to(entry: Any, plugin_id: str) -> bool:
     dist = getattr(entry, "dist", None)
     name = getattr(getattr(dist, "metadata", None), "get", lambda _k, _d=None: None)("Name", None)

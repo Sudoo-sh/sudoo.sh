@@ -12,7 +12,7 @@ import threading
 from functools import cache
 from pathlib import Path
 
-from sudoo import plugins
+from sudoo import plugin_guard, plugins
 from sudoo.addons.base import AddonSource, Log
 from sudoo.config import settings
 
@@ -28,20 +28,36 @@ def enterprise() -> AddonSource | None:
     """The configured source of Enterprise add-ons, created once; None when Enterprise is turned off."""
     if settings.enterprise_source == "none":
         return None
-    source: AddonSource = plugins.load(plugins.ADDON_SOURCE_GROUP, settings.enterprise_source, settings)
+    # a source that cannot be loaded turns Enterprise off, with the reason shown to the administrators
+    source: AddonSource | None = plugin_guard.load_safely(
+        plugins.ADDON_SOURCE_GROUP, settings.enterprise_source, settings
+    )
     return source
 
 
+plugin_guard.on_reset(plugins.ADDON_SOURCE_GROUP, enterprise.cache_clear)
+
+
 def available(version: str) -> bool:
-    """True when Enterprise can be offered for `version`."""
+    """True when Enterprise can be offered for `version` (False when the source fails to answer)."""
     source = enterprise()
-    return source is not None and source.available(version)
+    if source is None:
+        return False
+    try:
+        return bool(source.available(version))
+    except Exception:  # noqa: BLE001 - counted and shown by the plugin's guard; Enterprise is not offered meanwhile
+        return False
 
 
 def prepare(version: str, log: Log) -> Path:
     """Make the Enterprise add-ons of `version` ready and return their folder on the server."""
     source = enterprise()
     if source is None:
+        if settings.enterprise_source != "none":
+            raise RuntimeError(
+                f'The Enterprise add-on source "{settings.enterprise_source}" failed to load, so Enterprise is off; '
+                "an administrator sees why on the panel's health banner."
+            )
         raise RuntimeError("Enterprise is turned off on this server (ENTERPRISE_SOURCE=none).")
     folder = source.prepare(version, log)
     with _PREPARED_LOCK:
